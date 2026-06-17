@@ -31,10 +31,10 @@ try {
     echo "schema.sql 読み込み: OK (" . strlen($sql) . " bytes)\n\n";
 
     // SQL分割・実行
-    // まずコメントを保持しつつセミコロンで分割
+    // セミコロンで分割（コメントフィルタは後の$cleanで処理するためここでは空文字のみ除外）
     $statements = array_filter(
         array_map('trim', explode(';', $sql)),
-        fn($s) => !empty($s) && !preg_match('/^\s*(--.*)?\s*$/s', $s)
+        fn($s) => !empty($s)
     );
 
     echo count($statements) . " statements found\n\n";

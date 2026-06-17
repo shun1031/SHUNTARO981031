@@ -3,6 +3,9 @@ FROM php:8.2-apache
 # PDO MySQL 拡張をインストール
 RUN docker-php-ext-install pdo pdo_mysql
 
+# MPM競合を解消（mpm_event無効 → mpm_prefork有効）
+RUN a2dismod mpm_event || true && a2enmod mpm_prefork
+
 # mod_rewrite 有効化（.htaccess用）
 RUN a2enmod rewrite
 

@@ -1,0 +1,68 @@
+/* ============================================
+   bMS 評価システム スタイルシート
+   ============================================ */
+
+/* Eval Stepper */
+.eval-stepper { display:flex; justify-content:space-between; margin:1.5rem 0; }
+.eval-stepper .step { text-align:center; flex:1; position:relative; }
+.eval-stepper .step::after { content:''; position:absolute; top:15px; left:50%; width:100%; height:2px; background:#dee2e6; z-index:0; }
+.eval-stepper .step:last-child::after { display:none; }
+.eval-stepper .step .circle { width:32px; height:32px; border-radius:50%; background:#dee2e6; display:inline-flex; align-items:center; justify-content:center; position:relative; z-index:1; font-size:0.8rem; color:#fff; transition:all 0.3s; }
+.eval-stepper .step.active .circle { background:#3498db; box-shadow:0 0 0 4px rgba(52,152,219,.2); }
+.eval-stepper .step.completed .circle { background:#27ae60; }
+.eval-stepper .step.completed::after { background:#27ae60; }
+.eval-stepper .step .label { display:block; font-size:0.75rem; margin-top:0.3rem; color:#6c757d; }
+.eval-stepper .step.active .label { color:#3498db; font-weight:600; }
+
+/* Axis colors */
+.eval-performance { border-left:3px solid #3498db; }
+.eval-action { border-left:3px solid #27ae60; }
+.eval-competency { border-left:3px solid #9b59b6; }
+
+/* Score badge */
+.score-badge { display:inline-flex; align-items:center; justify-content:center; width:50px; height:50px; border-radius:50%; font-weight:bold; font-size:1.1rem; color:#fff; }
+.score-badge-perf { background:#3498db; }
+.score-badge-action { background:#27ae60; }
+.score-badge-comp { background:#9b59b6; }
+
+/* Grade */
+.grade-badge { font-size:1.5rem; font-weight:bold; }
+
+/* Praise cards */
+.praise-card { border-left:3px solid #f39c12; padding:0.75rem; margin-bottom:0.5rem; background:#fff; border-radius:0 8px 8px 0; box-shadow:0 1px 3px rgba(0,0,0,.06); transition:transform 0.15s; }
+.praise-card:hover { transform:translateX(2px); }
+.praise-timeline .praise-card + .praise-card { margin-top:0.5rem; }
+
+/* Competency levels */
+.competency-levels { display:flex; gap:0.5rem; flex-wrap:wrap; }
+.competency-levels label { cursor:pointer; padding:0.3rem 0.8rem; border:1px solid #dee2e6; border-radius:20px; font-size:0.85rem; transition:all 0.2s; }
+.competency-levels input:checked + label { background:#9b59b6; color:#fff; border-color:#9b59b6; }
+.competency-levels input { display:none; }
+
+/* Read-only eval block */
+.eval-readonly { background:#f8f9fa; border-radius:8px; padding:1rem; }
+
+/* Adjustment grid */
+.grade-column { min-height:300px; border:1px dashed #dee2e6; border-radius:8px; padding:0.5rem; }
+.grade-column .card { margin-bottom:0.5rem; cursor:pointer; transition:box-shadow 0.2s; }
+.grade-column .card:hover { box-shadow:0 2px 8px rgba(0,0,0,.12); }
+
+/* Eval rate badge */
+.eval-rate { font-size:0.85rem; min-width:60px; text-align:center; }
+
+/* Tab active state */
+.nav-tabs .nav-link.active { font-weight:600; }
+
+/* Quick stat card */
+.quick-stat { text-align:center; padding:1rem; }
+.quick-stat .value { font-size:2rem; font-weight:bold; }
+.quick-stat .label { font-size:0.8rem; color:#6c757d; }
+
+/* Responsive */
+@media (max-width:768px) {
+    .eval-stepper .step .label { font-size:0.65rem; }
+    .eval-stepper .step .circle { width:26px; height:26px; font-size:0.7rem; }
+    .competency-levels { gap:0.3rem; }
+    .competency-levels label { padding:0.2rem 0.5rem; font-size:0.75rem; }
+    .grade-column { min-height:200px; }
+}

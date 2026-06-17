@@ -1,0 +1,14 @@
+# セキュリティ設定
+Options -Indexes
+
+# 不要ファイルへのアクセス制限
+<FilesMatch "\.(sql|md|json|lock|env|bak|old|log|py|sh)$">
+    Require all denied
+</FilesMatch>
+
+# HTTPS強制（Xserver本番のみ・ローカル開発時はコメントアウト）
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteCond %{HTTPS} off
+#     RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>

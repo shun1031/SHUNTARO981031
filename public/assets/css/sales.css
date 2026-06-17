@@ -1,0 +1,208 @@
+/* ============================================================
+   売上管理モジュール スタイル
+   ============================================================ */
+
+/* KPIカード */
+.sales-kpi {
+    text-align: center;
+    padding: 1.2rem 1rem;
+    border-radius: var(--r-xl, 16px);
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    transition: all .2s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.sales-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.06);
+}
+.sales-kpi .kpi-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.sales-kpi .kpi-label {
+    font-size: .72rem;
+    color: #6b7280;
+    margin-top: .3rem;
+}
+.sales-kpi .kpi-sub {
+    font-size: .68rem;
+    color: #9ca3af;
+    margin-top: .15rem;
+}
+.sales-kpi .kpi-badge {
+    display: inline-block;
+    font-size: .65rem;
+    padding: .15rem .5rem;
+    border-radius: 20px;
+    margin-top: .4rem;
+}
+.kpi-up { background: #ecfdf5; color: #059669; }
+.kpi-down { background: #fef2f2; color: #dc2626; }
+
+/* 案件テーブル */
+.sales-table th {
+    font-size: .72rem;
+    font-weight: 600;
+    color: #6b7280;
+    white-space: nowrap;
+    padding: .5rem .6rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+.sales-table td {
+    font-size: .78rem;
+    padding: .5rem .6rem;
+    vertical-align: middle;
+}
+.sales-table .amount {
+    font-family: 'Noto Sans JP', monospace;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+}
+.sales-table .amount-positive { color: #059669; }
+.sales-table .amount-negative { color: #dc2626; }
+
+/* 案件フォーム */
+.case-form .form-label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: .25rem;
+}
+.case-form .form-control,
+.case-form .form-select {
+    font-size: .82rem;
+    border-radius: 8px;
+}
+.case-form .calc-field {
+    background: #f0fdf4;
+    font-weight: 600;
+    color: #059669;
+}
+
+/* スタッフ区分バッジ */
+.wt-badge {
+    font-size: .65rem;
+    padding: .2rem .5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.wt-正社員 { background: #dbeafe; color: #1d4ed8; }
+.wt-自社外注 { background: #e0f2fe; color: #0369a1; }
+.wt-アライアンス { background: #dcfce7; color: #15803d; }
+.wt-個人外注 { background: #fef3c7; color: #b45309; }
+.wt-アルバイト { background: #f3f4f6; color: #6b7280; }
+
+/* 年間シートテーブル */
+.annual-table {
+    font-size: .72rem;
+}
+.annual-table th {
+    font-size: .68rem;
+    font-weight: 600;
+    padding: .4rem .5rem;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 2;
+}
+.annual-table td {
+    padding: .35rem .5rem;
+    text-align: right;
+    white-space: nowrap;
+    font-family: 'Noto Sans JP', monospace;
+}
+.annual-table .row-label {
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 1;
+}
+.annual-table .total-col {
+    background: #f0fdf4;
+    font-weight: 700;
+}
+.annual-table .section-header {
+    background: #f9fafb;
+    font-weight: 700;
+    text-align: left !important;
+}
+
+/* フィルタバー */
+.sales-filters {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+.sales-filters .form-select,
+.sales-filters .form-control {
+    font-size: .78rem;
+    border-radius: 8px;
+    max-width: 180px;
+}
+
+/* 達成率バー */
+.achievement-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: #e5e7eb;
+    overflow: hidden;
+}
+.achievement-bar .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width .6s ease;
+}
+.achievement-bar .bar-fill.over { background: linear-gradient(90deg, #059669, #34d399); }
+.achievement-bar .bar-fill.good { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.achievement-bar .bar-fill.low { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.achievement-bar .bar-fill.danger { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* チャートコンテナ */
+.sales-chart-wrap {
+    position: relative;
+    height: 300px;
+}
+@media (max-width: 768px) {
+    .sales-chart-wrap { height: 220px; }
+    .sales-kpi .kpi-value { font-size: 1.2rem; }
+}
+
+/* 取引先レポート */
+.client-rank {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    font-size: .7rem;
+    font-weight: 700;
+    margin-right: .4rem;
+}
+.client-rank.rank-1 { background: #fef3c7; color: #b45309; }
+.client-rank.rank-2 { background: #e5e7eb; color: #374151; }
+.client-rank.rank-3 { background: #fed7aa; color: #9a3412; }
+.client-rank.rank-other { background: #f3f4f6; color: #9ca3af; }
+
+/* ステータスバッジ */
+.status-confirmed { background: #dcfce7; color: #15803d; }
+.status-draft { background: #fef3c7; color: #b45309; }
+.status-cancelled { background: #fee2e2; color: #dc2626; text-decoration: line-through; }
+
+/* タブナビ override */
+.nav-tabs .nav-link {
+    font-size: .8rem;
+    padding: .5rem 1rem;
+}

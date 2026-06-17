@@ -1,0 +1,61 @@
+# ==========================================
+# bMS 人事・売上統合システム .gitignore
+# ==========================================
+
+# --- 機密情報（絶対コミット禁止） ---
+config/*.local.php
+.env
+.env.*
+!.env.example
+
+# --- ログ ---
+logs/*.log
+logs/*.txt
+*.log
+firebase-debug.log
+
+# --- バックアップ ---
+backups/
+*.bak
+*.backup
+*.sql.gz
+*.tar.gz
+
+# --- アップロードされたユーザーデータ ---
+uploads/
+public/assets/images/employees/*
+!public/assets/images/employees/.gitkeep
+
+# --- OS / エディタ固有 ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# --- Playwright / MCP デバッグ出力 ---
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# --- PHP 依存 / キャッシュ ---
+vendor/
+composer.lock
+*.cache
+
+# --- Python（deploy_ftp.py 関連） ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- アーカイブ（作業用ファイル・過去のダンプ） ---
+archive/
+
+# --- 一時ファイル ---
+tmp/
+temp/
+*.tmp

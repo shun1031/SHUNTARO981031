@@ -1,0 +1,33 @@
+# configとincludesへの直接アクセスを禁止
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^config/ - [F,L]
+    RewriteRule ^includes/ - [F,L]
+    RewriteRule ^sql/ - [F,L]
+    RewriteRule ^docs/ - [F,L]
+    RewriteRule ^backups/ - [F,L]
+    RewriteRule ^archive/ - [F,L]
+
+    # デバッグ・マイグレーション・シードファイルへのアクセス禁止
+    RewriteRule ^(debug_|test_|check_|fix_|import_|run_migration|run_delete|seed_|cron_)[^/]*\.php$ - [F,L]
+    RewriteRule ^install\.php$ - [F,L]
+
+    # HTTPS強制（Xserver本番のみ・ローカル開発時はコメントアウト）
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# deploy_ftp.py等の非PHPスクリプトをブロック
+<FilesMatch "\.(py|sh|env|bak|old|log|sql|git)$">
+    Require all denied
+</FilesMatch>
+
+# .env / .env.* / .gitignore などドットファイル全般をブロック
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# .git ディレクトリへのアクセス禁止
+<IfModule mod_rewrite.c>
+    RedirectMatch 404 /\.git
+</IfModule>

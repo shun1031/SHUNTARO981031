@@ -231,6 +231,51 @@ $fmtYoy = function($cur, $prev, $unit = '') {
 $achRate = $kpis['achievement_rate'];
 $barClass = $achRate >= 100 ? 'over' : ($achRate >= 80 ? 'good' : ($achRate >= 50 ? 'low' : 'danger'));
 
+// 集計カード用データ（年度）
+$_sDb = getDB();
+// クライアント別売上（年度）
+$_clientFySql = "
+    SELECT cl.client_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue
+    FROM sales_cases sc
+    JOIN sales_clients cl ON sc.client_id = cl.id
+    WHERE sc.company_id = ? AND sc.status = 'confirmed'
+      AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
+    GROUP BY cl.id, cl.client_name ORDER BY revenue DESC";
+$_s = $_sDb->prepare($_clientFySql);
+$_s->execute([$cid, $year-1, $year]);
+$clientFyRows = $_s->fetchAll();
+// アライアンス別売上（年度）
+$_allianceFySql = "
+    SELECT al.alliance_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue
+    FROM sales_cases sc
+    JOIN sales_alliances al ON sc.alliance_id = al.id
+    WHERE sc.company_id = ? AND sc.status = 'confirmed'
+      AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
+    GROUP BY al.id, al.alliance_name ORDER BY revenue DESC";
+$_s = $_sDb->prepare($_allianceFySql);
+$_s->execute([$cid, $year-1, $year]);
+$allianceFyRows = $_s->fetchAll();
+// 営業マン別売上（年度）
+$_repFySql = "
+    SELECT sales_rep AS name, COALESCE(SUM(revenue),0) AS revenue
+    FROM sales_cases
+    WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
+      AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+    GROUP BY sales_rep ORDER BY revenue DESC";
+$_s = $_sDb->prepare($_repFySql);
+$_s->execute([$cid, $year-1, $year]);
+$repFyRows = $_s->fetchAll();
+// キャリア別売上（年度）
+$_carrierFySql = "
+    SELECT carrier AS name, COALESCE(SUM(revenue),0) AS revenue
+    FROM sales_cases
+    WHERE company_id = ? AND status = 'confirmed' AND carrier IS NOT NULL AND carrier != ''
+      AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+    GROUP BY carrier ORDER BY revenue DESC";
+$_s = $_sDb->prepare($_carrierFySql);
+$_s->execute([$cid, $year-1, $year]);
+$carrierFyRows = $_s->fetchAll();
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -460,6 +505,136 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="sales-chart-wrap" style="height:200px"><canvas id="staffPieChart"></canvas></div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 集計カード行1: クライアント別売上 + アライアンス別売上 -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上</span>
+                    <?php if (count($clientFyRows) > 5): ?>
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'clientFyTable')" data-expanded="0">全て表示</button>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="clientFyTable">
+                        <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end" style="padding-right:.75rem">売上</th></tr></thead>
+                        <tbody>
+                            <?php if ($clientFyRows): ?>
+                            <?php foreach ($clientFyRows as $i => $row): ?>
+                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                <td class="text-end" style="padding-right:.75rem"><?= number_format($row['revenue']) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php else: ?>
+                            <tr><td colspan="2" class="text-center text-muted small p-3">データなし</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上</span>
+                    <?php if (count($allianceFyRows) > 5): ?>
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'allianceFyTable')" data-expanded="0">全て表示</button>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="allianceFyTable">
+                        <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end" style="padding-right:.75rem">売上</th></tr></thead>
+                        <tbody>
+                            <?php if ($allianceFyRows): ?>
+                            <?php foreach ($allianceFyRows as $i => $row): ?>
+                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                <td class="text-end" style="padding-right:.75rem"><?= number_format($row['revenue']) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php else: ?>
+                            <tr><td colspan="2" class="text-center text-muted small p-3">データなし</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 集計カード行2: 営業マン別売上 + 営業マンの行動数 -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上</span>
+                    <?php if (count($repFyRows) > 5): ?>
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'repFyTable')" data-expanded="0">全て表示</button>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="repFyTable">
+                        <thead class="table-light"><tr><th style="padding-left:.75rem">氏名</th><th class="text-end" style="padding-right:.75rem">売上</th></tr></thead>
+                        <tbody>
+                            <?php if ($repFyRows): ?>
+                            <?php foreach ($repFyRows as $i => $row): ?>
+                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                <td class="text-end" style="padding-right:.75rem"><?= number_format($row['revenue']) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php else: ?>
+                            <tr><td colspan="2" class="text-center text-muted small p-3">データなし</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <span><i class="bi bi-activity me-1" style="color:#ef4444"></i>営業マンの行動数</span>
+                </div>
+                <div class="card-body d-flex align-items-center justify-content-center">
+                    <p class="text-muted small mb-0"><i class="bi bi-hourglass-split me-1"></i>準備中</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 集計カード行3: キャリア別売上 -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上</span>
+                    <?php if (count($carrierFyRows) > 3): ?>
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">全て表示</button>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="carrierFyTable">
+                        <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end" style="padding-right:.75rem">売上</th></tr></thead>
+                        <tbody>
+                            <?php if ($carrierFyRows): ?>
+                            <?php foreach ($carrierFyRows as $i => $row): ?>
+                            <tr <?= $i >= 3 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                <td class="text-end" style="padding-right:.75rem"><?= number_format($row['revenue']) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php else: ?>
+                            <tr><td colspan="2" class="text-center text-muted small p-3">データなし</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -966,6 +1141,17 @@ $inlineJs .= <<<'FYJS'
     }
 })();
 FYJS;
+
+$inlineJs .= <<<'EXPANDJS'
+function toggleExpand(btn, tableId) {
+    var table = document.getElementById(tableId);
+    var extras = table.querySelectorAll('.extra-row');
+    var expanded = btn.dataset.expanded === '1';
+    extras.forEach(function(r) { r.style.display = expanded ? 'none' : ''; });
+    btn.textContent = expanded ? '全て表示' : '閉じる';
+    btn.dataset.expanded = expanded ? '0' : '1';
+}
+EXPANDJS;
 
 require_once __DIR__ . '/../includes/footer.php';
 ?>

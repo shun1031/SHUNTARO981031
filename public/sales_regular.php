@@ -24,9 +24,19 @@ if (isset($_GET['export'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
     $action = $_POST['action'] ?? '';
     if ($action === 'create' || $action === 'update') {
+        // 取引先: IDがない場合は名前で検索、なければ新規登録
+        $_clientId = ($_POST['client_id'] ?? '') ?: null;
+        $_clientNameInput = trim($_POST['client_name_input'] ?? '');
+        if (!$_clientId && $_clientNameInput) {
+            $_cdb = getDB();
+            $_cs = $_cdb->prepare('SELECT id FROM sales_clients WHERE company_id = ? AND client_name = ? LIMIT 1');
+            $_cs->execute([$cid, $_clientNameInput]);
+            $_existingCid = $_cs->fetchColumn();
+            $_clientId = $_existingCid ? (int)$_existingCid : createSalesClient($cid, ['client_name' => $_clientNameInput]);
+        }
         $data = [
             'case_type'      => 'regular',
-            'client_id'      => ($_POST['client_id'] ?? '') ?: null,
+            'client_id'      => $_clientId,
             'start_date'     => ($_POST['start_date'] ?? '') ? $_POST['start_date'] . '-01' : '',
             'end_date'       => ($_POST['end_date'] ?? '') ? $_POST['end_date'] . '-01' : '',
             'sales_rep'      => trim($_POST['sales_rep'] ?? ''),
@@ -227,27 +237,25 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="row g-3">
                     <div class="col-12">
                         <label class="form-label fw-medium">取引先</label>
-                        <select name="client_id" id="f_client_id" class="form-select">
-                            <option value="">-- 選択 --</option>
+                        <input type="text" id="f_client_name_input" class="form-control" list="clientDatalist" placeholder="選択または直接入力" autocomplete="off">
+                        <input type="hidden" name="client_id" id="f_client_id" value="">
+                        <input type="hidden" name="client_name_input" id="f_client_name_hidden" value="">
+                        <datalist id="clientDatalist">
                             <?php foreach ($clients as $cl): ?>
-                            <option value="<?= $cl['id'] ?>"><?= h($cl['client_name']) ?></option>
+                            <option value="<?= h($cl['client_name']) ?>"></option>
                             <?php endforeach; ?>
-                        </select>
+                        </datalist>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-medium">開始月 <span class="text-danger">*</span></label>
                         <input type="month" name="start_date" id="f_start_date" class="form-control" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-medium">終了月</label>
-                        <input type="month" name="end_date" id="f_end_date" class="form-control">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">営業担当</label>
                         <input type="text" name="sales_rep" id="f_sales_rep" class="form-control">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">マネージャー</label>
+                        <label class="form-label fw-medium">管理者</label>
                         <input type="text" name="manager_name" id="f_manager_name" class="form-control">
                     </div>
                     <div class="col-md-4">
@@ -289,17 +297,9 @@ require_once __DIR__ . '/../includes/header.php';
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">エリア</label>
-                        <select name="area_id" id="f_area_id" class="form-select">
-                            <option value="">-- 選択 --</option>
-                            <?php foreach ($areas as $ar): ?>
-                            <option value="<?= $ar['id'] ?>"><?= h($ar['area_name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
                         <label class="form-label fw-medium">店舗名</label>
                         <input type="text" name="store_name" id="f_store_name" class="form-control">
+                        <div class="form-text text-danger">【正式名称で入力】</div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-medium">請求単価(月)</label>
@@ -310,15 +310,14 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="number" name="unit_price_out" id="unit_price_out" class="form-control" step="1" min="0" value="0">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label fw-medium">月数</label>
+                        <label class="form-label fw-medium">稼働日数</label>
                         <input type="number" name="months_count" id="days_worked" class="form-control" step="1" min="1" value="1">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-medium">ステータス</label>
                         <select name="status" id="f_status" class="form-select">
                             <option value="confirmed">確定</option>
-                            <option value="draft">ドラフト</option>
-                            <option value="cancelled">キャンセル</option>
+                            <option value="draft">未確定</option>
                         </select>
                     </div>
                     <div class="col-12">
@@ -356,7 +355,22 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php
-$inlineJs = <<<'JS'
+$_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['client_name']], $clients)));
+$inlineJs = 'var clientsData = ' . $_clientsJson . ';';
+$inlineJs .= <<<'JS'
+
+// 取引先 datalist 選択/入力ハンドラ
+(function() {
+    var inp = document.getElementById('f_client_name_input');
+    if (!inp) return;
+    inp.addEventListener('input', function() {
+        var name = this.value.trim();
+        var match = clientsData.find(function(c) { return c.name === name; });
+        document.getElementById('f_client_id').value = match ? match.id : '';
+        document.getElementById('f_client_name_hidden').value = name;
+    });
+})();
+
 function toggleAllianceGroup() {
     var wt = document.getElementById('worker_type').value;
     var ag = document.getElementById('alliance_group');
@@ -367,9 +381,10 @@ function resetCaseForm() {
     document.getElementById('form_id').value = '';
     document.getElementById('modalTitle').textContent = '常勤案件追加';
     document.getElementById('submitBtn').textContent = '追加';
+    document.getElementById('f_client_name_input').value = '';
     document.getElementById('f_client_id').value = '';
+    document.getElementById('f_client_name_hidden').value = '';
     document.getElementById('f_start_date').value = '';
-    document.getElementById('f_end_date').value = '';
     document.getElementById('f_sales_rep').value = '';
     document.getElementById('f_manager_name').value = '';
     document.getElementById('f_recruiter_name').value = '';
@@ -377,7 +392,6 @@ function resetCaseForm() {
     document.getElementById('f_alliance_id').value = '';
     document.getElementById('f_worker_name').value = '';
     document.getElementById('f_carrier').value = '';
-    document.getElementById('f_area_id').value = '';
     document.getElementById('f_store_name').value = '';
     document.getElementById('unit_price_in').value = 0;
     document.getElementById('unit_price_out').value = 0;
@@ -392,9 +406,10 @@ function editCase(c) {
     document.getElementById('form_id').value = c.id;
     document.getElementById('modalTitle').textContent = '常勤案件編集 #' + c.id;
     document.getElementById('submitBtn').textContent = '更新';
+    document.getElementById('f_client_name_input').value = c.client_name || '';
     document.getElementById('f_client_id').value = c.client_id || '';
+    document.getElementById('f_client_name_hidden').value = c.client_name || '';
     document.getElementById('f_start_date').value = c.start_date ? c.start_date.substring(0,7) : '';
-    document.getElementById('f_end_date').value = c.end_date ? c.end_date.substring(0,7) : '';
     document.getElementById('f_sales_rep').value = c.sales_rep || '';
     document.getElementById('f_manager_name').value = c.manager || '';
     document.getElementById('f_recruiter_name').value = c.recruiter || '';
@@ -402,7 +417,6 @@ function editCase(c) {
     document.getElementById('f_alliance_id').value = c.alliance_id || '';
     document.getElementById('f_worker_name').value = c.worker_name || '';
     document.getElementById('f_carrier').value = c.carrier || '';
-    document.getElementById('f_area_id').value = c.area_id || '';
     document.getElementById('f_store_name').value = c.store_name || '';
     document.getElementById('unit_price_in').value = c.unit_price_in || 0;
     document.getElementById('unit_price_out').value = c.unit_price_out || 0;

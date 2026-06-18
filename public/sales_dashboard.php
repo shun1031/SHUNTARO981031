@@ -72,6 +72,22 @@ $fyRevMap = [];
 foreach ($fyCasesStmt->fetchAll() as $r) {
     $fyRevMap[$r['case_year']][$r['case_month']] = ['rev' => (int)$r['rev'], 'profit' => (int)$r['profit']];
 }
+// 月別売上・粗利（常勤/イベント別）
+$fyTypeStmt = $fyDb->prepare("
+    SELECT case_year, case_month, case_type,
+           COALESCE(SUM(revenue),0) AS rev, COALESCE(SUM(gross_profit),0) AS profit
+    FROM sales_cases
+    WHERE company_id = ? AND status != '終了'
+      AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+    GROUP BY case_year, case_month, case_type
+");
+$fyTypeStmt->execute([$cid, $year-1, $year]);
+$fyTypeRevMap = [];
+foreach ($fyTypeStmt->fetchAll() as $r) {
+    $fyTypeRevMap[$r['case_year']][$r['case_month']][$r['case_type']] = [
+        'rev' => (int)$r['rev'], 'profit' => (int)$r['profit'],
+    ];
+}
 // 月別目標
 $fyTgtMap = [];
 foreach (getSalesTargets($cid, $year-1) as $m => $types) {
@@ -405,7 +421,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-graph-up me-1" style="color:#059669"></i><?= $year-1 ?>-<?= $year ?>年度 売上推移（9月〜8月）</span>
+                    <span><i class="bi bi-graph-up me-1" style="color:#059669"></i><?= $year-1 ?>年度 売上推移（9月〜8月）</span>
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-outline-secondary active" id="btnTrendTaxExcl" onclick="setTrendTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                         <button type="button" class="btn btn-outline-secondary" id="btnTrendTaxIncl" onclick="setTrendTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -662,12 +678,20 @@ require_once __DIR__ . '/../includes/header.php';
 $trendData    = [];
 $trendTargets = [];
 foreach ($fyMonths as $i => $fm) {
-    $idx = $i + 1;
+    $idx    = $i + 1;
+    $rev    = $fyRevMap[$fm['y']][$fm['m']]['rev']    ?? 0;
+    $profit = $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
+    $tgt    = $fyTgtMap[$fm['y']][$fm['m']] ?? 0;
     $trendData[$idx] = [
-        'revenue' => $fyRevMap[$fm['y']][$fm['m']]['rev']    ?? 0,
-        'profit'  => $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0,
+        'revenue'        => $rev,
+        'profit'         => $profit,
+        'regular_rev'    => $fyTypeRevMap[$fm['y']][$fm['m']]['regular']['rev']    ?? 0,
+        'regular_profit' => $fyTypeRevMap[$fm['y']][$fm['m']]['regular']['profit'] ?? 0,
+        'event_rev'      => $fyTypeRevMap[$fm['y']][$fm['m']]['event']['rev']      ?? 0,
+        'event_profit'   => $fyTypeRevMap[$fm['y']][$fm['m']]['event']['profit']   ?? 0,
+        'ach'            => $tgt > 0 ? round($rev / $tgt * 100, 1) : null,
     ];
-    $trendTargets[$idx] = $fyTgtMap[$fm['y']][$fm['m']] ?? 0;
+    $trendTargets[$idx] = $tgt;
 }
 $fyChartLabels = ['9月','10月','11月','12月','1月','2月','3月','4月','5月','6月','7月','8月'];
 

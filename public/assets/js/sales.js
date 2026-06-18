@@ -117,67 +117,167 @@
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
 
-        const months = customLabels || Array.from({length: 12}, (_, i) => (i + 1) + '月');
-        const revenues = months.map((_, i) => data[i + 1]?.revenue || 0);
-        const profits  = months.map((_, i) => data[i + 1]?.profit || 0);
-        const tgts     = months.map((_, i) => targets[i + 1] || 0);
+        const months         = customLabels || Array.from({length: 12}, (_, i) => (i + 1) + '月');
+        const revenues       = months.map((_, i) => data[i + 1]?.revenue        || 0);
+        const profits        = months.map((_, i) => data[i + 1]?.profit         || 0);
+        const tgts           = months.map((_, i) => targets[i + 1]              || 0);
+        const regularRevs    = months.map((_, i) => data[i + 1]?.regular_rev    || 0);
+        const regularProfits = months.map((_, i) => data[i + 1]?.regular_profit || 0);
+        const eventRevs      = months.map((_, i) => data[i + 1]?.event_rev      || 0);
+        const eventProfits   = months.map((_, i) => data[i + 1]?.event_profit   || 0);
+        const achRates       = months.map((_, i) => data[i + 1]?.ach ?? null);
+
+        const achBgColors = achRates.map(v =>
+            v === null ? 'rgba(156,163,175,.15)' :
+            v >= 100   ? 'rgba(5,150,105,.25)'   :
+            v >= 80    ? 'rgba(59,130,246,.25)'   :
+            v >= 50    ? 'rgba(245,158,11,.25)'   : 'rgba(239,68,68,.25)'
+        );
+        const achBorderColors = achRates.map(v =>
+            v === null ? '#9ca3af' :
+            v >= 100   ? '#059669' :
+            v >= 80    ? '#3b82f6' :
+            v >= 50    ? '#f59e0b' : '#ef4444'
+        );
 
         return new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: months,
                 datasets: [
+                    // ── 棒グラフ: 達成率（右軸 %）──
+                    {
+                        label: '達成率',
+                        data: achRates,
+                        type: 'bar',
+                        backgroundColor: achBgColors,
+                        borderColor: achBorderColors,
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        yAxisID: 'y1',
+                        order: 2,
+                    },
+                    // ── 折れ線: 金額系（左軸）──
                     {
                         label: '目標',
                         data: tgts,
+                        type: 'line',
                         borderColor: '#9ca3af',
                         borderDash: [5, 5],
                         borderWidth: 2,
                         pointRadius: 0,
                         fill: false,
+                        yAxisID: 'y',
+                        order: 1,
                     },
                     {
                         label: '売上',
                         data: revenues,
+                        type: 'line',
                         borderColor: '#059669',
-                        backgroundColor: 'rgba(5,150,105,.08)',
                         borderWidth: 2.5,
                         pointRadius: 3,
                         pointBackgroundColor: '#059669',
                         fill: false,
                         tension: .3,
+                        yAxisID: 'y',
+                        order: 1,
                     },
                     {
                         label: '粗利',
                         data: profits,
+                        type: 'line',
                         borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59,130,246,.06)',
                         borderWidth: 2,
                         pointRadius: 2,
-                        fill: true,
+                        fill: false,
                         tension: .3,
+                        yAxisID: 'y',
+                        order: 1,
+                    },
+                    {
+                        label: '常勤売上',
+                        data: regularRevs,
+                        type: 'line',
+                        borderColor: '#10b981',
+                        borderWidth: 1.5,
+                        borderDash: [4, 3],
+                        pointRadius: 2,
+                        fill: false,
+                        tension: .3,
+                        yAxisID: 'y',
+                        order: 1,
+                    },
+                    {
+                        label: '常勤粗利',
+                        data: regularProfits,
+                        type: 'line',
+                        borderColor: '#60a5fa',
+                        borderWidth: 1.5,
+                        borderDash: [4, 3],
+                        pointRadius: 2,
+                        fill: false,
+                        tension: .3,
+                        yAxisID: 'y',
+                        order: 1,
+                    },
+                    {
+                        label: 'イベント売上',
+                        data: eventRevs,
+                        type: 'line',
+                        borderColor: '#f59e0b',
+                        borderWidth: 1.5,
+                        borderDash: [4, 3],
+                        pointRadius: 2,
+                        fill: false,
+                        tension: .3,
+                        yAxisID: 'y',
+                        order: 1,
+                    },
+                    {
+                        label: 'イベント粗利',
+                        data: eventProfits,
+                        type: 'line',
+                        borderColor: '#fb923c',
+                        borderWidth: 1.5,
+                        borderDash: [4, 3],
+                        pointRadius: 2,
+                        fill: false,
+                        tension: .3,
+                        yAxisID: 'y',
+                        order: 1,
                     },
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true } },
+                    legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true, padding: 12 } },
                     tooltip: {
                         callbacks: {
-                            label: ctx => ctx.dataset.label + ': ' + salesFormatYen(ctx.raw)
+                            label: c => c.dataset.label === '達成率'
+                                ? c.dataset.label + ': ' + (c.raw !== null ? c.raw + '%' : '-')
+                                : c.dataset.label + ': ' + salesFormatYen(c.raw)
                         }
                     }
                 },
                 scales: {
                     y: {
+                        type: 'linear',
+                        position: 'left',
                         beginAtZero: true,
-                        ticks: {
-                            callback: v => (v / 1000000).toFixed(0) + 'M',
-                            font: { size: 10 }
-                        },
+                        ticks: { callback: v => (v / 1000000).toFixed(0) + 'M', font: { size: 10 } },
                         grid: { color: '#f3f4f6' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        beginAtZero: true,
+                        suggestedMax: 130,
+                        ticks: { callback: v => v + '%', font: { size: 10 } },
+                        grid: { drawOnChartArea: false }
                     },
                     x: { grid: { display: false }, ticks: { font: { size: 10 } } }
                 }

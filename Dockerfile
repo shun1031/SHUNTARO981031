@@ -1,7 +1,7 @@
 FROM php:8.2-cli
 
 # PDO MySQL拡張インストール
-RUN docker-php-ext-install pdo pdo_mysql
+RUN docker-php-ext-install pdo pdo_mysql calendar
 
 WORKDIR /var/www/html
 

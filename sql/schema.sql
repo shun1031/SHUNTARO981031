@@ -974,6 +974,10 @@ CREATE TABLE IF NOT EXISTS sales_cases (
         FOREIGN KEY (store_brand_id) REFERENCES sales_store_brands(id) ON DELETE SET NULL,
         FOREIGN KEY (area_id) REFERENCES sales_areas(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ALTER TABLE sales_cases ADD COLUMN carrier VARCHAR(50) NULL COMMENT 'キャリア' AFTER note;
+ALTER TABLE sales_cases ADD COLUMN new_transactions INT NOT NULL DEFAULT 0 COMMENT '新規件数' AFTER carrier;
+ALTER TABLE sales_cases ADD COLUMN negotiations_count INT NOT NULL DEFAULT 0 COMMENT '商談件数' AFTER new_transactions;
+ALTER TABLE sales_cases ADD COLUMN contracts_count INT NOT NULL DEFAULT 0 COMMENT '契約件数' AFTER negotiations_count;
 
 -- sales_transport_costs
 CREATE TABLE IF NOT EXISTS sales_transport_costs (

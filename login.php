@@ -21,7 +21,7 @@ if (isLoggedIn() && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     } elseif ($role === 'employee') {
         redirect(BASE_PATH . '/employee/dashboard.php');
     } else {
-        redirect(BASE_PATH . '/admin/index.php');
+        redirect(BASE_PATH . '/public/sales_dashboard.php');
     }
 }
 
@@ -135,7 +135,7 @@ if (isset($_GET['admin'])) {
                 if ($user['role'] === 'employee') {
                     redirect(BASE_PATH . '/employee/dashboard.php');
                 } else {
-                    redirect(BASE_PATH . '/admin/index.php');
+                    redirect(BASE_PATH . '/public/sales_dashboard.php');
                 }
             } else {
                 $error = 'ユーザーIDまたはパスワードが正しくありません';

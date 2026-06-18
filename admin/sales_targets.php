@@ -8,7 +8,7 @@ $pageTitle = '売上目標設定';
 $extraCss = ['sales.css'];
 $db  = getDB();
 $cid = getCompanyId();
-if (!$cid) { redirect(BASE_PATH . '/admin/index.php'); }
+if (!$cid) { redirect(BASE_PATH . '/public/sales_dashboard.php'); }
 
 $year = (int)($_GET['year'] ?? date('Y'));
 $msg = '';

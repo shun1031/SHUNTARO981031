@@ -8,7 +8,7 @@ $pageTitle = '売上マスタ管理';
 $extraCss = ['sales.css'];
 $db  = getDB();
 $cid = getCompanyId();
-if (!$cid) { redirect(BASE_PATH . '/admin/index.php'); }
+if (!$cid) { redirect(BASE_PATH . '/public/sales_dashboard.php'); }
 
 $tab = $_GET['tab'] ?? 'clients';
 $validTabs = ['clients', 'alliances', 'brands', 'areas', 'workers'];

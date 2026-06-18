@@ -9,7 +9,7 @@ $extraCss = ['sales.css'];
 $extraJs = ['sales.js'];
 $db  = getDB();
 $cid = getCompanyId();
-if (!$cid) { redirect(BASE_PATH . '/admin/index.php'); }
+if (!$cid) { redirect(BASE_PATH . '/public/sales_dashboard.php'); }
 
 // CSV出力
 if (isset($_GET['export'])) {

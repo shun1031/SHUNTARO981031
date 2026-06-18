@@ -1,6 +1,7 @@
 <?php
 // 一時デバッグファイル - 確認後削除すること
 require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/functions.php';
 header('Content-Type: text/plain; charset=utf-8');
 
 try {

@@ -21,6 +21,9 @@ try {
         echo "hash_length: " . $user['hash_len'] . "\n";
         echo "hash_preview: " . substr($user['password_hash'], 0, 20) . "...\n";
         echo "verify(admin123): " . (password_verify('admin123', $user['password_hash']) ? 'TRUE' : 'FALSE') . "\n";
+    echo "\n--- 設定値 ---\n";
+    echo "BASE_PATH: [" . BASE_PATH . "]\n";
+    echo "redirect先: [" . BASE_PATH . "/admin/companies.php]\n";
     } else {
         echo "ユーザーが見つかりません\n";
         $all = $db->query("SELECT id, username, role, is_active, company_id FROM users")->fetchAll(PDO::FETCH_ASSOC);

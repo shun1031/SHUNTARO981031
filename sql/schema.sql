@@ -289,13 +289,13 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. employees に company_id 追加
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS company_id INT NULL AFTER id;
+ALTER TABLE employees ADD COLUMN company_id INT NULL AFTER id;
 
 -- 4. teams に company_id 追加
-ALTER TABLE teams ADD COLUMN IF NOT EXISTS company_id INT NULL AFTER id;
+ALTER TABLE teams ADD COLUMN company_id INT NULL AFTER id;
 
 -- 5. consultation_history に company_id 追加
-ALTER TABLE consultation_history ADD COLUMN IF NOT EXISTS company_id INT NULL AFTER id;
+ALTER TABLE consultation_history ADD COLUMN company_id INT NULL AFTER id;
 
 -- 6. デフォルト会社を作成し、既存データを紐付け
 INSERT INTO companies (id, login_id, company_name) VALUES (1, 'default', '既存データ（デフォルト）')
@@ -584,32 +584,37 @@ CREATE TABLE IF NOT EXISTS training_recommendations (
 
 
 -- ========== companies: ロゴ列追加 ==========
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_path VARCHAR(300) NULL AFTER company_name;
+ALTER TABLE companies ADD COLUMN logo_path VARCHAR(300) NULL AFTER company_name;
 
 -- ========== employees: オンボーディング/給与列追加 ==========
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS gender ENUM('male','female') NULL COMMENT '性別' AFTER name_kana;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS postal_code VARCHAR(10) NULL COMMENT '郵便番号' AFTER birth_date;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS address VARCHAR(300) NULL COMMENT '現住所' AFTER postal_code;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS address_kana VARCHAR(300) NULL COMMENT '現住所（フリガナ）' AFTER address;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS phone VARCHAR(20) NULL COMMENT '電話番号' AFTER address_kana;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS my_number VARCHAR(12) NULL COMMENT '個人番号（マイナンバー）' AFTER phone;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS pension_number VARCHAR(30) NULL COMMENT '基礎年金番号' AFTER my_number;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS insurance_number VARCHAR(30) NULL COMMENT '被保険者番号' AFTER pension_number;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS has_insurance_card TINYINT DEFAULT 0 COMMENT '被保険者証 有無' AFTER insurance_number;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS salary_type ENUM('monthly','daily','hourly') DEFAULT 'monthly' COMMENT '給与形態' AFTER has_insurance_card;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS monthly_salary INT NULL COMMENT '1ヶ月の給与総額' AFTER salary_type;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS base_pay INT NULL COMMENT '基本給' AFTER monthly_salary;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance1_name VARCHAR(50) NULL COMMENT '手当1名' AFTER base_pay;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance1_amount INT NULL COMMENT '手当1額' AFTER allowance1_name;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance2_name VARCHAR(50) NULL COMMENT '手当2名' AFTER allowance1_amount;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance2_amount INT NULL COMMENT '手当2額' AFTER allowance2_name;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance3_name VARCHAR(50) NULL COMMENT '手当3名' AFTER allowance2_amount;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance3_amount INT NULL COMMENT '手当3額' AFTER allowance3_name;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS commute_allowance INT NULL COMMENT '通勤手当' AFTER allowance3_amount;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100) NULL COMMENT '銀行名' AFTER commute_allowance;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_branch VARCHAR(100) NULL COMMENT '支店名' AFTER bank_name;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account_type ENUM('ordinary','current') DEFAULT 'ordinary' COMMENT '口座種別' AFTER bank_branch;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(20) NULL COMMENT '口座番号' AFTER bank_account_type;
+ALTER TABLE employees ADD COLUMN gender ENUM('male','female') NULL COMMENT '性別' AFTER name_kana;
+ALTER TABLE employees ADD COLUMN postal_code VARCHAR(10) NULL COMMENT '郵便番号' AFTER birth_date;
+ALTER TABLE employees ADD COLUMN address VARCHAR(300) NULL COMMENT '現住所' AFTER postal_code;
+ALTER TABLE employees ADD COLUMN address_kana VARCHAR(300) NULL COMMENT '現住所（フリガナ）' AFTER address;
+ALTER TABLE employees ADD COLUMN phone VARCHAR(20) NULL COMMENT '電話番号' AFTER address_kana;
+ALTER TABLE employees ADD COLUMN my_number VARCHAR(12) NULL COMMENT '個人番号（マイナンバー）' AFTER phone;
+ALTER TABLE employees ADD COLUMN pension_number VARCHAR(30) NULL COMMENT '基礎年金番号' AFTER my_number;
+ALTER TABLE employees ADD COLUMN insurance_number VARCHAR(30) NULL COMMENT '被保険者番号' AFTER pension_number;
+ALTER TABLE employees ADD COLUMN has_insurance_card TINYINT DEFAULT 0 COMMENT '被保険者証 有無' AFTER insurance_number;
+ALTER TABLE employees ADD COLUMN salary_type ENUM('monthly','daily','hourly') DEFAULT 'monthly' COMMENT '給与形態' AFTER has_insurance_card;
+ALTER TABLE employees ADD COLUMN monthly_salary INT NULL COMMENT '1ヶ月の給与総額' AFTER salary_type;
+ALTER TABLE employees ADD COLUMN base_pay INT NULL COMMENT '基本給' AFTER monthly_salary;
+ALTER TABLE employees ADD COLUMN allowance1_name VARCHAR(50) NULL COMMENT '手当1名' AFTER base_pay;
+ALTER TABLE employees ADD COLUMN allowance1_amount INT NULL COMMENT '手当1額' AFTER allowance1_name;
+ALTER TABLE employees ADD COLUMN allowance2_name VARCHAR(50) NULL COMMENT '手当2名' AFTER allowance1_amount;
+ALTER TABLE employees ADD COLUMN allowance2_amount INT NULL COMMENT '手当2額' AFTER allowance2_name;
+ALTER TABLE employees ADD COLUMN allowance3_name VARCHAR(50) NULL COMMENT '手当3名' AFTER allowance2_amount;
+ALTER TABLE employees ADD COLUMN allowance3_amount INT NULL COMMENT '手当3額' AFTER allowance3_name;
+ALTER TABLE employees ADD COLUMN commute_allowance INT NULL COMMENT '通勤手当' AFTER allowance3_amount;
+ALTER TABLE employees ADD COLUMN bank_name VARCHAR(100) NULL COMMENT '銀行名' AFTER commute_allowance;
+ALTER TABLE employees ADD COLUMN bank_branch VARCHAR(100) NULL COMMENT '支店名' AFTER bank_name;
+ALTER TABLE employees ADD COLUMN bank_account_type ENUM('ordinary','current') DEFAULT 'ordinary' COMMENT '口座種別' AFTER bank_branch;
+ALTER TABLE employees ADD COLUMN bank_account_number VARCHAR(20) NULL COMMENT '口座番号' AFTER bank_account_type;
+ALTER TABLE employees ADD COLUMN employment_type VARCHAR(30) NULL COMMENT '雇用形態（自社/アライアンス）' AFTER is_active;
+ALTER TABLE employees ADD COLUMN employment_subtype VARCHAR(30) NULL COMMENT '雇用区分（社員/外注/アルバイト）' AFTER employment_type;
+ALTER TABLE employees ADD COLUMN work_style VARCHAR(30) NULL COMMENT '勤務形態（常勤/イベント）' AFTER employment_subtype;
+ALTER TABLE employees ADD COLUMN retirement_date DATE NULL COMMENT '退職日' AFTER hire_date;
+ALTER TABLE employees ADD COLUMN skills_json TEXT NULL COMMENT 'スキル（JSON配列）' AFTER bio;
 
 
 -- ========== 追加テーブル（売上/給与/EVP/SPI・SF/オンボーディング） ==========

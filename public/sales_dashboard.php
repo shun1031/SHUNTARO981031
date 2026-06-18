@@ -438,7 +438,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- スタッフ分析（統合） -->
     <div class="row g-4 mb-4">
-        <div class="col-12">
+        <div class="col-lg-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ分析</span>

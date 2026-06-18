@@ -481,10 +481,10 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- スタッフ分析（統合） -->
+    <!-- スタッフ分析 + キャリア別売上 -->
     <div class="row g-4 mb-4">
         <div class="col-lg-6">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ分析</span>
                     <div class="btn-group btn-group-sm" role="group">
@@ -505,6 +505,33 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="sales-chart-wrap" style="height:200px"><canvas id="staffPieChart"></canvas></div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上</span>
+                    <?php if (count($carrierFyRows) > 3): ?>
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">全て表示</button>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="carrierFyTable">
+                        <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end" style="padding-right:.75rem">売上</th></tr></thead>
+                        <tbody>
+                            <?php if ($carrierFyRows): ?>
+                            <?php foreach ($carrierFyRows as $i => $row): ?>
+                            <tr <?= $i >= 3 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                <td class="text-end" style="padding-right:.75rem"><?= number_format($row['revenue']) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php else: ?>
+                            <tr><td colspan="2" class="text-center text-muted small p-3">データなし</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -604,37 +631,6 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="card-body d-flex align-items-center justify-content-center">
                     <p class="text-muted small mb-0"><i class="bi bi-hourglass-split me-1"></i>準備中</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 集計カード行3: キャリア別売上 -->
-    <div class="row g-4 mb-4">
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上</span>
-                    <?php if (count($carrierFyRows) > 3): ?>
-                    <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">全て表示</button>
-                    <?php endif; ?>
-                </div>
-                <div class="card-body p-0">
-                    <table class="table table-sm mb-0" id="carrierFyTable">
-                        <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end" style="padding-right:.75rem">売上</th></tr></thead>
-                        <tbody>
-                            <?php if ($carrierFyRows): ?>
-                            <?php foreach ($carrierFyRows as $i => $row): ?>
-                            <tr <?= $i >= 3 ? 'class="extra-row" style="display:none"' : '' ?>>
-                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
-                                <td class="text-end" style="padding-right:.75rem"><?= number_format($row['revenue']) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php else: ?>
-                            <tr><td colspan="2" class="text-center text-muted small p-3">データなし</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>

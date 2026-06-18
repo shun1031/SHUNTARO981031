@@ -436,92 +436,98 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- スタッフ人数分析 & スタッフ区分別売上 -->
+    <!-- スタッフ分析（統合） -->
     <div class="row g-4 mb-4">
-        <!-- スタッフ人数分析 -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header"><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ人数分析</div>
-                <div class="card-body">
-                    <div class="row g-0">
-                        <div class="col-5">
-                            <div class="sales-chart-wrap" style="height:200px">
-                                <canvas id="staffPieChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-7 ps-3">
-                            <table class="table table-sm mb-0" style="font-size:.82rem">
-                                <thead><tr><th style="white-space:nowrap">項目</th><th class="text-end">今月</th><th>前年同月比</th></tr></thead>
-                                <tbody>
-                                    <?php if ($caseTypeFilter === ''): ?>
-                                    <tr>
-                                        <td style="white-space:nowrap">常勤比率</td>
-                                        <td class="text-end"><?= $empStats['regular_rate'] ?>%<br><small class="text-muted"><?= $empStats['regular'] ?>名</small></td>
-                                        <td><?= $fmtYoy($empStats['regular_rate'], $empStatsYoy['regular_rate'], '%') ?></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="white-space:nowrap">イベント比率</td>
-                                        <td class="text-end"><?= $empStats['event_rate'] ?>%<br><small class="text-muted"><?= $empStats['event'] ?>名</small></td>
-                                        <td><?= $fmtYoy($empStats['event_rate'], $empStatsYoy['event_rate'], '%') ?></td>
-                                    </tr>
-                                    <?php else: ?>
-                                    <tr>
-                                        <td class="fw-bold" style="white-space:nowrap">総人数</td>
-                                        <td class="text-end fw-bold"><?= $wTotal ?>件</td>
-                                        <td class="text-muted small">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="white-space:nowrap">自社比率</td>
-                                        <td class="text-end"><?= $wInhouseRate ?>%<br><small class="text-muted"><?= $workerGrouped['自社']['case_count'] ?>件</small></td>
-                                        <td class="text-muted small">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="white-space:nowrap">外注比率</td>
-                                        <td class="text-end"><?= $wAlliRate ?>%<br><small class="text-muted"><?= $workerGrouped['アライアンス']['case_count'] ?>件</small></td>
-                                        <td class="text-muted small">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="white-space:nowrap">自社粗利率</td>
-                                        <td class="text-end"><?= $wInhouseMargin ?>%</td>
-                                        <td class="text-muted small">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="white-space:nowrap">外注粗利率</td>
-                                        <td class="text-end"><?= $wAlliMargin ?>%</td>
-                                        <td class="text-muted small">-</td>
-                                    </tr>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- スタッフ区分別売上 -->
-        <div class="col-lg-6">
-            <div class="card h-100">
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-pie-chart me-1" style="color:#8b5cf6"></i>スタッフ区分別売上</span>
+                    <span><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ分析</span>
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-outline-secondary active" id="btnTaxExcl" onclick="setTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                         <button type="button" class="btn btn-outline-secondary" id="btnTaxIncl" onclick="setTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="sales-chart-wrap" style="height:200px">
-                        <canvas id="workerChart"></canvas>
-                    </div>
-                    <div class="mt-3">
-                        <?php foreach ($workerGrouped as $groupName => $gd): ?>
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded" style="background:<?= $groupName === '自社' ? '#eff6ff' : '#f0fdf4' ?>">
-                            <span class="fw-bold" style="color:<?= $groupName === '自社' ? '#3b82f6' : '#059669' ?>"><?= h($groupName) ?></span>
-                            <div class="text-end">
-                                <div class="fw-bold worker-revenue" data-raw="<?= $gd['revenue'] ?>"><?= number_format($gd['revenue']) ?>円</div>
-                            </div>
+                    <div class="row g-0 align-items-center">
+                        <!-- ドーナツ: 売上構成 -->
+                        <div class="col-lg-3 col-6 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem">区分別売上</div>
+                            <div class="sales-chart-wrap" style="height:170px"><canvas id="workerChart"></canvas></div>
                         </div>
-                        <?php endforeach; ?>
+                        <!-- ドーナツ: 人数構成 -->
+                        <div class="col-lg-3 col-6 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem">人数構成</div>
+                            <div class="sales-chart-wrap" style="height:170px"><canvas id="staffPieChart"></canvas></div>
+                        </div>
+                        <!-- 統合テーブル -->
+                        <div class="col-lg-6 ps-lg-4 pt-3 pt-lg-0">
+                            <table class="table table-sm mb-0" style="font-size:.82rem">
+                                <thead><tr>
+                                    <th style="white-space:nowrap">項目</th>
+                                    <th class="text-end">今月</th>
+                                    <th class="text-end">前年同月比</th>
+                                    <th class="text-end">売上金額</th>
+                                    <th class="text-end">粗利率</th>
+                                </tr></thead>
+                                <tbody>
+                                    <!-- 自社 -->
+                                    <tr class="table-light">
+                                        <td colspan="5" class="fw-semibold" style="font-size:.72rem;color:#3b82f6">自社</td>
+                                    </tr>
+                                    <?php if ($caseTypeFilter === ''): ?>
+                                    <tr>
+                                        <td style="white-space:nowrap;padding-left:1rem">常勤</td>
+                                        <td class="text-end"><?= $empStats['regular_rate'] ?>%<br><small class="text-muted"><?= $empStats['regular'] ?>名</small></td>
+                                        <td class="text-end"><?= $fmtYoy($empStats['regular_rate'], $empStatsYoy['regular_rate'], '%') ?></td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end text-muted">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="white-space:nowrap;padding-left:1rem">イベント</td>
+                                        <td class="text-end"><?= $empStats['event_rate'] ?>%<br><small class="text-muted"><?= $empStats['event'] ?>名</small></td>
+                                        <td class="text-end"><?= $fmtYoy($empStats['event_rate'], $empStatsYoy['event_rate'], '%') ?></td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end text-muted">-</td>
+                                    </tr>
+                                    <?php else: ?>
+                                    <tr>
+                                        <td style="white-space:nowrap;padding-left:1rem">自社比率</td>
+                                        <td class="text-end"><?= $wInhouseRate ?>%<br><small class="text-muted"><?= $workerGrouped['自社']['case_count'] ?>件</small></td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end"><?= $wInhouseMargin ?>%</td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <tr>
+                                        <td style="padding-left:1rem">売上合計</td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end fw-bold worker-revenue" data-raw="<?= $workerGrouped['自社']['revenue'] ?>" style="color:#3b82f6"><?= number_format($workerGrouped['自社']['revenue']) ?>円</td>
+                                        <td class="text-end"><?= $wInhouseMargin ?>%</td>
+                                    </tr>
+                                    <!-- アライアンス -->
+                                    <tr class="table-light">
+                                        <td colspan="5" class="fw-semibold" style="font-size:.72rem;color:#059669">アライアンス</td>
+                                    </tr>
+                                    <?php if ($caseTypeFilter !== ''): ?>
+                                    <tr>
+                                        <td style="white-space:nowrap;padding-left:1rem">外注比率</td>
+                                        <td class="text-end"><?= $wAlliRate ?>%<br><small class="text-muted"><?= $workerGrouped['アライアンス']['case_count'] ?>件</small></td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end"><?= $wAlliMargin ?>%</td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <tr>
+                                        <td style="padding-left:1rem">売上合計</td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end text-muted">-</td>
+                                        <td class="text-end fw-bold worker-revenue" data-raw="<?= $workerGrouped['アライアンス']['revenue'] ?>" style="color:#059669"><?= number_format($workerGrouped['アライアンス']['revenue']) ?>円</td>
+                                        <td class="text-end"><?= $wAlliMargin ?>%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

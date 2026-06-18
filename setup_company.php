@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 // 会社・管理者ユーザー初期設定スクリプト - 実行後削除
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/includes/functions.php';

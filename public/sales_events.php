@@ -20,6 +20,21 @@ if (isset($_GET['export'])) {
     exit;
 }
 
+// AJAX: 稼働数・金額更新（JSON返却）
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_days' && verifyCsrfToken($_POST['csrf'] ?? '')) {
+    header('Content-Type: application/json');
+    $id = (int)($_POST['id'] ?? 0);
+    $newDays   = max(0, (int)($_POST['new_days']   ?? 0));
+    $newRev    = (int)($_POST['new_rev']    ?? 0);
+    $newProfit = (int)($_POST['new_profit'] ?? 0);
+    $newCost   = $newRev - $newProfit;
+    $newMargin = $newRev > 0 ? round($newProfit / $newRev, 4) : 0;
+    $db->prepare("UPDATE sales_cases SET days_worked=?,revenue=?,cost=?,gross_profit=?,margin=? WHERE id=? AND company_id=?")
+       ->execute([$newDays, $newRev, $newCost, $newProfit, $newMargin, $id, $cid]);
+    echo json_encode(['ok' => true, 'revenue' => $newRev, 'profit' => $newProfit]);
+    exit;
+}
+
 // POST: 案件追加/更新
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
     $action = $_POST['action'] ?? '';
@@ -70,6 +85,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
     if ($action === 'delete') {
         deleteSalesCase((int)$_POST['id'], $cid);
         redirect(BASE_PATH . '/public/sales_events.php?msg=' . urlencode('案件を削除しました'));
+    }
+    if ($action === 'copy_prev_month') {
+        $curYear  = (int)($_POST['copy_year']  ?? date('Y'));
+        $curMonth = (int)($_POST['copy_month'] ?? date('n'));
+        if ($curMonth === 1) { $prevYear = $curYear - 1; $prevMonth = 12; }
+        else { $prevYear = $curYear; $prevMonth = $curMonth - 1; }
+        $prevStmt = $db->prepare("SELECT * FROM sales_cases WHERE company_id=? AND case_year=? AND case_month=? AND case_type='event' AND status!='cancelled'");
+        $prevStmt->execute([$cid, $prevYear, $prevMonth]);
+        $copied = 0;
+        foreach ($prevStmt->fetchAll() as $pc) {
+            createSalesCase($cid, [
+                'case_type' => 'event', 'client_id' => $pc['client_id'],
+                'start_date' => $pc['start_date'], 'end_date' => $pc['end_date'],
+                'sales_rep' => $pc['sales_rep'], 'manager' => $pc['manager'],
+                'recruiter' => $pc['recruiter'], 'worker_type' => $pc['worker_type'],
+                'worker_name' => $pc['worker_name'], 'alliance_id' => $pc['alliance_id'],
+                'carrier' => $pc['carrier'], 'area_id' => $pc['area_id'],
+                'store_name' => $pc['store_name'], 'unit_price_in' => $pc['unit_price_in'],
+                'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
+                'status' => $pc['status'], 'note' => $pc['note'],
+            ]);
+            $copied++;
+        }
+        redirect(BASE_PATH . '/public/sales_events.php?year=' . $curYear . '&month=' . $curMonth . '&msg=' . urlencode($copied . '件コピーしました'));
     }
 }
 
@@ -128,13 +167,17 @@ require_once __DIR__ . '/../includes/header.php';
                 <h1><i class="bi bi-calendar-event me-2"></i>イベント案件</h1>
                 <p><?= $year ?>年<?= $month ? $month . '月' : '' ?> / <?= $totalCount ?>件</p>
             </div>
-            <div class="d-flex gap-2">
-                <a href="?<?= http_build_query(array_merge($_GET, ['export' => 1])) ?>" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-download me-1"></i>CSV
-                </a>
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#caseModal" onclick="resetCaseForm()">
-                    <i class="bi bi-plus-lg me-1"></i>案件追加
-                </button>
+            <?php $dispYear = $year; $dispMonth = (int)($month ?: date('n')); ?>
+            <form method="post" id="copyPrevForm" style="display:none">
+                <input type="hidden" name="csrf" value="<?= $csrf ?>">
+                <input type="hidden" name="action" value="copy_prev_month">
+                <input type="hidden" name="copy_year" value="<?= $dispYear ?>">
+                <input type="hidden" name="copy_month" value="<?= $dispMonth ?>">
+            </form>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="fw-bold text-secondary" style="white-space:nowrap;font-size:.95rem"><?= $dispYear ?>年<?= $dispMonth ?>月</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#copyConfirmModal">前月コピー</button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#caseModal" onclick="resetCaseForm()"><i class="bi bi-plus-lg me-1"></i>案件追加</button>
             </div>
         </div>
     </div>
@@ -189,43 +232,43 @@ require_once __DIR__ . '/../includes/header.php';
             <table class="table sales-table mb-0">
                 <thead>
                     <tr>
-                        <th>日付</th>
                         <th>取引先</th>
                         <th>営業</th>
-                        <th>区分</th>
                         <th>外注先</th>
                         <th>スタッフ</th>
                         <th>キャリア/店舗</th>
-                        <th class="text-end">請求</th>
-                        <th class="text-end">支払</th>
-                        <th class="text-end">日数</th>
                         <th class="text-end">売上</th>
                         <th class="text-end">粗利</th>
-                        <th class="text-end">率</th>
+                        <th class="text-center">稼働数</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($cases)): ?>
-                    <tr><td colspan="14" class="text-center text-muted py-4">案件がありません</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">案件がありません</td></tr>
                     <?php endif; ?>
                     <?php foreach ($cases as $c): ?>
-                    <tr class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
-                        <td class="small"><?= h(substr($c['start_date'] ?? '', 5)) ?><?php if ($c['end_date'] && $c['end_date'] !== $c['start_date']): ?>~<?= h(substr($c['end_date'], 5)) ?><?php endif; ?></td>
+                    <tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
                         <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
                         <td class="small"><?= h($c['sales_rep']) ?></td>
-                        <td><span class="wt-badge wt-<?= h($c['worker_type']) ?>"><?= h($c['worker_type']) ?></span></td>
                         <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
                         <td class="fw-medium"><?= h($c['worker_name']) ?></td>
                         <td class="small"><?= h(trim(($c['carrier'] ?? '') . ' ' . ($c['store_name'] ?? ''))) ?></td>
-                        <td class="amount"><?= number_format($c['unit_price_in']) ?></td>
-                        <td class="amount"><?= number_format($c['unit_price_out']) ?></td>
-                        <td class="amount"><?= $c['days_worked'] ?></td>
-                        <td class="amount amount-positive"><?= number_format($c['revenue']) ?></td>
-                        <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>"><?= number_format($c['gross_profit']) ?></td>
-                        <td class="amount"><?= round($c['margin'] * 100, 1) ?>%</td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c) ?>)'><i class="bi bi-pencil"></i></button>
+                        <td class="amount amount-positive" id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></td>
+                        <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></td>
+                        <td class="text-center" style="white-space:nowrap">
+                            <div class="d-flex align-items-center justify-content-center gap-1">
+                                <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,-1)">−</button>
+                                <input type="number" id="spin_<?= $c['id'] ?>" value="<?= (int)$c['days_worked'] ?>" min="0" class="form-control form-control-sm p-1 text-center" style="width:52px">
+                                <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,1)">＋</button>
+                            </div>
+                        </td>
+                        <td style="white-space:nowrap">
+                            <div class="d-flex gap-1 justify-content-end">
+                                <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c) ?>)' title="編集"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= $c['id'] ?>)" title="削除"><i class="bi bi-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-success" onclick="applyDays(<?= $c['id'] ?>)" title="金額反映"><i class="bi bi-arrow-repeat"></i></button>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -233,7 +276,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if (!empty($cases)): ?>
                 <tfoot>
                     <tr class="fw-bold" style="background:#f0fdf4">
-                        <td colspan="10" class="text-end">合計</td>
+                        <td colspan="5" class="text-end">合計</td>
                         <td class="amount amount-positive"><?= number_format(array_sum(array_column($cases, 'revenue'))) ?></td>
                         <td class="amount amount-positive"><?= number_format(array_sum(array_column($cases, 'gross_profit'))) ?></td>
                         <td colspan="2"></td>
@@ -256,6 +299,26 @@ require_once __DIR__ . '/../includes/header.php';
         </ul>
     </nav>
     <?php endif; ?>
+</div>
+
+<!-- 前月コピー確認モーダル -->
+<div class="modal fade" id="copyConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title">確認</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1 fw-medium">本当にコピーしますか？</p>
+                <small class="text-muted">前月のイベント案件データを今月にコピーします。</small>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">いいえ</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('copyPrevForm').submit()">はい</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- 案件入力モーダル -->
@@ -398,7 +461,52 @@ require_once __DIR__ . '/../includes/header.php';
 <?php
 $_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['client_name']], $clients)));
 $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
+$inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= <<<'JS'
+
+// 稼働数スピン
+function adjustDays(id, delta) {
+    var inp = document.getElementById('spin_' + id);
+    inp.value = Math.max(0, (parseInt(inp.value) || 0) + delta);
+}
+
+// 削除確認
+function confirmDelete(id) {
+    if (!confirm('この案件を削除しますか？')) return;
+    var f = document.createElement('form');
+    f.method = 'POST';
+    [['csrf', csrfToken], ['action', 'delete'], ['id', id]].forEach(function(p) {
+        var i = document.createElement('input'); i.type = 'hidden'; i.name = p[0]; i.value = p[1]; f.appendChild(i);
+    });
+    document.body.appendChild(f); f.submit();
+}
+
+// 金額反映
+function applyDays(id) {
+    var row = document.getElementById('row_' + id);
+    var origRev = parseInt(row.dataset.rev) || 0;
+    var origProfit = parseInt(row.dataset.profit) || 0;
+    var newDays = parseInt(document.getElementById('spin_' + id).value) || 0;
+    var newRev, newProfit;
+    if (newDays >= 21) {
+        newRev = origRev; newProfit = origProfit;
+    } else {
+        newRev = Math.floor(origRev / 21) * newDays;
+        newProfit = Math.floor(origProfit / 21) * newDays;
+    }
+    var fd = new FormData();
+    fd.append('csrf', csrfToken); fd.append('action', 'update_days'); fd.append('id', id);
+    fd.append('new_days', newDays); fd.append('new_rev', newRev); fd.append('new_profit', newProfit);
+    fetch(window.location.pathname + window.location.search, {method: 'POST', body: fd})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                document.getElementById('rev_' + id).textContent = d.revenue.toLocaleString();
+                document.getElementById('profit_' + id).textContent = d.profit.toLocaleString();
+                row.dataset.rev = d.revenue; row.dataset.profit = d.profit;
+            }
+        });
+}
 
 // 取引先 datalist 選択/入力ハンドラ
 (function() {

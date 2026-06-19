@@ -180,10 +180,10 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- KPI -->
     <div class="row g-2 mb-3">
-        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" style="color:#059669"><?= number_format($monthSummary['total_revenue'] ?? 0) ?></div><div class="kpi-label">売上</div></div></div>
-        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" style="color:#3b82f6"><?= number_format($monthSummary['total_profit'] ?? 0) ?></div><div class="kpi-label">粗利</div></div></div>
+        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_revenue" style="color:#059669"><?= number_format($monthSummary['total_revenue'] ?? 0) ?></div><div class="kpi-label">売上</div></div></div>
+        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_profit" style="color:#3b82f6"><?= number_format($monthSummary['total_profit'] ?? 0) ?></div><div class="kpi-label">粗利</div></div></div>
         <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" style="color:#8b5cf6"><?= $monthSummary['case_count'] ?? 0 ?></div><div class="kpi-label">案件数</div></div></div>
-        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" style="color:#f59e0b"><?= ($monthSummary['avg_margin'] ?? 0) ?>%</div><div class="kpi-label">平均粗利率</div></div></div>
+        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_margin" style="color:#f59e0b"><?= ($monthSummary['avg_margin'] ?? 0) ?>%</div><div class="kpi-label">平均粗利率</div></div></div>
     </div>
 
     <!-- フィルタ -->
@@ -464,6 +464,24 @@ function confirmDelete(id) {
     document.body.appendChild(f); f.submit();
 }
 
+// KPI再集計（金額反映後に呼ぶ）
+function refreshKpi() {
+    var totalRev = 0, totalProfit = 0;
+    document.querySelectorAll('tbody tr[id^="row_"]').forEach(function(row) {
+        if (row.classList.contains('table-secondary')) return; // キャンセル行除外
+        var rid = row.id.replace('row_', '');
+        totalRev    += parseInt((document.getElementById('rev_' + rid)?.textContent    || '0').replace(/,/g, '')) || 0;
+        totalProfit += parseInt((document.getElementById('profit_' + rid)?.textContent || '0').replace(/,/g, '')) || 0;
+    });
+    var margin = totalRev > 0 ? (totalProfit / totalRev * 100).toFixed(1) : '0.0';
+    var kpiRev = document.getElementById('kpi_revenue');
+    var kpiPro = document.getElementById('kpi_profit');
+    var kpiMar = document.getElementById('kpi_margin');
+    if (kpiRev) kpiRev.textContent = totalRev.toLocaleString();
+    if (kpiPro) kpiPro.textContent = totalProfit.toLocaleString();
+    if (kpiMar) kpiMar.textContent = margin + '%';
+}
+
 // 金額反映
 function applyDays(id) {
     var row = document.getElementById('row_' + id);
@@ -489,6 +507,7 @@ function applyDays(id) {
                 document.getElementById('rev_' + id).textContent = d.revenue.toLocaleString();
                 document.getElementById('profit_' + id).textContent = d.profit.toLocaleString();
                 row.dataset.rev = d.revenue; row.dataset.profit = d.profit;
+                refreshKpi();
             }
         });
 }

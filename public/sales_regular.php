@@ -225,7 +225,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr><td colspan="9" class="text-center text-muted py-4">案件がありません</td></tr>
                     <?php endif; ?>
                     <?php foreach ($cases as $c): ?>
-                    <tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
+                    <tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" data-price-in="<?= (int)$c['unit_price_in'] ?>" data-price-out="<?= (int)$c['unit_price_out'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
                         <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
                         <td class="small"><?= h($c['sales_rep']) ?></td>
                         <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
@@ -467,16 +467,18 @@ function confirmDelete(id) {
 // 金額反映
 function applyDays(id) {
     var row = document.getElementById('row_' + id);
-    var origRev = parseInt(row.dataset.rev) || 0;
-    var origProfit = parseInt(row.dataset.profit) || 0;
-    var newDays = parseInt(document.getElementById('spin_' + id).value) || 0;
-    var newRev, newProfit;
+    var priceIn  = parseInt(row.dataset.priceIn)  || 0;
+    var priceOut = parseInt(row.dataset.priceOut) || 0;
+    var newDays  = parseInt(document.getElementById('spin_' + id).value) || 0;
+    var newRev, newCost, newProfit;
     if (newDays >= 21) {
-        newRev = origRev; newProfit = origProfit;
+        newRev  = priceIn;
+        newCost = priceOut;
     } else {
-        newRev = Math.floor(origRev / 21) * newDays;
-        newProfit = Math.floor(origProfit / 21) * newDays;
+        newRev  = Math.floor(priceIn  / 21) * newDays;
+        newCost = Math.floor(priceOut / 21) * newDays;
     }
+    newProfit = newRev - newCost;
     var fd = new FormData();
     fd.append('csrf', csrfToken); fd.append('action', 'update_days'); fd.append('id', id);
     fd.append('new_days', newDays); fd.append('new_rev', newRev); fd.append('new_profit', newProfit);

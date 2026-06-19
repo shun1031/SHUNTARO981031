@@ -139,28 +139,50 @@ function createSalesCase(int $companyId, array $data): int {
     $db = getDB();
     calcSalesCaseAmounts($data);
     $startDate = $data['start_date'] ?? '';
-    $year = $startDate ? (int)substr($startDate, 0, 4) : (int)date('Y');
+    $year  = $startDate ? (int)substr($startDate, 0, 4) : (int)date('Y');
     $month = $startDate ? (int)substr($startDate, 5, 2) : (int)date('n');
 
-    $stmt = $db->prepare('INSERT INTO sales_cases (
-        company_id, case_type, case_name, carrier, recruitment_count, new_transactions, negotiations_count, contracts_count, case_year, case_month,
-        client_id, sales_rep, manager, recruiter,
-        worker_type, alliance_id, worker_id, worker_name,
-        store_brand_id, area_id, store_name,
-        start_date, end_date,
-        unit_price_in, unit_price_out, days_worked,
-        revenue, cost, gross_profit, margin, status, note
-    ) VALUES (?,?,?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?,?, ?,?)');
-    $stmt->execute([
-        $companyId, $data['case_type'], $data['case_name'] ?? null, $data['carrier'] ?? null, $data['recruitment_count'] ?: null, $data['new_transactions'] ?: null, $data['negotiations_count'] ?: null, $data['contracts_count'] ?: null, $year, $month,
-        $data['client_id'] ?: null, $data['sales_rep'] ?? '', $data['manager'] ?? '', $data['recruiter'] ?? '',
-        $data['worker_type'] ?? '正社員', $data['alliance_id'] ?: null, $data['worker_id'] ?: null, $data['worker_name'] ?? '',
-        $data['store_brand_id'] ?: null, $data['area_id'] ?: null, $data['store_name'] ?? '',
-        $startDate ?: null, $data['end_date'] ?: null,
-        (float)$data['unit_price_in'], (float)($data['unit_price_out'] ?? 0), (float)($data['days_worked'] ?? 0),
-        $data['revenue'], $data['cost'], $data['gross_profit'], $data['margin'],
-        $data['status'] ?? '商談中', $data['note'] ?? null,
-    ]);
+    // 基本カラム（スキーマ CREATE TABLE に必ず存在）
+    $fields = [
+        'company_id'     => $companyId,
+        'case_type'      => $data['case_type'],
+        'case_year'      => $year,
+        'case_month'     => $month,
+        'client_id'      => $data['client_id'] ?: null,
+        'sales_rep'      => $data['sales_rep'] ?? '',
+        'manager'        => $data['manager'] ?? '',
+        'recruiter'      => $data['recruiter'] ?? '',
+        'worker_type'    => $data['worker_type'] ?? '正社員',
+        'alliance_id'    => $data['alliance_id'] ?: null,
+        'worker_id'      => $data['worker_id'] ?: null,
+        'worker_name'    => $data['worker_name'] ?? '',
+        'store_brand_id' => $data['store_brand_id'] ?: null,
+        'area_id'        => $data['area_id'] ?: null,
+        'store_name'     => $data['store_name'] ?? '',
+        'start_date'     => $startDate ?: null,
+        'end_date'       => $data['end_date'] ?: null,
+        'unit_price_in'  => (float)$data['unit_price_in'],
+        'unit_price_out' => (float)($data['unit_price_out'] ?? 0),
+        'days_worked'    => (float)($data['days_worked'] ?? 0),
+        'revenue'        => $data['revenue'],
+        'cost'           => $data['cost'],
+        'gross_profit'   => $data['gross_profit'],
+        'margin'         => $data['margin'],
+        'status'         => $data['status'] ?? '商談中',
+        'note'           => $data['note'] ?? null,
+    ];
+
+    // 拡張カラム: $data に存在する場合のみ追加（マイグレーション前後どちらでも動作）
+    foreach (['case_name', 'carrier', 'recruitment_count', 'new_transactions', 'negotiations_count', 'contracts_count'] as $col) {
+        if (array_key_exists($col, $data)) {
+            $fields[$col] = ($data[$col] !== '' && $data[$col] !== null) ? $data[$col] : null;
+        }
+    }
+
+    $cols = implode(', ', array_keys($fields));
+    $phs  = implode(', ', array_fill(0, count($fields), '?'));
+    $stmt = $db->prepare("INSERT INTO sales_cases ($cols) VALUES ($phs)");
+    $stmt->execute(array_values($fields));
     return (int)$db->lastInsertId();
 }
 
@@ -168,29 +190,51 @@ function updateSalesCase(int $id, int $companyId, array $data): void {
     $db = getDB();
     calcSalesCaseAmounts($data);
     $startDate = $data['start_date'] ?? '';
-    $year = $startDate ? (int)substr($startDate, 0, 4) : (int)date('Y');
+    $year  = $startDate ? (int)substr($startDate, 0, 4) : (int)date('Y');
     $month = $startDate ? (int)substr($startDate, 5, 2) : (int)date('n');
 
-    $stmt = $db->prepare('UPDATE sales_cases SET
-        case_type=?, case_name=?, carrier=?, recruitment_count=?, new_transactions=?, negotiations_count=?, contracts_count=?, case_year=?, case_month=?,
-        client_id=?, sales_rep=?, manager=?, recruiter=?,
-        worker_type=?, alliance_id=?, worker_id=?, worker_name=?,
-        store_brand_id=?, area_id=?, store_name=?,
-        start_date=?, end_date=?,
-        unit_price_in=?, unit_price_out=?, days_worked=?,
-        revenue=?, cost=?, gross_profit=?, margin=?, status=?, note=?
-        WHERE id=? AND company_id=?');
-    $stmt->execute([
-        $data['case_type'], $data['case_name'] ?? null, $data['carrier'] ?? null, $data['recruitment_count'] ?: null, $data['new_transactions'] ?: null, $data['negotiations_count'] ?: null, $data['contracts_count'] ?: null, $year, $month,
-        $data['client_id'] ?: null, $data['sales_rep'] ?? '', $data['manager'] ?? '', $data['recruiter'] ?? '',
-        $data['worker_type'] ?? '正社員', $data['alliance_id'] ?: null, $data['worker_id'] ?: null, $data['worker_name'] ?? '',
-        $data['store_brand_id'] ?: null, $data['area_id'] ?: null, $data['store_name'] ?? '',
-        $startDate ?: null, $data['end_date'] ?: null,
-        (float)$data['unit_price_in'], (float)($data['unit_price_out'] ?? 0), (float)($data['days_worked'] ?? 0),
-        $data['revenue'], $data['cost'], $data['gross_profit'], $data['margin'],
-        $data['status'] ?? '商談中', $data['note'] ?? null,
-        $id, $companyId,
-    ]);
+    // 基本カラム
+    $fields = [
+        'case_type'      => $data['case_type'],
+        'case_year'      => $year,
+        'case_month'     => $month,
+        'client_id'      => $data['client_id'] ?: null,
+        'sales_rep'      => $data['sales_rep'] ?? '',
+        'manager'        => $data['manager'] ?? '',
+        'recruiter'      => $data['recruiter'] ?? '',
+        'worker_type'    => $data['worker_type'] ?? '正社員',
+        'alliance_id'    => $data['alliance_id'] ?: null,
+        'worker_id'      => $data['worker_id'] ?: null,
+        'worker_name'    => $data['worker_name'] ?? '',
+        'store_brand_id' => $data['store_brand_id'] ?: null,
+        'area_id'        => $data['area_id'] ?: null,
+        'store_name'     => $data['store_name'] ?? '',
+        'start_date'     => $startDate ?: null,
+        'end_date'       => $data['end_date'] ?: null,
+        'unit_price_in'  => (float)$data['unit_price_in'],
+        'unit_price_out' => (float)($data['unit_price_out'] ?? 0),
+        'days_worked'    => (float)($data['days_worked'] ?? 0),
+        'revenue'        => $data['revenue'],
+        'cost'           => $data['cost'],
+        'gross_profit'   => $data['gross_profit'],
+        'margin'         => $data['margin'],
+        'status'         => $data['status'] ?? '商談中',
+        'note'           => $data['note'] ?? null,
+    ];
+
+    // 拡張カラム: $data に存在する場合のみ更新
+    foreach (['case_name', 'carrier', 'recruitment_count', 'new_transactions', 'negotiations_count', 'contracts_count'] as $col) {
+        if (array_key_exists($col, $data)) {
+            $fields[$col] = ($data[$col] !== '' && $data[$col] !== null) ? $data[$col] : null;
+        }
+    }
+
+    $sets   = implode(', ', array_map(fn($k) => "$k=?", array_keys($fields)));
+    $values = array_values($fields);
+    $values[] = $id;
+    $values[] = $companyId;
+    $stmt = $db->prepare("UPDATE sales_cases SET $sets WHERE id=? AND company_id=?");
+    $stmt->execute($values);
 }
 
 function cancelSalesCase(int $id, int $companyId): void {

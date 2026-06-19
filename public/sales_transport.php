@@ -366,7 +366,7 @@ document.getElementById('transportSubmitForm').addEventListener('submit', async 
     const formData = new FormData(this);
 
     try {
-        const res = await fetch(BASE_PATH + '/public/api/sales_transport_submit.php', {
+        const res = await fetch((window.BMS_BASE_PATH || '') + '/public/api/sales_transport_submit.php', {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'

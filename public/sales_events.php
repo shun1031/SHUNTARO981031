@@ -69,8 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             'status'         => $_POST['status'] ?? 'confirmed',
             'note'           => trim($_POST['notes'] ?? ''),
         ];
-        // 常勤と同じ計算方式: 請求単価(月)をそのまま売上とし、稼働日数を乗じない
-        $data['gross_profit_direct'] = $data['unit_price_in'] - $data['unit_price_out'];
+        // イベント案件: 請求単価×稼働数=売上、支払単価×稼働数=原価
         if ($action === 'create') {
             createSalesCase($cid, $data);
             redirect(BASE_PATH . '/public/sales_events.php?msg=' . urlencode('案件を追加しました'));
@@ -107,7 +106,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 'store_name' => $pc['store_name'], 'unit_price_in' => $pc['unit_price_in'],
                 'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
                 'status' => $pc['status'], 'note' => $pc['note'],
-                'gross_profit_direct' => $pc['unit_price_in'] - $pc['unit_price_out'],
             ]);
             $copied++;
         }
@@ -500,21 +498,15 @@ function confirmDelete(id) {
     document.body.appendChild(f); f.submit();
 }
 
-// 金額反映
+// 金額反映（イベント: 請求単価×稼働数、支払単価×稼働数）
 function applyDays(id) {
     var row = document.getElementById('row_' + id);
     var priceIn  = parseInt(row.dataset.priceIn)  || 0;
     var priceOut = parseInt(row.dataset.priceOut) || 0;
     var newDays  = parseInt(document.getElementById('spin_' + id).value) || 0;
-    var newRev, newCost, newProfit;
-    if (newDays >= 21) {
-        newRev  = priceIn;
-        newCost = priceOut;
-    } else {
-        newRev  = Math.floor(priceIn  / 21) * newDays;
-        newCost = Math.floor(priceOut / 21) * newDays;
-    }
-    newProfit = newRev - newCost;
+    var newRev    = priceIn  * newDays;
+    var newCost   = priceOut * newDays;
+    var newProfit = newRev - newCost;
     var fd = new FormData();
     fd.append('csrf', csrfToken); fd.append('action', 'update_days'); fd.append('id', id);
     fd.append('new_days', newDays); fd.append('new_rev', newRev); fd.append('new_profit', newProfit);

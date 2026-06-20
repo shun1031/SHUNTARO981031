@@ -69,6 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             'status'         => $_POST['status'] ?? 'confirmed',
             'note'           => trim($_POST['notes'] ?? ''),
         ];
+        // 常勤と同じ計算方式: 請求単価(月)をそのまま売上とし、稼働日数を乗じない
+        $data['gross_profit_direct'] = $data['unit_price_in'] - $data['unit_price_out'];
         if ($action === 'create') {
             createSalesCase($cid, $data);
             redirect(BASE_PATH . '/public/sales_events.php?msg=' . urlencode('案件を追加しました'));
@@ -105,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 'store_name' => $pc['store_name'], 'unit_price_in' => $pc['unit_price_in'],
                 'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
                 'status' => $pc['status'], 'note' => $pc['note'],
+                'gross_profit_direct' => $pc['unit_price_in'] - $pc['unit_price_out'],
             ]);
             $copied++;
         }
@@ -463,6 +466,22 @@ $_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 
 $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
 $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= <<<'JS'
+
+// イベント案件フォーム: 常勤と同じ計算方式（稼働日数は売上に含めない）
+window.salesCalcAmounts = function() {
+    var priceIn  = parseFloat(document.getElementById('unit_price_in')?.value  || 0);
+    var priceOut = parseFloat(document.getElementById('unit_price_out')?.value || 0);
+    var revenue = Math.round(priceIn);
+    var cost    = Math.round(priceOut);
+    var profit  = revenue - cost;
+    var margin  = revenue > 0 ? (profit / revenue * 100).toFixed(1) : '0.0';
+    var revEl = document.getElementById('calc_revenue');    if (revEl)    revEl.textContent = salesFormatYen(revenue);
+    var costEl = document.getElementById('calc_cost');      if (costEl)   costEl.textContent = salesFormatYen(cost);
+    var profitEl = document.getElementById('calc_profit');
+    if (profitEl) { profitEl.textContent = salesFormatYen(profit); profitEl.className = profit >= 0 ? 'amount-positive' : 'amount-negative'; }
+    var marginEl = document.getElementById('calc_margin');
+    if (marginEl) { marginEl.textContent = margin + '%'; marginEl.className = parseFloat(margin) >= 20 ? 'amount-positive' : (parseFloat(margin) >= 0 ? '' : 'amount-negative'); }
+};
 
 // 稼働数スピン
 function adjustDays(id, delta) {

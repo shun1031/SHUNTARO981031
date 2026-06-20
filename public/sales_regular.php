@@ -254,8 +254,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <tfoot>
                     <tr class="fw-bold" style="background:#f0fdf4">
                         <td colspan="5" class="text-end">合計</td>
-                        <td class="amount amount-positive"><?= number_format(array_sum(array_column($cases, 'revenue'))) ?></td>
-                        <td class="amount amount-positive"><?= number_format(array_sum(array_column($cases, 'gross_profit'))) ?></td>
+                        <td class="amount amount-positive" id="tfoot_revenue"><?= number_format(array_sum(array_column($cases, 'revenue'))) ?></td>
+                        <td class="amount amount-positive" id="tfoot_profit"><?= number_format(array_sum(array_column($cases, 'gross_profit'))) ?></td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>
@@ -464,22 +464,22 @@ function confirmDelete(id) {
     document.body.appendChild(f); f.submit();
 }
 
-// KPI再集計（金額反映後に呼ぶ）
+// KPI・合計行の再集計
 function refreshKpi() {
     var totalRev = 0, totalProfit = 0;
     document.querySelectorAll('tbody tr[id^="row_"]').forEach(function(row) {
-        if (row.classList.contains('table-secondary')) return; // キャンセル行除外
+        if (row.classList.contains('table-secondary')) return;
         var rid = row.id.replace('row_', '');
         totalRev    += parseInt((document.getElementById('rev_' + rid)?.textContent    || '0').replace(/,/g, '')) || 0;
         totalProfit += parseInt((document.getElementById('profit_' + rid)?.textContent || '0').replace(/,/g, '')) || 0;
     });
     var margin = totalRev > 0 ? (totalProfit / totalRev * 100).toFixed(1) : '0.0';
-    var kpiRev = document.getElementById('kpi_revenue');
-    var kpiPro = document.getElementById('kpi_profit');
-    var kpiMar = document.getElementById('kpi_margin');
-    if (kpiRev) kpiRev.textContent = totalRev.toLocaleString();
-    if (kpiPro) kpiPro.textContent = totalProfit.toLocaleString();
-    if (kpiMar) kpiMar.textContent = margin + '%';
+    var e = function(id) { return document.getElementById(id); };
+    if (e('kpi_revenue'))   e('kpi_revenue').textContent   = totalRev.toLocaleString();
+    if (e('kpi_profit'))    e('kpi_profit').textContent    = totalProfit.toLocaleString();
+    if (e('kpi_margin'))    e('kpi_margin').textContent    = margin + '%';
+    if (e('tfoot_revenue')) e('tfoot_revenue').textContent = totalRev.toLocaleString();
+    if (e('tfoot_profit'))  e('tfoot_profit').textContent  = totalProfit.toLocaleString();
 }
 
 // 金額反映

@@ -294,35 +294,32 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="container-fluid">
+    <?php
+    $prevM = $month - 1; $prevY = $year;
+    if ($prevM < 1) { $prevM = 12; $prevY = $year - 1; }
+    $nextM = $month + 1; $nextY = $year;
+    if ($nextM > 12) { $nextM = 1; $nextY = $year + 1; }
+    ?>
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1><i class="bi bi-graph-up-arrow me-2"></i><?= h($pageTitle) ?></h1>
-                <p><?= $year ?>年<?= $month ?>月の売上状況<?= $salesRep ? ' — ' . h($salesRep) : '' ?></p>
+                <p><?= $year ?>年<?= $month ?>月の売上状況</p>
             </div>
-            <div class="d-flex gap-2">
-                <select onchange="location.href='?year='+this.value+'&month=<?= $month ?>&sales_rep=<?= urlencode($salesRep) ?>'" class="form-select form-select-sm" style="width:100px">
-                    <?php for ($y = date('Y') + 1; $y >= 2025; $y--): ?>
-                    <option value="<?= $y ?>" <?= $year == $y ? 'selected' : '' ?>><?= $y ?>年</option>
-                    <?php endfor; ?>
-                </select>
-                <select onchange="location.href='?year=<?= $year ?>&month='+this.value+'&sales_rep=<?= urlencode($salesRep) ?>'" class="form-select form-select-sm" style="width:90px">
-                    <?php for ($m = 1; $m <= 12; $m++): ?>
-                    <option value="<?= $m ?>" <?= $month == $m ? 'selected' : '' ?>><?= $m ?>月</option>
-                    <?php endfor; ?>
-                </select>
-                <?php if (isAdmin()): ?>
-                <select onchange="location.href='?year=<?= $year ?>&month=<?= $month ?>&sales_rep='+encodeURIComponent(this.value)" class="form-select form-select-sm" style="width:140px">
-                    <option value="">全担当者</option>
-                    <?php foreach ($salesReps as $rep): ?>
-                    <option value="<?= h($rep) ?>" <?= $salesRep === $rep ? 'selected' : '' ?>><?= h($rep) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <?php endif; ?>
+            <div class="d-flex align-items-center gap-1">
+                <a href="?year=<?= $prevY ?>&month=<?= $prevM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</a>
+                <span class="fw-bold px-2" style="min-width:120px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
+                <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
             </div>
         </div>
     </div>
 
+    <?php
+    // 月合計KPI用
+    $monthTarget = $fyTgtMap[$year][$month] ?? 0;
+    $monthAch = $monthTarget > 0 ? round($kpis['revenue'] / $monthTarget * 100, 1) : 0;
+    $monthAchColor = $monthAch >= 100 ? '#059669' : ($monthAch >= 80 ? '#3b82f6' : ($monthAch >= 50 ? '#f59e0b' : '#ef4444'));
+    ?>
     <!-- KPIカード -->
     <div class="d-flex justify-content-end mb-2">
         <div class="btn-group btn-group-sm" role="group">
@@ -331,36 +328,36 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
     <div class="row g-2 mb-4">
-        <!-- 売上目標（年度合計） -->
+        <!-- 売上目標（月） -->
         <div class="col-6 col-md">
             <div class="sales-kpi">
-                <div class="kpi-value" style="color:#6366f1"><?= number_format($fyTotalTarget) ?></div>
+                <div class="kpi-value" style="color:#6366f1" data-kpi-tax data-raw="<?= $monthTarget ?>"><?= number_format($monthTarget) ?></div>
                 <div class="kpi-label">売上目標</div>
-                <div class="kpi-sub">年度合計</div>
+                <div class="kpi-sub"><?= $year ?>年<?= $month ?>月</div>
             </div>
         </div>
-        <!-- 売上（年度合計） -->
+        <!-- 売上（月） -->
         <div class="col-6 col-md">
             <div class="sales-kpi">
-                <div class="kpi-value" style="color:#059669"><?= number_format($fyTotalRev) ?></div>
+                <div class="kpi-value" style="color:#059669" data-kpi-tax data-raw="<?= $kpis['revenue'] ?>"><?= number_format($kpis['revenue']) ?></div>
                 <div class="kpi-label">売上</div>
-                <div class="kpi-sub">年度合計</div>
+                <div class="kpi-sub"><?= $year ?>年<?= $month ?>月</div>
             </div>
         </div>
-        <!-- 粗利（年度合計） -->
+        <!-- 粗利（月） -->
         <div class="col-6 col-md">
             <div class="sales-kpi">
-                <div class="kpi-value" style="color:#3b82f6"><?= number_format($fyTotalProfit) ?></div>
+                <div class="kpi-value" style="color:#3b82f6" data-kpi-tax data-raw="<?= $kpis['profit'] ?>"><?= number_format($kpis['profit']) ?></div>
                 <div class="kpi-label">粗利</div>
-                <div class="kpi-sub">粗利率: <?= $fyMargin ?>%</div>
+                <div class="kpi-sub">粗利率: <?= $kpis['margin'] ?>%</div>
             </div>
         </div>
-        <!-- 目標達成率（年度） -->
+        <!-- 目標達成率（月） -->
         <div class="col-6 col-md">
             <div class="sales-kpi">
-                <div class="kpi-value" style="color:<?= $fyAchColor ?>"><?= $fyAch ?>%</div>
+                <div class="kpi-value" style="color:<?= $monthAchColor ?>"><?= $monthAch ?>%</div>
                 <div class="kpi-label">目標達成率</div>
-                <div class="kpi-sub"><?= $fyAch >= 100 ? '達成' : ($fyAch >= 80 ? 'もう少し' : ($fyAch >= 50 ? '進行中' : '要注意')) ?></div>
+                <div class="kpi-sub"><?= $monthAch >= 100 ? '達成' : ($monthAch >= 80 ? 'もう少し' : ($monthAch >= 50 ? '進行中' : '要注意')) ?></div>
             </div>
         </div>
         <!-- 前年同月比 -->

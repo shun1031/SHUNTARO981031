@@ -14,30 +14,24 @@ $year  = (int)($_GET['year']  ?? date('Y'));
 $month = (int)($_GET['month'] ?? date('n'));
 
 $prevM = $month - 1; $prevY = $year;
-if ($prevM < 1) { $prevM = 12; $prevY = $year - 1; }
+if ($prevM < 1) { $prevM = 12; $prevY--; }
 $nextM = $month + 1; $nextY = $year;
-if ($nextM > 12) { $nextM = 1; $nextY = $year + 1; }
+if ($nextM > 12) { $nextM = 1; $nextY++; }
 
 $empFilter  = getEmployeeNameFilter();
 $report     = getSalesRepReport($cid, $year,     $empFilter);
 $prevReport = getSalesRepReport($cid, $year - 1, $empFilter);
 
 $prevByRep = [];
-foreach ($prevReport as $rep => $pr) {
-    $prevByRep[$rep] = $pr;
-}
+foreach ($prevReport as $rep => $pr) { $prevByRep[$rep] = $pr; }
 
-// 今月の売上順にソート
 uasort($report, function($a, $b) use ($month) {
     return ($b['months'][$month]['revenue'] ?? 0) <=> ($a['months'][$month]['revenue'] ?? 0);
 });
-
-// 今月データのある担当者のみ表示
 $report = array_filter($report, fn($d) => ($d['months'][$month]['revenue'] ?? 0) > 0 || ($d['months'][$month]['case_count'] ?? 0) > 0);
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
-
 <div class="container-fluid">
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -47,7 +41,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="d-flex align-items-center gap-1">
                 <a href="?year=<?= $prevY ?>&month=<?= $prevM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</a>
-                <span class="fw-bold px-2" style="min-width:120px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
+                <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
                 <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
             </div>
         </div>
@@ -60,61 +54,54 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 
     <?php $rank = 0; foreach ($report as $rep => $data): $rank++;
-        $cur  = $data['months'][$month] ?? ['revenue' => 0, 'profit' => 0, 'case_count' => 0, 'regular_revenue' => 0, 'event_revenue' => 0];
-        $prev = $prevByRep[$rep]['months'][$month] ?? ['revenue' => 0, 'profit' => 0, 'case_count' => 0];
-        $yoy  = ($prev['revenue'] ?? 0) > 0 ? round(($cur['revenue'] - $prev['revenue']) / $prev['revenue'] * 100, 1) : null;
+        $cur     = $data['months'][$month] ?? ['revenue' => 0, 'profit' => 0, 'case_count' => 0, 'regular_revenue' => 0, 'event_revenue' => 0];
+        $prev    = $prevByRep[$rep]['months'][$month] ?? ['revenue' => 0];
+        $yoyRev  = $prev['revenue'] ?? 0;
+        $yoyText = $yoyRev > 0
+            ? round(($cur['revenue'] - $yoyRev) / $yoyRev * 100, 1) . '%'
+            : '-';
     ?>
-    <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span>
-                <span class="client-rank rank-<?= $rank <= 3 ? $rank : 'other' ?>"><?= $rank ?></span>
-                <strong><?= h($data['sales_rep']) ?></strong>
-                <span class="text-muted small ms-2"><?= $cur['case_count'] ?>件</span>
-            </span>
-            <span>
-                <span class="fw-bold" style="color:#059669"><?= number_format($cur['revenue']) ?></span>
-                <span class="text-muted small ms-1">粗利 <?= number_format($cur['profit'] ?? 0) ?></span>
-                <?php if ($yoy !== null): ?>
-                <span class="kpi-badge <?= $yoy >= 0 ? 'kpi-up' : 'kpi-down' ?> ms-2">
-                    <i class="bi bi-arrow-<?= $yoy >= 0 ? 'up' : 'down' ?>"></i> <?= $yoy ?>%
-                </span>
-                <?php endif; ?>
-            </span>
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="client-rank rank-<?= $rank <= 3 ? $rank : 'other' ?>"><?= $rank ?></span>
+                    <span class="fw-bold fs-6"><?= h($data['sales_rep']) ?></span>
+                    <span class="text-muted small"><?= $cur['case_count'] ?>件</span>
+                </div>
+                <div>
+                    <span class="fw-bold" style="color:#059669"><?= number_format($cur['revenue']) ?></span>
+                    <span class="text-muted small ms-2">粗利 <?= number_format($cur['profit'] ?? 0) ?></span>
+                </div>
+            </div>
         </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="padding-left:.75rem">項目</th>
-                        <th class="text-end" style="padding-right:.75rem"><?= $year ?>年<?= $month ?>月</th>
-                        <th class="text-end" style="padding-right:.75rem;color:#9ca3af">前年同月</th>
-                    </tr>
-                </thead>
                 <tbody>
                     <tr>
                         <td style="padding-left:.75rem">合計売上</td>
-                        <td class="text-end amount-positive fw-bold" style="padding-right:.75rem"><?= $cur['revenue'] ? number_format($cur['revenue']) : '-' ?></td>
-                        <td class="text-end text-muted small" style="padding-right:.75rem"><?= ($prev['revenue'] ?? 0) ? number_format($prev['revenue']) : '-' ?></td>
+                        <td class="text-end fw-bold" style="padding-right:.75rem"><?= $cur['revenue'] ? number_format($cur['revenue']) : '-' ?></td>
                     </tr>
                     <tr>
-                        <td style="padding-left:.75rem"><span class="badge bg-info" style="font-size:.65rem">常勤売上</span></td>
-                        <td class="text-end small" style="padding-right:.75rem"><?= ($cur['regular_revenue'] ?? 0) ? number_format($cur['regular_revenue']) : '-' ?></td>
-                        <td class="text-end text-muted small" style="padding-right:.75rem">-</td>
+                        <td style="padding-left:.75rem"><span style="color:#3b82f6;font-size:.8rem">●</span> 常勤売上</td>
+                        <td class="text-end" style="padding-right:.75rem"><?= ($cur['regular_revenue'] ?? 0) ? number_format($cur['regular_revenue']) : '-' ?></td>
                     </tr>
                     <tr>
-                        <td style="padding-left:.75rem"><span class="badge" style="background:#8b5cf6;font-size:.65rem">イベント売上</span></td>
-                        <td class="text-end small" style="padding-right:.75rem"><?= ($cur['event_revenue'] ?? 0) ? number_format($cur['event_revenue']) : '-' ?></td>
-                        <td class="text-end text-muted small" style="padding-right:.75rem">-</td>
+                        <td style="padding-left:.75rem"><span style="color:#8b5cf6;font-size:.8rem">●</span> イベント売上</td>
+                        <td class="text-end" style="padding-right:.75rem"><?= ($cur['event_revenue'] ?? 0) ? number_format($cur['event_revenue']) : '-' ?></td>
                     </tr>
                     <tr>
                         <td style="padding-left:.75rem">粗利</td>
-                        <td class="text-end <?= ($cur['profit'] ?? 0) >= 0 ? 'amount-positive' : 'amount-negative' ?>" style="padding-right:.75rem"><?= ($cur['profit'] ?? 0) ? number_format($cur['profit']) : '-' ?></td>
-                        <td class="text-end text-muted small" style="padding-right:.75rem"><?= ($prev['profit'] ?? 0) ? number_format($prev['profit']) : '-' ?></td>
+                        <td class="text-end" style="padding-right:.75rem"><?= ($cur['profit'] ?? 0) ? number_format($cur['profit']) : '-' ?></td>
                     </tr>
                     <tr>
                         <td style="padding-left:.75rem">案件数</td>
                         <td class="text-end" style="padding-right:.75rem"><?= $cur['case_count'] ?: '-' ?></td>
-                        <td class="text-end text-muted small" style="padding-right:.75rem"><?= ($prev['case_count'] ?? 0) ?: '-' ?></td>
+                    </tr>
+                    <tr style="background:#f9fafb">
+                        <td colspan="2" class="text-muted small" style="padding-left:.75rem;padding-right:.75rem">
+                            <?= $year ?>年<?= $month ?>月（前年同月：<?= $yoyText ?>）
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -122,5 +109,4 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endforeach; ?>
 </div>
-
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

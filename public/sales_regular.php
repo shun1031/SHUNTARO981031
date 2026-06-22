@@ -320,7 +320,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">いいえ</button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('copyPrevForm').submit()">はい</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="this.disabled=true;this.textContent='処理中...';document.getElementById('copyPrevForm').submit()">はい</button>
             </div>
         </div>
     </div>

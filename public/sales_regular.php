@@ -103,6 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 'store_name' => $pc['store_name'], 'unit_price_in' => $pc['unit_price_in'],
                 'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
                 'status' => $pc['status'], 'note' => $pc['note'],
+                // 常勤: 稼働日数を掛けないよう gross_profit_direct を設定
+                'gross_profit_direct' => (int)$pc['unit_price_in'] - (int)$pc['unit_price_out'],
             ]);
             $copied++;
         }

@@ -140,8 +140,31 @@
             v >= 50    ? '#f59e0b' : '#ef4444'
         );
 
+        const barLabelPlugin = {
+            id: 'barLabels',
+            afterDatasetsDraw: function(chart) {
+                var meta = chart.getDatasetMeta(0);
+                if (!meta) return;
+                var ctx2 = chart.ctx;
+                var dataset = chart.data.datasets[0];
+                ctx2.save();
+                meta.data.forEach(function(bar, i) {
+                    var val = dataset.data[i];
+                    if (val == null || val === 0) return;
+                    var barH = Math.abs(bar.base - bar.y);
+                    if (barH < 14) return;
+                    ctx2.fillStyle = 'rgba(0,0,0,0.7)';
+                    ctx2.font = 'bold 9px sans-serif';
+                    ctx2.textAlign = 'center';
+                    ctx2.textBaseline = 'middle';
+                    ctx2.fillText(val + '%', bar.x, bar.y + barH / 2);
+                });
+                ctx2.restore();
+            }
+        };
         return new Chart(ctx, {
             type: 'bar',
+            plugins: [barLabelPlugin],
             data: {
                 labels: months,
                 datasets: [
@@ -154,6 +177,7 @@
                         borderColor: achBorderColors,
                         borderWidth: 1,
                         borderRadius: 3,
+                        barThickness: 20,
                         yAxisID: 'y1',
                         order: 2,
                     },
@@ -252,7 +276,7 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
+                interaction: { mode: 'index', intersect: true },
                 plugins: {
                     legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true, padding: 12 } },
                     tooltip: {

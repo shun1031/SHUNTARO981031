@@ -79,8 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             redirect(BASE_PATH . '/public/sales_regular.php?msg=' . urlencode('案件を更新しました'));
         }
     }
-    if ($action === 'cancel') { cancelSalesCase((int)$_POST['id'], $cid); redirect(BASE_PATH . '/public/sales_regular.php?msg=' . urlencode('キャンセルしました')); }
-    if ($action === 'delete') { deleteSalesCase((int)$_POST['id'], $cid); redirect(BASE_PATH . '/public/sales_regular.php?msg=' . urlencode('削除しました')); }
+    $_backYear  = (int)($_GET['year']  ?? date('Y'));
+    $_backMonth = (int)($_GET['month'] ?? date('n'));
+    $_backBase  = BASE_PATH . '/public/sales_regular.php?year=' . $_backYear . '&month=' . $_backMonth;
+    if ($action === 'cancel') { cancelSalesCase((int)$_POST['id'], $cid); redirect($_backBase . '&msg=' . urlencode('キャンセルしました')); }
+    if ($action === 'delete') { deleteSalesCase((int)$_POST['id'], $cid); redirect($_backBase . '&msg=' . urlencode('削除しました')); }
     if ($action === 'copy_prev_month') {
         $curYear  = (int)($_POST['copy_year']  ?? date('Y'));
         $curMonth = (int)($_POST['copy_month'] ?? date('n'));
@@ -457,6 +460,7 @@ require_once __DIR__ . '/../includes/header.php';
 $_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['client_name']], $clients)));
 $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
 $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
+$inlineJs .= 'var pageYear = ' . (int)$dispYear . '; var pageMonth = ' . (int)$dispMonth . ';';
 $inlineJs .= <<<'JS'
 
 // 常勤案件フォーム: 稼働日数は計算に含めない（請求単価(月)＝月額固定）
@@ -486,6 +490,7 @@ function confirmDelete(id) {
     if (!confirm('この案件を削除しますか？')) return;
     var f = document.createElement('form');
     f.method = 'POST';
+    f.action = '?year=' + pageYear + '&month=' + pageMonth;
     [['csrf', csrfToken], ['action', 'delete'], ['id', id]].forEach(function(p) {
         var i = document.createElement('input'); i.type = 'hidden'; i.name = p[0]; i.value = p[1]; f.appendChild(i);
     });

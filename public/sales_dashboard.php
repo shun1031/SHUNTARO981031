@@ -882,11 +882,17 @@ function setTrendTaxMode(incl) {
     document.getElementById('btnTrendTaxExcl').classList.toggle('active', !incl);
     const rate = incl ? 1.1 : 1.0;
     if (trendChartInstance && trendChartInstance.data) {
-        // インデックス1〜12（年度順: 9月=1, 10月=2, ..., 8月=12）
         const idxs = Array.from({length: 12}, (_, i) => i + 1);
-        trendChartInstance.data.datasets[0].data = idxs.map(i => Math.round((trendTargets[i] || 0) * rate));
-        trendChartInstance.data.datasets[1].data = idxs.map(i => Math.round((trendRawData[i]?.revenue || 0) * rate));
-        trendChartInstance.data.datasets[2].data = idxs.map(i => Math.round((trendRawData[i]?.profit  || 0) * rate));
+        const ds = trendChartInstance.data.datasets;
+        // [0]=達成率(bar・%値) → 率なので変化なし（そのまま保持）
+        // [1]=目標 [2]=売上 [3]=粗利 [4]=常勤売上 [5]=常勤粗利 [6]=イベント売上 [7]=イベント粗利
+        ds[1].data = idxs.map(i => Math.round((trendTargets[i]              || 0) * rate));
+        ds[2].data = idxs.map(i => Math.round((trendRawData[i]?.revenue     || 0) * rate));
+        ds[3].data = idxs.map(i => Math.round((trendRawData[i]?.profit      || 0) * rate));
+        if (ds[4]) ds[4].data = idxs.map(i => Math.round((trendRawData[i]?.regular_rev    || 0) * rate));
+        if (ds[5]) ds[5].data = idxs.map(i => Math.round((trendRawData[i]?.regular_profit || 0) * rate));
+        if (ds[6]) ds[6].data = idxs.map(i => Math.round((trendRawData[i]?.event_rev      || 0) * rate));
+        if (ds[7]) ds[7].data = idxs.map(i => Math.round((trendRawData[i]?.event_profit   || 0) * rate));
         trendChartInstance.update();
     }
 }

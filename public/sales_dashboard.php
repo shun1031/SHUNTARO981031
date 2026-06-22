@@ -488,10 +488,10 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- スタッフ分析 + キャリア別売上 -->
+    <!-- スタッフ分析（全幅） -->
     <div class="row g-4 mb-4">
-        <div class="col-lg-6">
-            <div class="card h-100">
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ分析</span>
                     <div class="btn-group btn-group-sm" role="group">
@@ -500,24 +500,24 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="row g-0 align-items-center">
+                    <div class="row g-0 align-items-center justify-content-center">
                         <!-- ドーナツ: 売上構成 -->
-                        <div class="col-6 text-center">
+                        <div class="col-md-4 text-center">
                             <div class="text-muted small mb-1" style="font-size:.72rem">区分別売上</div>
-                            <div class="sales-chart-wrap" style="height:180px"><canvas id="workerChart"></canvas></div>
-                            <div style="font-size:.7rem;margin-top:4px;line-height:1.8">
+                            <div class="sales-chart-wrap" style="height:260px"><canvas id="workerChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$workerGrouped['自社']['case_count'] ?>件</strong>
-                                &nbsp;
+                                &nbsp;&nbsp;
                                 <span style="color:#059669">●</span> アライアンス <strong><?= (int)$workerGrouped['アライアンス']['case_count'] ?>件</strong>
                             </div>
                         </div>
                         <!-- ドーナツ: 人数構成 -->
-                        <div class="col-6 text-center">
+                        <div class="col-md-4 text-center">
                             <div class="text-muted small mb-1" style="font-size:.72rem">人数構成</div>
-                            <div class="sales-chart-wrap" style="height:180px"><canvas id="staffPieChart"></canvas></div>
-                            <div style="font-size:.7rem;margin-top:4px;line-height:1.8">
+                            <div class="sales-chart-wrap" style="height:260px"><canvas id="staffPieChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$empStats['inhouse'] ?>名</strong>
-                                &nbsp;
+                                &nbsp;&nbsp;
                                 <span style="color:#059669">●</span> アライアンス <strong><?= (int)$empStats['alliance'] ?>名</strong>
                             </div>
                         </div>
@@ -525,6 +525,10 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 集計カード: キャリア別売上 + クライアント別売上 -->
+    <div class="row g-4 mb-4">
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -559,10 +563,6 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- 集計カード行1: クライアント別売上 + アライアンス別売上 -->
-    <div class="row g-4 mb-4">
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -597,6 +597,10 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 集計カード: アライアンス別売上 + 営業マン別売上 -->
+    <div class="row g-4 mb-4">
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -631,11 +635,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- 集計カード行2: 営業マン別売上 -->
-    <div class="row g-4 mb-4">
-        <div class="col-12">
+        <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上</span>

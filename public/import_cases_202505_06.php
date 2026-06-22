@@ -7,12 +7,14 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 requireAnyLogin();
-if (!isSuperAdmin()) {
+if (!isAdmin() && !isSuperAdmin()) {
     http_response_code(403); die('管理者のみ実行可能です');
 }
+// company_id を現在のログインユーザーから取得
+$cid = getCompanyId() ?: 2;
 
 $db  = getDB();
-$cid = 2; // KLG company_id
+// $cid は上のブロックで取得済み
 
 // ------- helper: クライアント取得/作成 -------
 function getOrCreateClient(int $cid, string $name): int {

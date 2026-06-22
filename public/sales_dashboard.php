@@ -244,7 +244,7 @@ $_clientFySql = "
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
       AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
       $_ctf
-    GROUP BY cl.id, cl.client_name ORDER BY revenue DESC LIMIT 5";
+    GROUP BY cl.id, cl.client_name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_clientFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $clientFyRows = $_s->fetchAll();
@@ -256,7 +256,7 @@ $_allianceFySql = "
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
       AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
       $_ctf
-    GROUP BY al.id, al.alliance_name ORDER BY revenue DESC LIMIT 5";
+    GROUP BY al.id, al.alliance_name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_allianceFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $allianceFyRows = $_s->fetchAll();
@@ -267,7 +267,7 @@ $_repFySql = "
     WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
       $_ctf2
-    GROUP BY sales_rep ORDER BY revenue DESC LIMIT 5";
+    GROUP BY sales_rep ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_repFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $repFyRows = $_s->fetchAll();
@@ -278,7 +278,7 @@ $_carrierFySql = "
     WHERE company_id = ? AND status = 'confirmed' AND carrier IS NOT NULL AND carrier != ''
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
       $_ctf2
-    GROUP BY carrier ORDER BY revenue DESC LIMIT 3";
+    GROUP BY carrier ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_carrierFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $carrierFyRows = $_s->fetchAll();
@@ -533,9 +533,14 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1">TOP3</small></span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                            <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                        </div>
+                        <?php if (count($carrierFyRows) > 3): ?>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">全て表示</button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -543,8 +548,8 @@ require_once __DIR__ . '/../includes/header.php';
                         <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                         <tbody>
                             <?php if ($carrierFyRows): ?>
-                            <?php foreach ($carrierFyRows as $row): ?>
-                            <tr>
+                            <?php foreach ($carrierFyRows as $i => $row): ?>
+                            <tr <?= $i >= 3 ? 'class="extra-row" style="display:none"' : '' ?>>
                                 <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
@@ -562,9 +567,14 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1">TOP5</small></span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                            <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                        </div>
+                        <?php if (count($clientFyRows) > 5): ?>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'clientFyTable')" data-expanded="0">全て表示</button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -572,8 +582,8 @@ require_once __DIR__ . '/../includes/header.php';
                         <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                         <tbody>
                             <?php if ($clientFyRows): ?>
-                            <?php foreach ($clientFyRows as $row): ?>
-                            <tr>
+                            <?php foreach ($clientFyRows as $i => $row): ?>
+                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
                                 <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
@@ -595,9 +605,14 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1">TOP5</small></span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                            <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                        </div>
+                        <?php if (count($allianceFyRows) > 5): ?>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'allianceFyTable')" data-expanded="0">全て表示</button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -605,8 +620,8 @@ require_once __DIR__ . '/../includes/header.php';
                         <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                         <tbody>
                             <?php if ($allianceFyRows): ?>
-                            <?php foreach ($allianceFyRows as $row): ?>
-                            <tr>
+                            <?php foreach ($allianceFyRows as $i => $row): ?>
+                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
                                 <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
@@ -624,9 +639,14 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1">TOP5</small></span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                            <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                        </div>
+                        <?php if (count($repFyRows) > 5): ?>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'repFyTable')" data-expanded="0">全て表示</button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -634,8 +654,8 @@ require_once __DIR__ . '/../includes/header.php';
                         <thead class="table-light"><tr><th style="padding-left:.75rem">氏名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                         <tbody>
                             <?php if ($repFyRows): ?>
-                            <?php foreach ($repFyRows as $row): ?>
-                            <tr>
+                            <?php foreach ($repFyRows as $i => $row): ?>
+                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
                                 <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
                                 <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>

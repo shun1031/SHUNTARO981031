@@ -233,6 +233,9 @@ $barClass = $achRate >= 100 ? 'over' : ($achRate >= 80 ? 'good' : ($achRate >= 5
 
 // 集計カード用データ（年度）
 $_sDb = getDB();
+$_ctf  = $caseTypeFilter ? " AND sc.case_type = ?" : "";
+$_ctf2 = $caseTypeFilter ? " AND case_type = ?"    : "";
+$_ctp  = $caseTypeFilter ? [$caseTypeFilter] : [];
 // クライアント別売上（年度）
 $_clientFySql = "
     SELECT cl.client_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
@@ -240,9 +243,10 @@ $_clientFySql = "
     JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
       AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
+      $_ctf
     GROUP BY cl.id, cl.client_name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_clientFySql);
-$_s->execute([$cid, $year-1, $year]);
+$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $clientFyRows = $_s->fetchAll();
 // アライアンス別売上（年度）
 $_allianceFySql = "
@@ -251,9 +255,10 @@ $_allianceFySql = "
     JOIN sales_alliances al ON sc.alliance_id = al.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
       AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
+      $_ctf
     GROUP BY al.id, al.alliance_name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_allianceFySql);
-$_s->execute([$cid, $year-1, $year]);
+$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $allianceFyRows = $_s->fetchAll();
 // 営業マン別売上（年度）
 $_repFySql = "
@@ -261,9 +266,10 @@ $_repFySql = "
     FROM sales_cases
     WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+      $_ctf2
     GROUP BY sales_rep ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_repFySql);
-$_s->execute([$cid, $year-1, $year]);
+$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $repFyRows = $_s->fetchAll();
 // キャリア別売上（年度）
 $_carrierFySql = "
@@ -271,9 +277,10 @@ $_carrierFySql = "
     FROM sales_cases
     WHERE company_id = ? AND status = 'confirmed' AND carrier IS NOT NULL AND carrier != ''
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+      $_ctf2
     GROUP BY carrier ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_carrierFySql);
-$_s->execute([$cid, $year-1, $year]);
+$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $carrierFyRows = $_s->fetchAll();
 
 require_once __DIR__ . '/../includes/header.php';

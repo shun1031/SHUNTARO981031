@@ -504,7 +504,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <!-- ドーナツ: 売上構成 -->
                         <div class="col-md-4 text-center">
                             <div class="text-muted small mb-1" style="font-size:.72rem">区分別売上</div>
-                            <div class="sales-chart-wrap" style="height:260px"><canvas id="workerChart"></canvas></div>
+                            <div class="sales-chart-wrap" style="height:180px"><canvas id="workerChart"></canvas></div>
                             <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$workerGrouped['自社']['case_count'] ?>件</strong>
                                 &nbsp;&nbsp;
@@ -514,7 +514,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <!-- ドーナツ: 人数構成 -->
                         <div class="col-md-4 text-center">
                             <div class="text-muted small mb-1" style="font-size:.72rem">人数構成</div>
-                            <div class="sales-chart-wrap" style="height:260px"><canvas id="staffPieChart"></canvas></div>
+                            <div class="sales-chart-wrap" style="height:180px"><canvas id="staffPieChart"></canvas></div>
                             <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$empStats['inhouse'] ?>名</strong>
                                 &nbsp;&nbsp;

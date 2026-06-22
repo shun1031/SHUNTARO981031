@@ -38,10 +38,12 @@ $salesReps = getSalesReps($cid, $year);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_fy_target') {
     header('Content-Type: application/json');
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'csrf']); exit; }
+    // 総合ダッシュボードは入力不可（常勤+イベントの合計を自動表示）
+    if (!$caseTypeFilter) { echo json_encode(['ok' => true, 'readonly' => true]); exit; }
     $ty = (int)($_POST['t_year'] ?? 0);
     $tm = (int)($_POST['t_month'] ?? 0);
     $tv = (int)str_replace([',', '¥', ' ', '　'], '', $_POST['t_value'] ?? '0');
-    if ($ty && $tm) { upsertSalesTarget($cid, $ty, $tm, 'total', max(0, $tv)); }
+    if ($ty && $tm) { upsertSalesTarget($cid, $ty, $tm, $caseTypeFilter, max(0, $tv)); }
     echo json_encode(['ok' => true]);
     exit;
 }
@@ -88,13 +90,18 @@ foreach ($fyTypeStmt->fetchAll() as $r) {
         'rev' => (int)$r['rev'], 'profit' => (int)$r['profit'],
     ];
 }
-// 月別目標
+// 月別目標（常勤/イベントは各タイプ、総合はregular+eventの合計）
 $fyTgtMap = [];
+$_tgtType = $caseTypeFilter ?: null;
 foreach (getSalesTargets($cid, $year-1) as $m => $types) {
-    $fyTgtMap[$year-1][$m] = (int)($types['total']['revenue_target'] ?? 0);
+    $fyTgtMap[$year-1][$m] = $_tgtType
+        ? (int)($types[$_tgtType]['revenue_target'] ?? 0)
+        : (int)($types['regular']['revenue_target'] ?? 0) + (int)($types['event']['revenue_target'] ?? 0);
 }
 foreach (getSalesTargets($cid, $year) as $m => $types) {
-    $fyTgtMap[$year][$m] = (int)($types['total']['revenue_target'] ?? 0);
+    $fyTgtMap[$year][$m] = $_tgtType
+        ? (int)($types[$_tgtType]['revenue_target'] ?? 0)
+        : (int)($types['regular']['revenue_target'] ?? 0) + (int)($types['event']['revenue_target'] ?? 0);
 }
 // 年度合計
 $fyTotalRev = 0; $fyTotalProfit = 0; $fyTotalTarget = 0;
@@ -374,7 +381,11 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-table me-1" style="color:#6366f1"></i><?= $year-1 ?>-<?= $year ?>年度 月別売上（9月〜8月）</span>
+            <?php if ($caseTypeFilter): ?>
             <small class="text-muted">売上目標は直接入力で保存されます</small>
+            <?php else: ?>
+            <small class="text-muted">売上目標は常勤・イベントダッシュボードで入力してください</small>
+            <?php endif; ?>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -404,16 +415,20 @@ require_once __DIR__ . '/../includes/header.php';
                             $prevRev = $rev;
                         }
                         ?>
-                        <!-- 売上目標（手入力） -->
+                        <!-- 売上目標（常勤/イベントは入力可、総合は常勤+イベントの合計を読み取り専用） -->
                         <tr>
                             <td class="fw-semibold" style="color:#6366f1">売上目標</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
                             <td class="p-0">
+                                <?php if ($caseTypeFilter): ?>
                                 <input type="text" class="fy-tgt-input form-control form-control-sm border-0 text-end px-1"
                                        style="min-width:72px;background:transparent"
                                        data-year="<?= $fm['y'] ?>" data-month="<?= $fm['m'] ?>"
                                        value="<?= $d['tgt'] > 0 ? number_format($d['tgt']) : '' ?>"
                                        placeholder="0">
+                                <?php else: ?>
+                                <div class="text-end px-1 text-muted" style="min-width:72px;font-size:.85rem;line-height:2"><?= $d['tgt'] > 0 ? number_format($d['tgt']) : '-' ?></div>
+                                <?php endif; ?>
                             </td>
                             <?php endforeach; ?>
                             <td class="text-end fw-bold table-secondary" id="fyTgtTotal"><?= $fyTotalTarget > 0 ? number_format($fyTotalTarget) : '-' ?></td>

@@ -190,7 +190,6 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $dispYear ?>年<?= $dispMonth ?>月</span>
                     <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
                 </div>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#copyConfirmModal">前月コピー</button>
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#caseModal" onclick="resetCaseForm()"><i class="bi bi-plus-lg me-1"></i>案件追加</button>
             </div>
         </div>

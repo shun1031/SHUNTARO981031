@@ -397,17 +397,17 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $neg       = (int)$row['negotiations_count'];
         $con       = (int)$row['contracts_count'];
 
-        // 売上・粗利を50/50で分割（端数は営業担当側へ）
-        $repRev = (int)round($revenue * 0.5);
+        // 売上・粗利を50/50で分割（表示ページと同じくfloor: 端数は分割先へ）
+        $repRev = (int)floor($revenue / 2);
         $refRev = $revenue - $repRev;
-        $repPro = (int)round($profit * 0.5);
+        $repPro = (int)floor($profit / 2);
         $refPro = $profit - $repPro;
 
         // 営業担当: 50%（案件数・商談数・成約数は営業担当にのみ帰属）
         $addEntry($rep, $month, $type, $repRev, $repPro, $count, $newTx, $neg, $con);
 
-        // 紹介元（マネージャー → リクルーター → 余売上）: 50%
-        $referrer = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '余売上');
+        // 紹介元（マネージャー → リクルーター → 直営業）: 50%
+        $referrer = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '直営業');
         $addEntry($referrer, $month, $type, $refRev, $refPro, 0, 0, 0, 0);
     }
 

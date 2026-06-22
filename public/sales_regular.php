@@ -159,7 +159,13 @@ require_once __DIR__ . '/../includes/header.php';
                 <h1><i class="bi bi-person-workspace me-2"></i>常勤案件</h1>
                 <p><?= $year ?>年<?= $month ? $month . '月' : '' ?> / <?= $totalCount ?>件</p>
             </div>
-            <?php $dispYear = $year; $dispMonth = (int)($month ?: date('n')); ?>
+            <?php
+            $dispYear = $year; $dispMonth = (int)($month ?: date('n'));
+            $prevM = $dispMonth - 1; $prevY = $dispYear;
+            if ($prevM < 1) { $prevM = 12; $prevY--; }
+            $nextM = $dispMonth + 1; $nextY = $dispYear;
+            if ($nextM > 12) { $nextM = 1; $nextY++; }
+            ?>
             <form method="post" id="copyPrevForm" style="display:none">
                 <input type="hidden" name="csrf" value="<?= $csrf ?>">
                 <input type="hidden" name="action" value="copy_prev_month">
@@ -167,7 +173,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="copy_month" value="<?= $dispMonth ?>">
             </form>
             <div class="d-flex gap-2 align-items-center">
-                <span class="fw-bold text-secondary" style="white-space:nowrap;font-size:.95rem"><?= $dispYear ?>年<?= $dispMonth ?>月</span>
+                <div class="d-flex align-items-center gap-1">
+                    <a href="?year=<?= $prevY ?>&month=<?= $prevM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</a>
+                    <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $dispYear ?>年<?= $dispMonth ?>月</span>
+                    <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
+                </div>
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#copyConfirmModal">前月コピー</button>
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#caseModal" onclick="resetCaseForm()"><i class="bi bi-plus-lg me-1"></i>案件追加</button>
             </div>
@@ -188,13 +198,8 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- フィルタ -->
     <form id="salesFilterForm" class="sales-filters">
-        <select name="month" class="form-select" onchange="this.form.submit()">
-            <option value="">全月</option>
-            <?php for ($m = 1; $m <= 12; $m++): ?><option value="<?= $m ?>" <?= $month == $m ? 'selected' : '' ?>><?= $m ?>月</option><?php endfor; ?>
-        </select>
-        <select name="year" class="form-select" onchange="this.form.submit()">
-            <?php for ($y = date('Y') + 1; $y >= 2025; $y--): ?><option value="<?= $y ?>" <?= $year == $y ? 'selected' : '' ?>><?= $y ?>年</option><?php endfor; ?>
-        </select>
+        <input type="hidden" name="year" value="<?= $dispYear ?>">
+        <input type="hidden" name="month" value="<?= $dispMonth ?>">
         <select name="client_id" class="form-select" onchange="this.form.submit()">
             <option value="">全取引先</option>
             <?php foreach ($clients as $cl): ?><option value="<?= $cl['id'] ?>" <?= ($_GET['client_id'] ?? '') == $cl['id'] ? 'selected' : '' ?>><?= h($cl['client_name']) ?></option><?php endforeach; ?>

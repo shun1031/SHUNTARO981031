@@ -231,8 +231,31 @@ require_once __DIR__ . '/../includes/header.php';
                         <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
                         <td class="fw-medium"><?= h($c['worker_name']) ?></td>
                         <td class="small"><?= h(trim(($c['carrier'] ?? '') . ' ' . ($c['store_name'] ?? ''))) ?></td>
-                        <td class="amount amount-positive" id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></td>
-                        <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></td>
+                        <?php
+                        $splitTo  = $c['manager'] ?: ($c['recruiter'] ?: '直営業');
+                        $repRev   = (int)floor($c['revenue'] / 2);
+                        $otRev    = $c['revenue'] - $repRev;
+                        $repPro   = (int)floor($c['gross_profit'] / 2);
+                        $otPro    = $c['gross_profit'] - $repPro;
+                        ?>
+                        <td class="amount amount-positive" style="vertical-align:top">
+                            <span id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></span>
+                            <?php if ($c['sales_rep']): ?>
+                            <div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px">
+                                <?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br>
+                                <?= h($splitTo) ?> <?= number_format($otRev) ?>
+                            </div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" style="vertical-align:top">
+                            <span id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></span>
+                            <?php if ($c['sales_rep']): ?>
+                            <div id="profit_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px">
+                                <?= h($c['sales_rep']) ?> <?= number_format($repPro) ?><br>
+                                <?= h($splitTo) ?> <?= number_format($otPro) ?>
+                            </div>
+                            <?php endif; ?>
+                        </td>
                         <td class="text-center" style="white-space:nowrap">
                             <div class="d-flex align-items-center justify-content-center gap-1">
                                 <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,-1)">−</button>
@@ -482,6 +505,20 @@ function refreshKpi() {
     if (e('tfoot_profit'))  e('tfoot_profit').textContent  = totalProfit.toLocaleString();
 }
 
+// 担当者別内訳を更新
+function updateSplit(id, rev, profit) {
+    var rEl = document.getElementById('rev_split_' + id);
+    var pEl = document.getElementById('profit_split_' + id);
+    if (rEl) {
+        var repRev = Math.floor(rev / 2);
+        rEl.innerHTML = rEl.dataset.rep + ' ' + repRev.toLocaleString() + '<br>' + rEl.dataset.split + ' ' + (rev - repRev).toLocaleString();
+    }
+    if (pEl) {
+        var repPro = Math.floor(profit / 2);
+        pEl.innerHTML = pEl.dataset.rep + ' ' + repPro.toLocaleString() + '<br>' + pEl.dataset.split + ' ' + (profit - repPro).toLocaleString();
+    }
+}
+
 // 金額反映
 function applyDays(id) {
     var row = document.getElementById('row_' + id);
@@ -506,6 +543,7 @@ function applyDays(id) {
             if (d.ok) {
                 document.getElementById('rev_' + id).textContent = d.revenue.toLocaleString();
                 document.getElementById('profit_' + id).textContent = d.profit.toLocaleString();
+                updateSplit(id, d.revenue, d.profit);
                 row.dataset.rev = d.revenue; row.dataset.profit = d.profit;
                 refreshKpi();
             }

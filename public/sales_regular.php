@@ -363,7 +363,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="text" name="manager_name" id="f_manager_name" class="form-control">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">リクルーター</label>
+                        <label class="form-label fw-medium">採用者</label>
                         <input type="text" name="recruiter_name" id="f_recruiter_name" class="form-control">
                     </div>
                     <div class="col-md-4">

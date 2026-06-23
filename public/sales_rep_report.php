@@ -43,6 +43,27 @@ $yearlyData    = array_filter($yearlyData, fn($d) => $d['total_revenue'] > 0);
 $yearlyDirect  = isset($yearlyData['直営業']) ? ['直営業' => $yearlyData['直営業']] : [];
 $yearlyData    = array_filter($yearlyData, fn($d) => $d['sales_rep'] !== '直営業');
 
+// 強制表示メンバー（売上0でも必ずランキングに表示）
+$forcedMembers = ['山根脩平'];
+$emptyMonthEntry = ['revenue'=>0,'profit'=>0,'case_count'=>0,'regular_revenue'=>0,'event_revenue'=>0];
+$emptyYearEntry  = ['sales_rep'=>'','total_revenue'=>0,'total_profit'=>0,'total_cases'=>0,'regular_revenue'=>0,'event_revenue'=>0,'months'=>[]];
+foreach ($forcedMembers as $fm) {
+    // 月間にいなければ0で追加
+    $inMonthly = false;
+    foreach ($monthlyData as $d) { if ($d['sales_rep'] === $fm) { $inMonthly = true; break; } }
+    if (!$inMonthly) {
+        $stub = $emptyYearEntry; $stub['sales_rep'] = $fm;
+        $monthlyData[$fm] = $stub;
+    }
+    // 年間にいなければ0で追加
+    $inYearly = false;
+    foreach ($yearlyData as $d) { if ($d['sales_rep'] === $fm) { $inYearly = true; break; } }
+    if (!$inYearly) {
+        $stub = $emptyYearEntry; $stub['sales_rep'] = $fm;
+        $yearlyData[$fm] = $stub;
+    }
+}
+
 require_once __DIR__ . '/../includes/header.php';
 
 function renderRepCard(string $repName, array $cur, string $footerText): string {

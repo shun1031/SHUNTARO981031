@@ -64,16 +64,36 @@ foreach ($forcedMembers as $fm) {
     }
 }
 
+// インセンティブ率マップ（0=なし、それ以外は割合）
+$INCENTIVE_RATES = [
+    '竹内陽'   => 0,
+    '直営業'   => 0,
+    '佐藤思杰' => 0.20,
+    '近藤航'   => 0.20,
+];
+$INCENTIVE_DEFAULT = 0.30;
+
 require_once __DIR__ . '/../includes/header.php';
 
 function renderRepCard(string $repName, array $cur, string $footerText): string {
+    global $INCENTIVE_RATES, $INCENTIVE_DEFAULT;
+    $rate = array_key_exists($repName, $INCENTIVE_RATES)
+        ? $INCENTIVE_RATES[$repName]
+        : $INCENTIVE_DEFAULT;
+    $profit    = (int)($cur['profit'] ?? 0);
+    $incentive = ($rate > 0 && $profit > 0) ? (int)round($profit * $rate) : null;
     ob_start(); ?>
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="fw-bold fs-6"><?= h($repName) ?> <span class="text-muted small fw-normal ms-1"><?= ($cur['case_count'] ?? 0) ?>件</span></div>
                 <div>
                     <span class="fw-bold" style="color:#059669"><?= number_format($cur['revenue'] ?? 0) ?></span>
-                    <span class="text-muted small ms-2">粗利 <?= number_format($cur['profit'] ?? 0) ?></span>
+                    <span class="text-muted small ms-2">粗利 <?= number_format($profit) ?></span>
+                    <?php if ($incentive !== null): ?>
+                    <span class="ms-2 badge" style="background:#fef3c7;color:#92400e;font-size:.7rem">
+                        ¥<?= number_format($incentive) ?> <small><?= (int)($rate*100) ?>%</small>
+                    </span>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -83,8 +103,19 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                     <tr><td style="padding-left:.75rem">合計売上</td><td class="text-end fw-bold" style="padding-right:.75rem"><?= ($cur['revenue'] ?? 0) ? number_format($cur['revenue']) : '-' ?></td></tr>
                     <tr><td style="padding-left:.75rem"><span style="color:#3b82f6;font-size:.8rem">●</span> 常勤売上</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['regular_revenue'] ?? 0) ? number_format($cur['regular_revenue']) : '-' ?></td></tr>
                     <tr><td style="padding-left:.75rem"><span style="color:#8b5cf6;font-size:.8rem">●</span> イベント売上</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['event_revenue'] ?? 0) ? number_format($cur['event_revenue']) : '-' ?></td></tr>
-                    <tr><td style="padding-left:.75rem">粗利</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['profit'] ?? 0) ? number_format($cur['profit']) : '-' ?></td></tr>
+                    <tr><td style="padding-left:.75rem">粗利</td><td class="text-end" style="padding-right:.75rem"><?= $profit ? number_format($profit) : '-' ?></td></tr>
                     <tr><td style="padding-left:.75rem">案件数</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['case_count'] ?? 0) ?: '-' ?></td></tr>
+                    <?php if ($incentive !== null): ?>
+                    <tr style="background:#fffbeb">
+                        <td style="padding-left:.75rem;color:#92400e;font-weight:500">インセンティブ (<?= (int)($rate*100) ?>%)</td>
+                        <td class="text-end fw-bold" style="padding-right:.75rem;color:#d97706"><?= number_format($incentive) ?></td>
+                    </tr>
+                    <?php elseif ($rate === 0): ?>
+                    <tr style="background:#f9fafb">
+                        <td style="padding-left:.75rem;color:#9ca3af;font-size:.8rem">インセンティブ</td>
+                        <td class="text-end text-muted small" style="padding-right:.75rem">なし</td>
+                    </tr>
+                    <?php endif; ?>
                     <tr style="background:#f9fafb"><td colspan="2" class="text-muted small" style="padding-left:.75rem;padding-right:.75rem"><?= $footerText ?></td></tr>
                 </tbody>
             </table>

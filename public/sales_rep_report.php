@@ -22,16 +22,20 @@ $empFilter   = getEmployeeNameFilter();
 $yearlyData  = getSalesRepReport($cid, $year,     $empFilter);
 $prevYearly  = getSalesRepReport($cid, $year - 1, $empFilter);
 
-// 月間: 今月売上順でソート・フィルタ
+// 月間: 直営業を分離 → 残りを売上順 → 直営業を末尾
 $monthlyData = $yearlyData;
 uasort($monthlyData, function($a, $b) use ($month) {
     return ($b['months'][$month]['revenue'] ?? 0) <=> ($a['months'][$month]['revenue'] ?? 0);
 });
-$monthlyData = array_filter($monthlyData, fn($d) => ($d['months'][$month]['revenue'] ?? 0) > 0 || ($d['months'][$month]['case_count'] ?? 0) > 0);
+$monthlyData    = array_filter($monthlyData, fn($d) => ($d['months'][$month]['revenue'] ?? 0) > 0 || ($d['months'][$month]['case_count'] ?? 0) > 0);
+$monthlyDirect  = isset($monthlyData['直営業']) ? ['直営業' => $monthlyData['直営業']] : [];
+$monthlyData    = array_filter($monthlyData, fn($d) => $d['sales_rep'] !== '直営業');
 
-// 年間: 年間売上順
+// 年間: 直営業を分離 → 残りを売上順 → 直営業を末尾
 uasort($yearlyData, fn($a,$b) => $b['total_revenue'] <=> $a['total_revenue']);
-$yearlyData = array_filter($yearlyData, fn($d) => $d['total_revenue'] > 0);
+$yearlyData    = array_filter($yearlyData, fn($d) => $d['total_revenue'] > 0);
+$yearlyDirect  = isset($yearlyData['直営業']) ? ['直営業' => $yearlyData['直営業']] : [];
+$yearlyData    = array_filter($yearlyData, fn($d) => $d['sales_rep'] !== '直営業');
 
 require_once __DIR__ . '/../includes/header.php';
 
@@ -105,6 +109,26 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                 </div>
             </div>
             <?php endforeach; ?>
+            <?php /* 直営業は順位なしで末尾に表示 */
+            foreach ($monthlyDirect as $data):
+                $cur = $data['months'][$month] ?? [];
+                $cur['revenue']         = $cur['revenue']         ?? 0;
+                $cur['profit']          = $cur['profit']          ?? 0;
+                $cur['case_count']      = $cur['case_count']      ?? 0;
+                $cur['regular_revenue'] = $cur['regular_revenue'] ?? 0;
+                $cur['event_revenue']   = $cur['event_revenue']   ?? 0;
+            ?>
+            <div class="card mb-3" style="border-style:dashed;opacity:.85">
+                <div class="d-flex align-items-start gap-0">
+                    <div class="d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;padding-top:.75rem;padding-left:.75rem">
+                        <span class="text-muted" style="font-size:.75rem">—</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <?= renderRepCard('直営業', $cur, $year.'年'.$month.'月（前年同月：-）') ?>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
         </div>
 
         <!-- 年間総合ランキング -->
@@ -131,6 +155,27 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                     </div>
                     <div class="flex-grow-1">
                         <?= renderRepCard($data['sales_rep'], $annual, $year.'年度合計（前年比：'.$yoyAText.'）') ?>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php /* 直営業は順位なしで末尾に表示 */
+            foreach ($yearlyDirect as $data):
+                $annual = [
+                    'revenue'         => $data['total_revenue'],
+                    'profit'          => $data['total_profit'],
+                    'case_count'      => $data['total_cases'],
+                    'regular_revenue' => $data['regular_revenue'] ?? 0,
+                    'event_revenue'   => $data['event_revenue']   ?? 0,
+                ];
+            ?>
+            <div class="card mb-3" style="border-style:dashed;opacity:.85">
+                <div class="d-flex align-items-start gap-0">
+                    <div class="d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;padding-top:.75rem;padding-left:.75rem">
+                        <span class="text-muted" style="font-size:.75rem">—</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <?= renderRepCard('直営業', $annual, $year.'年度合計（前年比：-）') ?>
                     </div>
                 </div>
             </div>

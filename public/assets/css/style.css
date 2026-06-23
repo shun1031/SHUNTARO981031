@@ -10,9 +10,9 @@
     --n400: #9ca3af; --n500: #6b7280; --n600: #4b5563; --n700: #374151;
     --n800: #1f2937; --n900: #111827;
 
-    /* Accent: Emerald Green */
-    --a50:  #ecfdf5; --a100: #d1fae5; --a200: #a7f3d0;
-    --a400: #34d399; --a500: #10b981; --a600: #059669; --a700: #047857;
+    /* Accent: Blue */
+    --a50:  #eff6ff; --a100: #dbeafe; --a200: #bfdbfe;
+    --a400: #60a5fa; --a500: #3b82f6; --a600: #2563eb; --a700: #1d4ed8;
 
     /* Status */
     --green: #10b981; --green-light: #ecfdf5;
@@ -33,10 +33,10 @@
     --accent:   var(--a600);
 
     /* Gradient */
-    --grad-green: linear-gradient(135deg, #059669, #34d399);
+    --grad-green: linear-gradient(135deg, #2563eb, #60a5fa);
     --grad-dark:  linear-gradient(135deg, #1f2937, #374151);
-    --grad-hero:  linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
-    --grad-subtle: linear-gradient(135deg, rgba(5,150,105,.04), rgba(52,211,153,.02));
+    --grad-hero:  linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+    --grad-subtle: linear-gradient(135deg, rgba(37,99,235,.04), rgba(96,165,250,.02));
 
     /* Typography */
     --sans: 'Noto Sans JP', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -57,7 +57,7 @@
     --sh-lg: 0 10px 15px -3px rgba(0,0,0,.06), 0 4px 6px -4px rgba(0,0,0,.04);
     --sh-xl: 0 20px 25px -5px rgba(0,0,0,.06), 0 8px 10px -6px rgba(0,0,0,.04);
     --sh-ring: 0 0 0 1px rgba(0,0,0,.04);
-    --sh-green: 0 4px 14px rgba(5,150,105,.15);
+    --sh-green: 0 4px 14px rgba(37,99,235,.15);
     --sh-card: 0 1px 3px rgba(0,0,0,.04), 0 0 0 1px rgba(0,0,0,.02);
 
     /* Motion */

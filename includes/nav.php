@@ -23,7 +23,7 @@ function navSection(string $label): string {
         <?php if (!empty($_SESSION['company_logo'])): ?>
         <img src="<?= BASE_PATH ?>/<?= h($_SESSION['company_logo']) ?>" alt="" style="height:22px;width:auto;margin-right:6px">
         <?php endif; ?>
-        bMS
+        社内ポータル
     </span>
     <a href="<?= BASE_PATH ?>/logout.php" class="btn btn-sm text-muted"><i class="bi bi-box-arrow-right"></i></a>
 </div>
@@ -41,7 +41,7 @@ function navSection(string $label): string {
         <div class="sidebar-logo-icon"><i class="bi bi-people-fill"></i></div>
         <?php endif; ?>
         <div class="sidebar-brand-text">
-            <span class="fw-bold">bMS</span>
+            <span class="fw-bold">社内ポータル</span>
             <?php if (!empty($_SESSION['company_name'])): ?>
             <small class="d-block text-muted" style="font-size:.65rem;line-height:1.2"><?= h($_SESSION['company_name']) ?></small>
             <?php endif; ?>

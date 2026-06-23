@@ -70,13 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             'note'           => trim($_POST['notes'] ?? ''),
         ];
         // イベント案件: 請求単価×稼働数=売上、支払単価×稼働数=原価
+        $_crY = (int)($_GET['year']  ?? date('Y'));
+        $_crM = (int)($_GET['month'] ?? date('n'));
+        $_crBase = BASE_PATH . '/public/sales_events.php?year=' . $_crY . '&month=' . $_crM;
         if ($action === 'create') {
             createSalesCase($cid, $data);
-            redirect(BASE_PATH . '/public/sales_events.php?msg=' . urlencode('案件を追加しました'));
+            redirect($_crBase . '&msg=' . urlencode('案件を追加しました'));
         } else {
             $id = (int)$_POST['id'];
             updateSalesCase($id, $cid, $data);
-            redirect(BASE_PATH . '/public/sales_events.php?msg=' . urlencode('案件を更新しました'));
+            redirect($_crBase . '&msg=' . urlencode('案件を更新しました'));
         }
     }
     $_backYear  = (int)($_GET['year']  ?? date('Y'));

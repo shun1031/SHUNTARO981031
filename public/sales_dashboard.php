@@ -267,16 +267,33 @@ $_allianceFySql = "
 $_s = $_sDb->prepare($_allianceFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $allianceFyRows = $_s->fetchAll();
-// 営業マン別売上（年度）
+// 営業マン別売上（年度）: 担当者別売上レポートと同じ50%分割で集計
+// 営業担当分(50%) + 管理者/リクルーター分(50%) を合算。直営業は除外。
 $_repFySql = "
-    SELECT sales_rep AS name, COALESCE(SUM(revenue),0) AS revenue, COALESCE(SUM(gross_profit),0) AS profit
-    FROM sales_cases
-    WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
-      AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
-      $_ctf2
-    GROUP BY sales_rep ORDER BY revenue DESC";
+    SELECT name, SUM(revenue) AS revenue, SUM(profit) AS profit
+    FROM (
+        SELECT sales_rep AS name,
+               FLOOR(revenue/2) AS revenue,
+               FLOOR(gross_profit/2) AS profit
+        FROM sales_cases
+        WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
+          AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+          $_ctf2
+        UNION ALL
+        SELECT CASE WHEN COALESCE(manager,'') NOT IN ('','該当者なし') THEN manager
+                    WHEN COALESCE(recruiter,'') NOT IN ('','該当者なし') THEN recruiter
+                    ELSE '直営業' END AS name,
+               revenue - FLOOR(revenue/2) AS revenue,
+               gross_profit - FLOOR(gross_profit/2) AS profit
+        FROM sales_cases
+        WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
+          AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+          $_ctf2
+    ) t
+    WHERE name NOT IN ('直営業','','該当者なし')
+    GROUP BY name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_repFySql);
-$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
+$_s->execute(array_merge([$cid, $year-1, $year], $_ctp, [$cid, $year-1, $year], $_ctp));
 $repFyRows = $_s->fetchAll();
 // キャリア別売上（年度）
 $_carrierFySql = "

@@ -27,7 +27,13 @@ $monthlyData = $yearlyData;
 uasort($monthlyData, function($a, $b) use ($month) {
     return ($b['months'][$month]['revenue'] ?? 0) <=> ($a['months'][$month]['revenue'] ?? 0);
 });
-$monthlyData    = array_filter($monthlyData, fn($d) => ($d['months'][$month]['revenue'] ?? 0) > 0 || ($d['months'][$month]['case_count'] ?? 0) > 0);
+// 今月0円でも年間売上がある（または年間案件数がある）人は表示する
+$monthlyData    = array_filter($monthlyData, fn($d) =>
+    ($d['months'][$month]['revenue'] ?? 0) > 0 ||
+    ($d['months'][$month]['case_count'] ?? 0) > 0 ||
+    $d['total_revenue'] > 0 ||
+    $d['total_cases'] > 0
+);
 $monthlyDirect  = isset($monthlyData['直営業']) ? ['直営業' => $monthlyData['直営業']] : [];
 $monthlyData    = array_filter($monthlyData, fn($d) => $d['sales_rep'] !== '直営業');
 

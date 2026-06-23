@@ -10,6 +10,13 @@ $pageTitle = 'イベント案件';
 $extraCss = ['sales.css'];
 $extraJs = ['sales.js'];
 
+// 月が URL にない場合は当月にリダイレクト（全月表示防止）
+if (!isset($_GET['month']) && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $defaultYear  = (int)($_GET['year'] ?? date('Y'));
+    $defaultMonth = (int)date('n');
+    redirect(BASE_PATH . '/public/sales_events.php?year=' . $defaultYear . '&month=' . $defaultMonth);
+}
+
 $db = getDB();
 
 // CSV出力

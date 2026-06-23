@@ -267,8 +267,7 @@ $_allianceFySql = "
 $_s = $_sDb->prepare($_allianceFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $allianceFyRows = $_s->fetchAll();
-// 営業マン別売上（年度）: 担当者別売上レポートと同じ50%分割で集計
-// 営業担当分(50%) + 管理者/リクルーター分(50%) を合算。直営業は除外。
+// 営業マン別売上（当月）: 担当者別売上レポートと同じ50%分割で集計
 $_repFySql = "
     SELECT name, SUM(revenue) AS revenue, SUM(profit) AS profit
     FROM (
@@ -277,7 +276,7 @@ $_repFySql = "
                FLOOR(gross_profit/2) AS profit
         FROM sales_cases
         WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
-          AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+          AND case_year = ? AND case_month = ?
           $_ctf2
         UNION ALL
         SELECT CASE WHEN COALESCE(manager,'') NOT IN ('','該当者なし') THEN manager
@@ -287,14 +286,18 @@ $_repFySql = "
                gross_profit - FLOOR(gross_profit/2) AS profit
         FROM sales_cases
         WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
-          AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+          AND case_year = ? AND case_month = ?
           $_ctf2
     ) t
     WHERE name NOT IN ('直営業','','該当者なし')
     GROUP BY name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_repFySql);
-$_s->execute(array_merge([$cid, $year-1, $year], $_ctp, [$cid, $year-1, $year], $_ctp));
+$_s->execute(array_merge([$cid, $year, $month], $_ctp, [$cid, $year, $month], $_ctp));
 $repFyRows = $_s->fetchAll();
+// 山根脩平を末尾に固定追加（売上0でも必ず表示）
+$_yamaneFound = false;
+foreach ($repFyRows as $_r) { if ($_r['name'] === '山根脩平') { $_yamaneFound = true; break; } }
+if (!$_yamaneFound) { $repFyRows[] = ['name' => '山根脩平', 'revenue' => 0, 'profit' => 0]; }
 // キャリア別売上（年度）
 $_carrierFySql = "
     SELECT carrier AS name, COALESCE(SUM(revenue),0) AS revenue, COALESCE(SUM(gross_profit),0) AS profit
@@ -667,7 +670,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1">TOP5</small></span>
+                    <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>

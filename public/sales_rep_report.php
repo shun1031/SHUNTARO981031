@@ -102,7 +102,7 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                     <tr><td style="padding-left:.75rem">案件数</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['case_count'] ?? 0) ?: '-' ?></td></tr>
                     <?php if ($incentive !== null): ?>
                     <tr style="background:#fffbeb">
-                        <td style="padding-left:.75rem;color:#92400e;font-weight:500">インセンティブ</td>
+                        <td style="padding-left:.75rem;color:#d97706;font-weight:500">インセンティブ</td>
                         <td class="text-end fw-bold" style="padding-right:.75rem;color:#d97706"><?= number_format($incentive) ?></td>
                     </tr>
                     <?php elseif ($rate === 0): ?>

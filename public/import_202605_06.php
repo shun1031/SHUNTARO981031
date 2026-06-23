@@ -7,7 +7,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 requireAnyLogin();
-if (!isSuperAdmin()) { http_response_code(403); die('管理者のみ'); }
+if (!isAdmin()) { http_response_code(403); die('管理者のみ'); }
 
 $db  = getDB();
 $cid = getCompanyId();

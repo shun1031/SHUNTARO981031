@@ -89,11 +89,6 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                 <div>
                     <span class="fw-bold" style="color:#059669"><?= number_format($cur['revenue'] ?? 0) ?></span>
                     <span class="text-muted small ms-2">粗利 <?= number_format($profit) ?></span>
-                    <?php if ($incentive !== null): ?>
-                    <span class="ms-2 badge" style="background:#fef3c7;color:#92400e;font-size:.7rem">
-                        ¥<?= number_format($incentive) ?> <small><?= (int)($rate*100) ?>%</small>
-                    </span>
-                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -107,7 +102,7 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                     <tr><td style="padding-left:.75rem">案件数</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['case_count'] ?? 0) ?: '-' ?></td></tr>
                     <?php if ($incentive !== null): ?>
                     <tr style="background:#fffbeb">
-                        <td style="padding-left:.75rem;color:#92400e;font-weight:500">インセンティブ (<?= (int)($rate*100) ?>%)</td>
+                        <td style="padding-left:.75rem;color:#92400e;font-weight:500">インセンティブ</td>
                         <td class="text-end fw-bold" style="padding-right:.75rem;color:#d97706"><?= number_format($incentive) ?></td>
                     </tr>
                     <?php elseif ($rate === 0): ?>

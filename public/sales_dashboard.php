@@ -298,6 +298,20 @@ $repFyRows = $_s->fetchAll();
 $_yamaneFound = false;
 foreach ($repFyRows as $_r) { if ($_r['name'] === '山根脩平') { $_yamaneFound = true; break; } }
 if (!$_yamaneFound) { $repFyRows[] = ['name' => '山根脩平', 'revenue' => 0, 'profit' => 0]; }
+// 直営業の月間売上を取得して最後尾に追加
+$_directSql = "
+    SELECT SUM(revenue - FLOOR(revenue/2)) AS revenue,
+           SUM(gross_profit - FLOOR(gross_profit/2)) AS profit
+    FROM sales_cases
+    WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
+      AND case_year = ? AND case_month = ?
+      AND COALESCE(manager,'') IN ('','該当者なし')
+      AND COALESCE(recruiter,'') IN ('','該当者なし')
+      $_ctf2";
+$_ds = $_sDb->prepare($_directSql);
+$_ds->execute(array_merge([$cid, $year, $month], $_ctp));
+$_dr = $_ds->fetch();
+$repFyRows[] = ['name' => '直営業', 'revenue' => (int)($_dr['revenue'] ?? 0), 'profit' => (int)($_dr['profit'] ?? 0)];
 // キャリア別売上（年度）
 $_carrierFySql = "
     SELECT carrier AS name, COALESCE(SUM(revenue),0) AS revenue, COALESCE(SUM(gross_profit),0) AS profit

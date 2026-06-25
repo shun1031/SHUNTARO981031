@@ -225,27 +225,25 @@ function buildEmpStats(array $row): array {
 $empStats    = buildEmpStats($empStats);
 $empStatsYoy = buildEmpStats($empStatsYoy);
 
-// 常勤・イベント別 雇用形態内訳（自社/アライアンス）
-$_empDetailSql = "
-    SELECT work_style,
-           SUM(employment_type = '自社') AS inhouse,
-           SUM(employment_type = 'アライアンス') AS alliance
-    FROM employees
-    WHERE company_id = ? AND is_active = 1
-      AND (retirement_date IS NULL OR retirement_date >= ?)
-      AND work_style IN ('常勤', 'イベント')
-    GROUP BY work_style
+// 常勤・イベント別 自社/アライアンス 案件数（sales_casesから取得）
+$_caseDetailSql = "
+    SELECT case_type,
+           SUM(CASE WHEN worker_type IN ('正社員','自社外注','アルバイト') THEN 1 ELSE 0 END) AS inhouse,
+           SUM(CASE WHEN worker_type IN ('アライアンス','個人外注') THEN 1 ELSE 0 END) AS alliance
+    FROM sales_cases
+    WHERE company_id = ? AND case_year = ? AND case_month = ? AND status = 'confirmed'
+    GROUP BY case_type
 ";
-$_edStmt = $db->prepare($_empDetailSql);
-$_edStmt->execute([$cid, $curLastDay]);
-$_empDetail = [];
-foreach ($_edStmt->fetchAll() as $_r) {
-    $_empDetail[$_r['work_style']] = ['inhouse' => (int)$_r['inhouse'], 'alliance' => (int)$_r['alliance']];
+$_cdStmt = $db->prepare($_caseDetailSql);
+$_cdStmt->execute([$cid, $year, $month]);
+$_caseDetail = [];
+foreach ($_cdStmt->fetchAll() as $_r) {
+    $_caseDetail[$_r['case_type']] = ['inhouse' => (int)$_r['inhouse'], 'alliance' => (int)$_r['alliance']];
 }
-$regularInhouse  = $_empDetail['常勤']['inhouse']    ?? 0;
-$regularAlliance = $_empDetail['常勤']['alliance']   ?? 0;
-$eventInhouse    = $_empDetail['イベント']['inhouse']  ?? 0;
-$eventAlliance   = $_empDetail['イベント']['alliance'] ?? 0;
+$regularInhouse  = $_caseDetail['regular']['inhouse']  ?? 0;
+$regularAlliance = $_caseDetail['regular']['alliance'] ?? 0;
+$eventInhouse    = $_caseDetail['event']['inhouse']    ?? 0;
+$eventAlliance   = $_caseDetail['event']['alliance']   ?? 0;
 
 $fmtYoy = function($cur, $prev, $unit = '') {
     if ($prev <= 0) return '<span class="text-muted small">前年データなし</span>';

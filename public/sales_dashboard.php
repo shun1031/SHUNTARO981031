@@ -560,55 +560,6 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- スタッフ分析（全幅） -->
-    <div class="row g-4 mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ分析</span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active" id="btnTaxExcl" onclick="setTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnTaxIncl" onclick="setTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3 align-items-start justify-content-center">
-                        <!-- ① 区分別売上（既存） -->
-                        <div class="col-md-4 text-center">
-                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">区分別売上</div>
-                            <div class="sales-chart-wrap" style="height:130px"><canvas id="workerChart"></canvas></div>
-                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
-                                <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$workerGrouped['自社']['case_count'] ?>件</strong>
-                                &nbsp;&nbsp;
-                                <span style="color:#059669">●</span> アライアンス <strong><?= (int)$workerGrouped['アライアンス']['case_count'] ?>件</strong>
-                            </div>
-                        </div>
-                        <!-- ② 常勤人数構成（新規） -->
-                        <div class="col-md-4 text-center">
-                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">常勤人数構成</div>
-                            <div class="sales-chart-wrap" style="height:130px"><canvas id="regularStaffChart"></canvas></div>
-                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
-                                <span style="color:#3b82f6">●</span> 自社 <strong><?= $regularInhouse ?>名</strong>
-                                &nbsp;&nbsp;
-                                <span style="color:#059669">●</span> アライアンス <strong><?= $regularAlliance ?>名</strong>
-                            </div>
-                        </div>
-                        <!-- ③ イベント人数構成（新規） -->
-                        <div class="col-md-4 text-center">
-                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">イベント人数構成</div>
-                            <div class="sales-chart-wrap" style="height:130px"><canvas id="eventStaffChart"></canvas></div>
-                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
-                                <span style="color:#3b82f6">●</span> 自社 <strong><?= $eventInhouse ?>名</strong>
-                                &nbsp;&nbsp;
-                                <span style="color:#059669">●</span> アライアンス <strong><?= $eventAlliance ?>名</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- 集計カード 上段: キャリア別売上（左）+ 営業マン別売上（右） -->
     <div class="row g-4 mb-4">
         <div class="col-lg-6">
@@ -748,6 +699,55 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- スタッフ分析（全幅）→ 売上ランキング表の下に移動 -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-people me-1" style="color:#3b82f6"></i>スタッフ分析</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary active" id="btnTaxExcl" onclick="setTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                        <button type="button" class="btn btn-outline-secondary" id="btnTaxIncl" onclick="setTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start justify-content-center">
+                        <!-- ① 区分別売上（既存） -->
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">区分別売上</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="workerChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
+                                <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$workerGrouped['自社']['case_count'] ?>件</strong>
+                                &nbsp;&nbsp;
+                                <span style="color:#059669">●</span> アライアンス <strong><?= (int)$workerGrouped['アライアンス']['case_count'] ?>件</strong>
+                            </div>
+                        </div>
+                        <!-- ② 常勤人数構成 -->
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">常勤人数構成</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="regularStaffChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
+                                <span style="color:#3b82f6">●</span> 自社 <strong><?= $regularInhouse ?>名</strong>
+                                &nbsp;&nbsp;
+                                <span style="color:#059669">●</span> アライアンス <strong><?= $regularAlliance ?>名</strong>
+                            </div>
+                        </div>
+                        <!-- ③ イベント人数構成 -->
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">イベント人数構成</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="eventStaffChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
+                                <span style="color:#3b82f6">●</span> 自社 <strong><?= $eventInhouse ?>名</strong>
+                                &nbsp;&nbsp;
+                                <span style="color:#059669">●</span> アライアンス <strong><?= $eventAlliance ?>名</strong>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

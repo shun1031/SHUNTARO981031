@@ -326,6 +326,12 @@ $carrierFyRows = $_s->fetchAll();
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
+<style>
+.fy-monthly-table > :not(caption) > * > * { padding: .18rem .35rem !important; white-space: nowrap !important; vertical-align: middle !important; font-size: .72rem !important; }
+.fy-monthly-table thead > * > * { font-size: .68rem !important; text-align: center !important; }
+.fy-monthly-table tbody > * > td:first-child { text-align: left !important; }
+.fy-monthly-table .fy-tgt-input { height: 22px !important; font-size: .7rem !important; padding: .1rem .25rem !important; }
+</style>
 
 <div class="container-fluid">
     <?php
@@ -420,10 +426,10 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0" style="font-size:.8rem;min-width:900px">
+                <table class="table table-bordered mb-0 fy-monthly-table" style="min-width:700px">
                     <thead class="table-light">
                         <tr>
-                            <th style="width:6em">項目</th>
+                            <th style="min-width:56px;width:56px">項目</th>
                             <?php foreach ($fyMonths as $fm): ?>
                             <th class="text-center"><?= $fm['m'] ?>月</th>
                             <?php endforeach; ?>
@@ -448,17 +454,17 @@ require_once __DIR__ . '/../includes/header.php';
                         ?>
                         <!-- 売上目標（常勤/イベントは入力可、総合は常勤+イベントの合計を読み取り専用） -->
                         <tr>
-                            <td class="fw-semibold" style="color:#6366f1">売上目標</td>
+                            <td class="fw-semibold fy-label" style="color:#6366f1">売上目標</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
                             <td class="p-0">
                                 <?php if ($caseTypeFilter): ?>
                                 <input type="text" class="fy-tgt-input form-control form-control-sm border-0 text-end px-1"
-                                       style="min-width:72px;background:transparent"
+                                       style="min-width:60px;background:transparent"
                                        data-year="<?= $fm['y'] ?>" data-month="<?= $fm['m'] ?>"
                                        value="<?= $d['tgt'] > 0 ? number_format($d['tgt']) : '' ?>"
                                        placeholder="0">
                                 <?php else: ?>
-                                <div class="text-end px-1 text-muted" style="min-width:72px;font-size:.85rem;line-height:2"><?= $d['tgt'] > 0 ? number_format($d['tgt']) : '-' ?></div>
+                                <div class="text-end px-1 text-muted" style="min-width:60px;font-size:.72rem;line-height:1.6"><?= $d['tgt'] > 0 ? number_format($d['tgt']) : '-' ?></div>
                                 <?php endif; ?>
                             </td>
                             <?php endforeach; ?>
@@ -466,7 +472,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                         <!-- 売上 -->
                         <tr>
-                            <td class="fw-semibold" style="color:#059669">売上</td>
+                            <td class="fw-semibold fy-label" style="color:#059669">売上</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
                             <td class="text-end <?= $d['rev'] > 0 ? 'text-success' : 'text-muted' ?>"><?= $d['rev'] > 0 ? number_format($d['rev']) : '-' ?></td>
                             <?php endforeach; ?>
@@ -474,7 +480,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                         <!-- 粗利 -->
                         <tr>
-                            <td class="fw-semibold" style="color:#3b82f6">粗利</td>
+                            <td class="fw-semibold fy-label" style="color:#3b82f6">粗利</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
                             <td class="text-end"><?= $d['profit'] > 0 ? number_format($d['profit']) : '-' ?></td>
                             <?php endforeach; ?>
@@ -482,7 +488,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                         <!-- 粗利率 -->
                         <tr class="table-light">
-                            <td class="text-muted">粗利率</td>
+                            <td class="text-muted fy-label">粗利率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
                             <td class="text-end text-muted"><?= $d['margin'] !== null ? $d['margin'] . '%' : '-' ?></td>
                             <?php endforeach; ?>
@@ -490,7 +496,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                         <!-- 売上前月比 -->
                         <tr class="table-light">
-                            <td class="text-muted">前月比</td>
+                            <td class="text-muted fy-label">前月比</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
                             <td class="text-end <?= $d['mom'] === null ? 'text-muted' : ($d['mom'] >= 0 ? 'text-success' : 'text-danger') ?>">
                                 <?= $d['mom'] !== null ? ($d['mom'] >= 0 ? '+' : '') . $d['mom'] . '%' : '-' ?>
@@ -500,7 +506,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                         <!-- 達成率 -->
                         <tr>
-                            <td class="fw-semibold">達成率</td>
+                            <td class="fw-semibold fy-label">達成率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i];
                                 $achCls = $d['ach'] === null ? 'text-muted' : ($d['ach'] >= 100 ? 'text-success' : ($d['ach'] >= 80 ? 'text-primary' : ($d['ach'] >= 50 ? 'text-warning' : 'text-danger')));
                             ?>

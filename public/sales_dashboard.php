@@ -225,6 +225,28 @@ function buildEmpStats(array $row): array {
 $empStats    = buildEmpStats($empStats);
 $empStatsYoy = buildEmpStats($empStatsYoy);
 
+// 常勤・イベント別 雇用形態内訳（自社/アライアンス）
+$_empDetailSql = "
+    SELECT work_style,
+           SUM(employment_type = '自社') AS inhouse,
+           SUM(employment_type = 'アライアンス') AS alliance
+    FROM employees
+    WHERE company_id = ? AND is_active = 1
+      AND (retirement_date IS NULL OR retirement_date >= ?)
+      AND work_style IN ('常勤', 'イベント')
+    GROUP BY work_style
+";
+$_edStmt = $db->prepare($_empDetailSql);
+$_edStmt->execute([$cid, $curLastDay]);
+$_empDetail = [];
+foreach ($_edStmt->fetchAll() as $_r) {
+    $_empDetail[$_r['work_style']] = ['inhouse' => (int)$_r['inhouse'], 'alliance' => (int)$_r['alliance']];
+}
+$regularInhouse  = $_empDetail['常勤']['inhouse']    ?? 0;
+$regularAlliance = $_empDetail['常勤']['alliance']   ?? 0;
+$eventInhouse    = $_empDetail['イベント']['inhouse']  ?? 0;
+$eventAlliance   = $_empDetail['イベント']['alliance'] ?? 0;
+
 $fmtYoy = function($cur, $prev, $unit = '') {
     if ($prev <= 0) return '<span class="text-muted small">前年データなし</span>';
     $diff = $cur - $prev;
@@ -552,25 +574,35 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="row g-0 align-items-center justify-content-center">
-                        <!-- ドーナツ: 売上構成 -->
+                    <div class="row g-3 align-items-start justify-content-center">
+                        <!-- ① 区分別売上（既存） -->
                         <div class="col-md-4 text-center">
-                            <div class="text-muted small mb-1" style="font-size:.72rem">区分別売上</div>
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">区分別売上</div>
                             <div class="sales-chart-wrap" style="height:130px"><canvas id="workerChart"></canvas></div>
-                            <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
+                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
                                 <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$workerGrouped['自社']['case_count'] ?>件</strong>
                                 &nbsp;&nbsp;
                                 <span style="color:#059669">●</span> アライアンス <strong><?= (int)$workerGrouped['アライアンス']['case_count'] ?>件</strong>
                             </div>
                         </div>
-                        <!-- ドーナツ: 人数構成 -->
+                        <!-- ② 常勤人数構成（新規） -->
                         <div class="col-md-4 text-center">
-                            <div class="text-muted small mb-1" style="font-size:.72rem">人数構成</div>
-                            <div class="sales-chart-wrap" style="height:130px"><canvas id="staffPieChart"></canvas></div>
-                            <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
-                                <span style="color:#3b82f6">●</span> 自社 <strong><?= (int)$empStats['inhouse'] ?>名</strong>
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">常勤人数構成</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="regularStaffChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
+                                <span style="color:#3b82f6">●</span> 自社 <strong><?= $regularInhouse ?>名</strong>
                                 &nbsp;&nbsp;
-                                <span style="color:#059669">●</span> アライアンス <strong><?= (int)$empStats['alliance'] ?>名</strong>
+                                <span style="color:#059669">●</span> アライアンス <strong><?= $regularAlliance ?>名</strong>
+                            </div>
+                        </div>
+                        <!-- ③ イベント人数構成（新規） -->
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">イベント人数構成</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="eventStaffChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:2">
+                                <span style="color:#3b82f6">●</span> 自社 <strong><?= $eventInhouse ?>名</strong>
+                                &nbsp;&nbsp;
+                                <span style="color:#059669">●</span> アライアンス <strong><?= $eventAlliance ?>名</strong>
                             </div>
                         </div>
                     </div>
@@ -907,7 +939,11 @@ $inlineJs .= 'const fyChartLabels = ' . json_encode($fyChartLabels) . ';';
 $inlineJs .= 'let trendChartInstance = salesDrawTrendChart("trendChart", trendRawData, trendTargets, fyChartLabels);';
 $inlineJs .= 'const workerRawValues = ' . $rawWorkerValues . ';';
 $inlineJs .= 'let workerChartInstance = salesDrawDonutChart("workerChart", ' . json_encode($wLabels) . ', workerRawValues, ' . json_encode($wColors) . ');';
-$inlineJs .= 'salesDrawDonutChart("staffPieChart", ' . json_encode($staffPieLabels) . ', ' . json_encode($staffPieValues) . ', ' . json_encode($staffPieColors) . ');';
+// 常勤・イベント人数構成チャート（staffPieChartは削除、新2チャートに置換）
+$_pieLabels = ['自社', 'アライアンス'];
+$_pieColors = ['#3b82f6', '#059669'];
+$inlineJs .= 'salesDrawDonutChart("regularStaffChart", ' . json_encode($_pieLabels) . ', ' . json_encode([$regularInhouse, $regularAlliance]) . ', ' . json_encode($_pieColors) . ');';
+$inlineJs .= 'salesDrawDonutChart("eventStaffChart", '   . json_encode($_pieLabels) . ', ' . json_encode([$eventInhouse,   $eventAlliance])   . ', ' . json_encode($_pieColors) . ');';
 $inlineJs .= <<<'TAXJS'
 
 let taxIncluded = false;

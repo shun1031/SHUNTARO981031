@@ -433,7 +433,27 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- 年度月別売上テーブル -->
+    <!-- 売上推移チャート（全幅）→ KPI直下に移動 -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-graph-up me-1" style="color:#059669"></i><?= $year-1 ?>年度 売上推移（9月〜8月）</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary active" id="btnTrendTaxExcl" onclick="setTrendTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                        <button type="button" class="btn btn-outline-secondary" id="btnTrendTaxIncl" onclick="setTrendTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="sales-chart-wrap">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 年度月別売上テーブル→ 売上推移の下に移動 -->
     <input type="hidden" id="fycsrf" value="<?= h(getCsrfToken()) ?>">
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -536,26 +556,6 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                     </tbody>
                 </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- 売上推移チャート（全幅） -->
-    <div class="row g-4 mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-graph-up me-1" style="color:#059669"></i><?= $year-1 ?>年度 売上推移（9月〜8月）</span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active" id="btnTrendTaxExcl" onclick="setTrendTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnTrendTaxIncl" onclick="setTrendTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="sales-chart-wrap">
-                        <canvas id="trendChart"></canvas>
-                    </div>
-                </div>
             </div>
         </div>
     </div>

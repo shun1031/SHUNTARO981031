@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
@@ -85,7 +85,7 @@ $totalAll = array_sum(array_column($costs, 'total_amount'));
 // 管理者: 申請一覧データ取得
 $adminData = [];
 $adminFilterEmp    = $_GET['filter_emp']    ?? '';
-$adminFilterStatus = $_GET['filter_status'] ?? '';
+
 if (isAdmin()) {
     $_aDb = getDB();
     $_aSql = "SELECT *, DATE_FORMAT(submitted_at,'%Y/%m/%d') AS submitted_date
@@ -93,7 +93,7 @@ if (isAdmin()) {
               WHERE company_id=? AND target_year=? AND target_month=?";
     $_aParams = [$cid, $year, $month];
     if ($adminFilterEmp)    { $_aSql .= " AND employee_name=?"; $_aParams[] = $adminFilterEmp; }
-    if ($adminFilterStatus) { $_aSql .= " AND status=?";         $_aParams[] = $adminFilterStatus; }
+
     $_aSql .= " ORDER BY COALESCE(submitted_at, created_at) DESC";
     $_aStmt = $_aDb->prepare($_aSql);
     $_aStmt->execute($_aParams);
@@ -107,8 +107,8 @@ if (isAdmin()) {
     $adminSum3 = array_sum(array_column($adminData, 'cost_3'));
 }
 
-$_statusLabel = ['submitted'=>'申請中','approved'=>'承認済','rejected'=>'差戻し'];
-$_statusColor = ['submitted'=>'warning','approved'=>'success','rejected'=>'danger'];
+
+
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -132,7 +132,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
                     <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
                 </div>
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#costModal" onclick="clearModal()"><i class="bi bi-plus"></i> 交通費追加</button>
+                <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#submitFormCollapse" aria-expanded="false"><i class="bi bi-plus"></i> 交通費追加</button>
             </div>
         </div>
     </div>
@@ -144,15 +144,14 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- 交通費提出フォーム -->
-    <div class="card mb-4">
+    <!-- 交通費提出フォーム (折りたたみ) -->
+    <div class="collapse mb-4" id="submitFormCollapse">
+      <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-car-front me-1" style="color:#f59e0b"></i>交通費提出フォーム</span>
-            <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="collapse" data-bs-target="#transportForm">
-                <i class="bi bi-chevron-down"></i> 開く
-            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#submitFormCollapse"><i class="bi bi-x"></i> 閉じる</button>
         </div>
-        <div class="collapse" id="transportForm">
+        <div>
             <div class="card-body">
                 <form id="transportSubmitForm" enctype="multipart/form-data">
                     <input type="hidden" name="csrf" value="<?= h(getCsrfToken()) ?>">
@@ -277,6 +276,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </form>
             </div>
         </div>
+      </div>
     </div>
 
     <?php if (isAdmin()): ?>
@@ -297,15 +297,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-auto">
-            <label class="form-label small mb-1">申請ステータス</label>
-            <select name="filter_status" class="form-select form-select-sm" style="width:140px">
-                <option value="">すべて</option>
-                <option value="submitted" <?= $adminFilterStatus==='submitted'?'selected':'' ?>>申請中</option>
-                <option value="approved"  <?= $adminFilterStatus==='approved' ?'selected':'' ?>>承認済</option>
-                <option value="rejected"  <?= $adminFilterStatus==='rejected' ?'selected':'' ?>>差戻し</option>
-            </select>
-        </div>
+
         <div class="col-auto d-flex gap-2">
             <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>絞り込み</button>
             <a href="?year=<?= $year ?>&month=<?= $month ?>" class="btn btn-outline-secondary btn-sm">リセット</a>
@@ -362,15 +354,11 @@ require_once __DIR__ . '/../includes/header.php';
                             <th class="text-end">高速代</th>
                             <th class="text-end">合計</th>
                             <th class="text-center">エビデンス</th>
-                            <th class="text-center">ステータス</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($adminData as $a):
-                            $st = $a['status'] ?? 'submitted';
-                            $stLabel = $_statusLabel[$st] ?? $st;
-                            $stColor = $_statusColor[$st] ?? 'secondary';
-                        ?>
+                        <?php foreach ($adminData as $a): ?>
+
                         <tr>
                             <td><?= h($a['submitted_date'] ?? date('Y/m/d', strtotime($a['created_at']))) ?></td>
                             <td class="fw-medium"><?= h($a['employee_name']) ?></td>
@@ -399,28 +387,10 @@ require_once __DIR__ . '/../includes/header.php';
                                 </a>
                                 <?php endif; endfor; ?>
                             </td>
-                            <td class="text-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-<?= $stColor ?> btn-sm dropdown-toggle py-0 px-2" style="font-size:.7rem" data-bs-toggle="dropdown"><?= $stLabel ?></button>
-                                    <ul class="dropdown-menu dropdown-menu-end" style="font-size:.8rem;min-width:100px">
-                                        <?php foreach ($_statusLabel as $sv => $sl): if ($sv===$st) continue; ?>
-                                        <li>
-                                            <form method="post" style="display:contents">
-                                                <input type="hidden" name="csrf" value="<?= getCsrfToken() ?>">
-                                                <input type="hidden" name="action" value="update_status">
-                                                <input type="hidden" name="id" value="<?= $a['id'] ?>">
-                                                <input type="hidden" name="new_status" value="<?= $sv ?>">
-                                                <button type="submit" class="dropdown-item"><?= $sl ?></button>
-                                            </form>
-                                        </li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                </div>
-                            </td>
                         </tr>
                         <?php endforeach; ?>
                         <?php if (empty($adminData)): ?>
-                        <tr><td colspan="16" class="text-center text-muted py-4">申請データがありません</td></tr>
+                        <tr><td colspan="15" class="text-center text-muted py-4">申請データがありません</td></tr>
                         <?php endif; ?>
                     </tbody>
                     <?php if (!empty($adminData)): ?>
@@ -435,7 +405,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-end"><?= number_format($adminSum3) ?></td>
                             <td class="text-end">—</td>
                             <td class="text-end" style="color:#059669"><?= number_format($adminTotalSum) ?></td>
-                            <td colspan="2"></td>
+                            <td></td>
                         </tr>
                     </tfoot>
                     <?php endif; ?>
@@ -446,68 +416,6 @@ require_once __DIR__ . '/../includes/header.php';
     <hr class="my-4">
     <?php endif; ?>
 
-    <div class="card mb-3">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0" style="font-size:.75rem">
-                    <thead class="table-light">
-                        <tr>
-                            <th>社員名</th>
-                            <th class="text-end">合計金額</th>
-                            <th>区間①</th><th class="text-end">距離</th><th class="text-end">日数</th><th class="text-end">金額①</th>
-                            <th>区間②</th><th class="text-end">距離</th><th class="text-end">日数</th><th class="text-end">金額②</th>
-                            <th>区間③</th><th class="text-end">距離</th><th class="text-end">日数</th><th class="text-end">金額③</th>
-                            <th class="text-end">高速代</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($costs as $c): ?>
-                        <tr>
-                            <td class="fw-medium"><?= h($c['employee_name']) ?></td>
-                            <td class="text-end fw-bold" style="color:#059669"><?= number_format($c['total_amount']) ?></td>
-                            <td class="small"><?= h($c['evidence_url_1'] ?? '') ?></td>
-                            <td class="text-end"><?= $c['distance_km_1'] ? $c['distance_km_1'].'km' : '-' ?></td>
-                            <td class="text-end"><?= $c['work_days_1'] ?? '-' ?></td>
-                            <td class="text-end"><?= $c['cost_1'] ? number_format($c['cost_1']) : '-' ?></td>
-                            <td class="small"><?= h($c['evidence_url_2'] ?? '') ?></td>
-                            <td class="text-end"><?= $c['distance_km_2'] ? $c['distance_km_2'].'km' : '-' ?></td>
-                            <td class="text-end"><?= $c['work_days_2'] ?? '-' ?></td>
-                            <td class="text-end"><?= $c['cost_2'] ? number_format($c['cost_2']) : '-' ?></td>
-                            <td class="small"><?= h($c['evidence_url_3'] ?? '') ?></td>
-                            <td class="text-end"><?= $c['distance_km_3'] ? $c['distance_km_3'].'km' : '-' ?></td>
-                            <td class="text-end"><?= $c['work_days_3'] ?? '-' ?></td>
-                            <td class="text-end"><?= $c['cost_3'] ? number_format($c['cost_3']) : '-' ?></td>
-                            <td class="text-end"><?= $c['highway_cost'] ? number_format($c['highway_cost']) : '-' ?></td>
-                            <td>
-                                <button class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:.65rem" onclick='editCost(<?= json_encode($c) ?>)'><i class="bi bi-pencil"></i></button>
-                                <form method="post" style="display:inline" onsubmit="return confirm('削除しますか？')">
-                                    <input type="hidden" name="csrf" value="<?= getCsrfToken() ?>">
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="id" value="<?= $c['id'] ?>">
-                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.65rem"><i class="bi bi-trash"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                        <?php if (empty($costs)): ?>
-                        <tr><td colspan="16" class="text-center text-muted py-4">交通費データがありません</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                    <?php if (!empty($costs)): ?>
-                    <tfoot class="table-light">
-                        <tr class="fw-bold">
-                            <td>合計</td>
-                            <td class="text-end" style="color:#059669"><?= number_format($totalAll) ?></td>
-                            <td colspan="14"></td>
-                        </tr>
-                    </tfoot>
-                    <?php endif; ?>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- 交通費モーダル -->
 <div class="modal fade" id="costModal" tabindex="-1">

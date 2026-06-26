@@ -263,12 +263,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
 
-                    <!-- フォーム切り替えエリア -->
-                    <div id="drFormGuide" class="alert alert-light text-muted text-center py-3" style="font-size:.85rem">
-                        業務形態を選択すると日報入力欄が表示されます
-                    </div>
-
-                    <!-- イベントフォーム (業務形態=イベント) -->
+                    <!-- 統一フォーム（業務形態選択後に表示） -->
                     <div id="drEventForm" style="display:none">
                         <div class="border rounded p-2" style="background:#fffbeb">
                             <div class="fw-bold mb-2" style="color:#b45309;font-size:.85rem"><i class="bi bi-lightning me-1"></i>日報</div>
@@ -299,36 +294,9 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
 
-                    <!-- ショップ常勤フォーム (ショップ AND 常勤) -->
-                    <div id="drShopForm" style="display:none">
-                        <div class="border rounded p-2" style="background:#f0fdf4">
-                            <div class="fw-bold mb-2" style="color:#15803d;font-size:.85rem"><i class="bi bi-shop me-1"></i>ショップ常勤日報</div>
-                            <!-- 数値フィールド（コンパクト） -->
-                            <div class="d-flex gap-2 flex-wrap mb-2">
-                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">来店数</div><input type="number" name="shop_visits" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
-                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">提案数</div><input type="number" name="shop_proposals" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
-                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">商談数</div><input type="number" name="shop_negotiations" id="shopNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
-                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">成約数</div><input type="number" name="shop_contracts" id="shopContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
-                            </div>
-                            <!-- 全体獲得内訳（キャリア連動） -->
-                            <div class="border rounded p-2 mb-2 bg-white">
-                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">全体獲得内訳</div>
-                                <div id="shopAcqFields"><p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p></div>
-                                <input type="hidden" name="shop_acquisition_detail" id="shopAcqJson">
-                            </div>
-                            <!-- 個人獲得内訳（新規追加） -->
-                            <div class="border rounded p-2 mb-2 bg-white">
-                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳</div>
-                                <div id="shopPerAcqFields"><p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p></div>
-                                <input type="hidden" name="shop_fixed_check_detail" id="shopPerAcqJson">
-                            </div>
-                            <!-- 店舗コメント -->
-                            <div>
-                                <label style="font-size:.78rem;font-weight:600">店舗コメント</label>
-                                <textarea name="shop_comment" class="form-control form-control-sm" rows="2"></textarea>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- ショップフォーム用 hidden（保存エラー防止） -->
+                    <input type="hidden" name="shop_acquisition_detail" value="">
+                    <input type="hidden" name="shop_fixed_check_detail" value="">
 
                 </div>
                 <div class="modal-footer">
@@ -428,27 +396,21 @@ require_once __DIR__ . '/../includes/header.php';
 
     document.getElementById('drCarrier').addEventListener('change', function() {
         if (document.getElementById('drEventForm').style.display !== 'none') buildEvtAcq(this.value);
-        if (document.getElementById('drShopForm').style.display  !== 'none') buildShopAcq(this.value);
     });
 
     function updateDrForm() {
-        var wt  = document.getElementById('drWorkType').value;
-        var showEv = (wt === 'イベント');
-        var showSh = (wt === '常勤');
-        document.getElementById('drFormGuide').style.display = (showEv || showSh) ? 'none' : 'block';
-        document.getElementById('drEventForm').style.display = showEv ? 'block' : 'none';
-        document.getElementById('drShopForm').style.display  = showSh ? 'block' : 'none';
-        document.getElementById('drSubmitBtn').disabled      = !wt;
+        var wt = document.getElementById('drWorkType').value;
+        var show = !!wt;
+        document.getElementById('drEventForm').style.display = show ? 'block' : 'none';
+        document.getElementById('drSubmitBtn').disabled = !wt;
         var c = document.getElementById('drCarrier').value;
-        if (showEv && c) buildEvtAcq(c);
-        if (showSh && c) buildShopAcq(c);
+        if (show && c) buildEvtAcq(c);
     }
     document.getElementById('drLocation').addEventListener('input', updateDrForm);
     document.getElementById('drWorkType').addEventListener('change', updateDrForm);
 
     document.getElementById('reportForm').addEventListener('submit', function(e) {
         var evForm = document.getElementById('drEventForm');
-        var shForm = document.getElementById('drShopForm');
         var carrier = document.getElementById('drCarrier').value;
         var items = CARRIER_ITEMS[carrier] || [];
 
@@ -462,15 +424,6 @@ require_once __DIR__ . '/../includes/header.php';
             });
             document.getElementById('evtAcqJson').value = JSON.stringify(evtAcq);
             document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
-
-        } else if (shForm.style.display !== 'none') {
-            var shopAcq = {}, shopPerAcq = {};
-            items.forEach(function(label, i) {
-                var inp = document.getElementById('shopacq_' + i); if (inp && nonZero(inp.value)) shopAcq[label] = inp.value;
-                var per = document.getElementById('shopperacq_' + i); if (per && nonZero(per.value)) shopPerAcq[label] = per.value;
-            });
-            document.getElementById('shopAcqJson').value    = JSON.stringify(shopAcq);
-            document.getElementById('shopPerAcqJson').value = JSON.stringify(shopPerAcq);
         }
     });
 
@@ -480,9 +433,7 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drWorkType').value = '';
         document.getElementById('drCarrier').value  = '';
         document.getElementById('evtAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
-        document.getElementById('perAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
-        document.getElementById('shopAcqFields').innerHTML    = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
-        document.getElementById('shopPerAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
+        document.getElementById('perAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
         updateDrForm();
     });
 })();

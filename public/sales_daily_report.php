@@ -355,16 +355,16 @@ require_once __DIR__ . '/../includes/header.php';
 
     function makeItemCol(id, label, disabled) {
         var col = document.createElement('div');
-        col.className = 'col-4 col-md-3 col-lg-2';
+        col.className = 'col-auto';
         var lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px;width:55px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center';
         lbl.title = label;
         lbl.textContent = label;
         var inp = document.createElement('input');
         inp.type = 'number'; inp.id = id;
         inp.className = 'form-control form-control-sm text-center';
         inp.min = '0'; inp.step = '1'; inp.placeholder = '-';
-        inp.style.cssText = 'width:100%;padding-right:0';
+        inp.style.cssText = 'width:55px';
         if (disabled) { inp.disabled = true; inp.style.background = '#f3f4f6'; }
         col.appendChild(lbl); col.appendChild(inp);
         return col;

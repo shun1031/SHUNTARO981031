@@ -230,18 +230,20 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                             </datalist>
                             <?php endif; ?>
+                            <div class="form-text" style="font-size:.7rem;color:#6b7280">フルネームで入力してください</div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">稼働日</label>
                             <input type="date" name="work_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">場所</label>
+                            <label class="form-label fw-bold">稼働場所</label>
                             <select name="location" id="drLocation" class="form-select form-select-sm" required>
                                 <option value="">選択してください</option>
                                 <option value="量販店">量販店</option>
                                 <option value="ショップ">ショップ</option>
                             </select>
+                            <div class="form-text" style="font-size:.7rem;color:#6b7280">正式名称で入力してください</div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">キャリア</label>

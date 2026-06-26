@@ -290,7 +290,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                             <!-- 個人獲得内訳 -->
                             <div class="border rounded p-2 bg-white">
-                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄 ／ 合計が成約数と一致する必要があります）</span></div>
+                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
                                 <div id="perAcqFields"><p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p></div>
                                 <input type="hidden" name="personal_acquisition_detail" id="perAcqJson">
                             </div>
@@ -463,12 +463,6 @@ require_once __DIR__ . '/../includes/header.php';
                 var ev = document.getElementById('evtacq_' + i); if (ev && nonZero(ev.value)) evtAcq[label] = ev.value;
                 var per = document.getElementById('peracq_' + i); if (per && !per.disabled && nonZero(per.value)) perAcq[label] = per.value;
             });
-            // バリデーション: 個人獲得内訳の合計が成約数と一致
-            var contracts = parseFloat(document.getElementById('evtContracts').value) || 0;
-            if (contracts > 0) {
-                var perSum = Object.values(perAcq).reduce(function(s,v){return s+(parseFloat(v)||0);},0);
-                if (Math.round(perSum) !== Math.round(contracts)) { e.preventDefault(); alert('個人獲得内訳の合計（'+perSum+'件）が成約数（'+contracts+'件）と一致しません。'); return; }
-            }
             document.getElementById('evtAcqJson').value = JSON.stringify(evtAcq);
             document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
 

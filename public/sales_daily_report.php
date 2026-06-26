@@ -251,7 +251,8 @@ require_once __DIR__ . '/../includes/header.php';
                                 <option value="au,UQ">au / UQ</option>
                                 <option value="ドコモ">ドコモ</option>
                                 <option value="楽天">楽天</option>
-                                <option value="コミュファ">コミュファ</option>
+                                <option value="コミュファ">コミュファ光</option>
+                                <option value="CATV">CATV</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -344,23 +345,26 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 (function() {
     var CARRIER_ITEMS = {
-        'SB,YM':    ['MNP','アップ','ダウン','機変','転用','事変','SB光１G新規','SB光1G→10G','SB光10G新規','SB光＋１/2.5G','SB光＋10G','Air新規','Air機変','Airレンタル','SB電気','paypayカード'],
-        'au,UQ':    ['MNP','アップ','ダウン','機変','転用','事変','BL光１G新規','BL光1G→10G','BL光10G新規','コミュファ１G','コミュファ10G','ホームルーター新規','ホームルータ機変','auでんき','aupayカード'],
-        'ドコモ':   ['MNP','アップ','ダウン','機変','転用','事変','D光１G新規','D光1G→10G','D光10G新規','ホームルーター新規','ホームルータ機変','ｄでんき','ｄカード'],
-        '楽天':     ['MNP','アップ','ダウン','機変','転用','事変','Ｒ光１G新規','Ｒ光1G→10G','Ｒ光10G新規','ホームルーター新規','ホームルータ機変','楽天でんき','楽天カード'],
-        'コミュファ':['MNP','アップ','ダウン','機変','転用','事変','BL光１G新規','BL光1G→10G','BL光10G新規','コミュファ１G','コミュファ10G','ホームルーター新規','ホームルータ機変','auでんき','aupayカード']
+        'SB,YM':   ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','Air新規','Airキヘン','SBでんき','PayPayカード'],
+        'au,UQ':   ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','auでんき','au PAYカード'],
+        'ドコモ':  ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','ドコモでんき','dカード'],
+        '楽天':    ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','楽天でんき','楽天カード'],
+        'コミュファ':['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G'],
+        'CATV':    ['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','電力系→1G','電力系→10G','その他光→1G','その他光→10G']
     };
 
     function makeItemCol(id, label, disabled) {
         var col = document.createElement('div');
         col.className = 'col-4 col-md-3 col-lg-2';
         var lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px';
+        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        lbl.title = label;
         lbl.textContent = label;
         var inp = document.createElement('input');
-        inp.type = 'text'; inp.id = id;
+        inp.type = 'number'; inp.id = id;
         inp.className = 'form-control form-control-sm text-center';
-        inp.placeholder = '';
+        inp.min = '0'; inp.step = '1'; inp.placeholder = '-';
+        inp.style.cssText = 'width:100%;padding-right:0';
         if (disabled) { inp.disabled = true; inp.style.background = '#f3f4f6'; }
         col.appendChild(lbl); col.appendChild(inp);
         return col;
@@ -451,11 +455,13 @@ require_once __DIR__ . '/../includes/header.php';
         var carrier = document.getElementById('drCarrier').value;
         var items = CARRIER_ITEMS[carrier] || [];
 
+        function nonZero(v) { return v !== '' && v !== null && parseFloat(v) !== 0; }
+
         if (evForm.style.display !== 'none') {
             var evtAcq = {}, perAcq = {};
             items.forEach(function(label, i) {
-                var ev = document.getElementById('evtacq_' + i); if (ev && ev.value.trim()) evtAcq[label] = ev.value.trim();
-                var per = document.getElementById('peracq_' + i); if (per && !per.disabled && per.value.trim()) perAcq[label] = per.value.trim();
+                var ev = document.getElementById('evtacq_' + i); if (ev && nonZero(ev.value)) evtAcq[label] = ev.value;
+                var per = document.getElementById('peracq_' + i); if (per && !per.disabled && nonZero(per.value)) perAcq[label] = per.value;
             });
             // バリデーション: 個人獲得内訳の合計が成約数と一致
             var contracts = parseFloat(document.getElementById('evtContracts').value) || 0;
@@ -469,8 +475,8 @@ require_once __DIR__ . '/../includes/header.php';
         } else if (shForm.style.display !== 'none') {
             var shopAcq = {}, shopPerAcq = {};
             items.forEach(function(label, i) {
-                var inp = document.getElementById('shopacq_' + i); if (inp && inp.value.trim()) shopAcq[label] = inp.value.trim();
-                var per = document.getElementById('shopperacq_' + i); if (per && per.value.trim()) shopPerAcq[label] = per.value.trim();
+                var inp = document.getElementById('shopacq_' + i); if (inp && nonZero(inp.value)) shopAcq[label] = inp.value;
+                var per = document.getElementById('shopperacq_' + i); if (per && nonZero(per.value)) shopPerAcq[label] = per.value;
             });
             document.getElementById('shopAcqJson').value    = JSON.stringify(shopAcq);
             document.getElementById('shopPerAcqJson').value = JSON.stringify(shopPerAcq);

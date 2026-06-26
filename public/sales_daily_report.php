@@ -357,7 +357,7 @@ require_once __DIR__ . '/../includes/header.php';
         var col = document.createElement('div');
         col.className = 'col-auto';
         var lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px;width:55px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center';
+        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px;white-space:nowrap;text-align:center';
         lbl.title = label;
         lbl.textContent = label;
         var inp = document.createElement('input');

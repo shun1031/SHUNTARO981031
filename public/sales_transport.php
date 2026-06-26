@@ -167,6 +167,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <option value="<?= h($rep) ?>">
                                 <?php endforeach; ?>
                             </datalist>
+                            <div class="form-text" style="font-size:.7rem;color:#6b7280">フルネームで入力してください</div>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-4">

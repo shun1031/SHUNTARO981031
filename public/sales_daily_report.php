@@ -271,75 +271,62 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <!-- イベントフォーム (量販店 OR 業務形態=イベント) -->
                     <div id="drEventForm" style="display:none">
-                        <div class="border rounded p-3" style="background:#fffbeb">
-                            <div class="fw-bold mb-3" style="color:#b45309"><i class="bi bi-lightning me-1"></i>イベント日報</div>
-                            <!-- 数値フィールド (コンパクト) -->
-                            <div class="d-flex gap-3 flex-wrap mb-4">
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">キャッチ数</div><input type="number" name="catch_count" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">着席数</div><input type="number" name="event_seated" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">提案数</div><input type="number" name="event_proposals" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">商談数</div><input type="number" name="event_negotiations" id="evtNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">成約数</div><input type="number" name="event_contracts" id="evtContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
+                        <div class="border rounded p-2" style="background:#fffbeb">
+                            <div class="fw-bold mb-2" style="color:#b45309;font-size:.85rem"><i class="bi bi-lightning me-1"></i>日報</div>
+                            <!-- 数値フィールド（コンパクト） -->
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">キャッチ数</div><input type="number" name="catch_count" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">着席数</div><input type="number" name="event_seated" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">提案数</div><input type="number" name="event_proposals" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">商談数</div><input type="number" name="event_negotiations" id="evtNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">成約数</div><input type="number" name="event_contracts" id="evtContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                             </div>
-                            <!-- イベント獲得内訳 -->
-                            <div class="border rounded p-2 mb-3 bg-white">
-                                <div class="fw-bold small mb-2">イベント獲得内訳 <span class="text-muted fw-normal" style="font-size:.72rem">（0件は空欄）</span></div>
+                            <!-- 全体獲得内訳 -->
+                            <div class="border rounded p-2 mb-2 bg-white">
+                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">全体獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
                                 <div id="evtAcqFields"><p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p></div>
                                 <input type="hidden" name="event_acquisition_detail" id="evtAcqJson">
                             </div>
                             <!-- 個人獲得内訳 -->
-                            <div class="border rounded p-2 mb-3 bg-white">
-                                <div class="fw-bold small mb-2">個人獲得内訳 <span class="text-muted fw-normal" style="font-size:.72rem">（0件は空欄 ／ 合計が成約数と一致する必要があります）</span></div>
-                                <div id="perAcqFields"><p class="text-muted small text-center mb-0 py-1">イベント獲得内訳を入力すると活性化されます</p></div>
+                            <div class="border rounded p-2 bg-white">
+                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄 ／ 合計が成約数と一致する必要があります）</span></div>
+                                <div id="perAcqFields"><p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p></div>
                                 <input type="hidden" name="personal_acquisition_detail" id="perAcqJson">
                             </div>
-                            <!-- 固定出現内訳 -->
-                            <div class="border rounded p-2 mb-3 bg-white">
-                                <div class="fw-bold small mb-2">固定出現内訳 <span class="text-muted fw-normal" style="font-size:.72rem">（0件は空欄 ／ 合計が商談数と一致する必要があります）</span></div>
-                                <div id="fixChkFields" class="row g-2"></div>
-                                <input type="hidden" name="fixed_check_detail" id="fixChkJson">
-                            </div>
-                            <!-- 固定獲得内訳 -->
-                            <div class="border rounded p-2 mb-3 bg-white">
-                                <div class="fw-bold small mb-2">固定獲得内訳 <span class="text-muted fw-normal" style="font-size:.72rem">（0件は空欄）</span></div>
-                                <div id="fixAcqFields" class="row g-2"></div>
-                                <input type="hidden" name="fixed_acquisition_detail" id="fixAcqJson">
-                            </div>
-                            <!-- 振り返り -->
-                            <div>
-                                <label class="form-label small fw-bold">振り返り</label>
-                                <textarea name="event_reflection" class="form-control form-control-sm" rows="3"></textarea>
-                            </div>
+                            <!-- 削除された項目用 hidden（保存エラー防止） -->
+                            <input type="hidden" name="fixed_check_detail" id="fixChkJson" value="">
+                            <input type="hidden" name="fixed_acquisition_detail" id="fixAcqJson" value="">
+                            <input type="hidden" name="event_reflection" value="">
                         </div>
                     </div>
 
                     <!-- ショップ常勤フォーム (ショップ AND 常勤) -->
                     <div id="drShopForm" style="display:none">
-                        <div class="border rounded p-3" style="background:#f0fdf4">
-                            <div class="fw-bold mb-3" style="color:#15803d"><i class="bi bi-shop me-1"></i>ショップ常勤日報</div>
-                            <!-- 数値フィールド (コンパクト) -->
-                            <div class="d-flex gap-3 flex-wrap mb-4">
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">来店数</div><input type="number" name="shop_visits" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">提案数</div><input type="number" name="shop_proposals" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">商談数</div><input type="number" name="shop_negotiations" id="shopNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
-                                <div class="text-center"><div class="form-label small fw-bold mb-1">成約数</div><input type="number" name="shop_contracts" id="shopContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px"></div>
+                        <div class="border rounded p-2" style="background:#f0fdf4">
+                            <div class="fw-bold mb-2" style="color:#15803d;font-size:.85rem"><i class="bi bi-shop me-1"></i>ショップ常勤日報</div>
+                            <!-- 数値フィールド（コンパクト） -->
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">来店数</div><input type="number" name="shop_visits" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">提案数</div><input type="number" name="shop_proposals" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">商談数</div><input type="number" name="shop_negotiations" id="shopNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">成約数</div><input type="number" name="shop_contracts" id="shopContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                             </div>
-                            <!-- 獲得内訳 (キャリア連動) -->
-                            <div class="border rounded p-2 mb-3 bg-white">
-                                <div class="fw-bold small mb-2">獲得内訳</div>
+                            <!-- 全体獲得内訳（キャリア連動） -->
+                            <div class="border rounded p-2 mb-2 bg-white">
+                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">全体獲得内訳</div>
                                 <div id="shopAcqFields"><p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p></div>
                                 <input type="hidden" name="shop_acquisition_detail" id="shopAcqJson">
                             </div>
-                            <!-- 固定出現内訳 -->
-                            <div class="border rounded p-2 mb-3 bg-white">
-                                <div class="fw-bold small mb-2">固定出現内訳 <span class="text-muted fw-normal" style="font-size:.72rem">（0件は空欄 ／ 合計が商談数と一致する必要があります）</span></div>
-                                <div id="shopFixChkFields" class="row g-2"></div>
-                                <input type="hidden" name="shop_fixed_check_detail" id="shopFixChkJson">
+                            <!-- 個人獲得内訳（新規追加） -->
+                            <div class="border rounded p-2 mb-2 bg-white">
+                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳</div>
+                                <div id="shopPerAcqFields"><p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p></div>
+                                <input type="hidden" name="shop_fixed_check_detail" id="shopPerAcqJson">
                             </div>
                             <!-- 店舗コメント -->
                             <div>
-                                <label class="form-label small fw-bold">店舗コメント</label>
-                                <textarea name="shop_comment" class="form-control form-control-sm" rows="3"></textarea>
+                                <label style="font-size:.78rem;font-weight:600">店舗コメント</label>
+                                <textarea name="shop_comment" class="form-control form-control-sm" rows="2"></textarea>
                             </div>
                         </div>
                     </div>
@@ -363,13 +350,12 @@ require_once __DIR__ . '/../includes/header.php';
         '楽天':     ['MNP','アップ','ダウン','機変','転用','事変','Ｒ光１G新規','Ｒ光1G→10G','Ｒ光10G新規','ホームルーター新規','ホームルータ機変','楽天でんき','楽天カード'],
         'コミュファ':['MNP','アップ','ダウン','機変','転用','事変','BL光１G新規','BL光1G→10G','BL光10G新規','コミュファ１G','コミュファ10G','ホームルーター新規','ホームルータ機変','auでんき','aupayカード']
     };
-    var FIXED_ITEMS = ['SB光１G','SB光10','SB光＋１/2.5G','SB光＋10G','SBAir６','SBAir5以前','ドコモ光１G','ドコモ光１０G','ドコモホームルーター','BL光１G','BL１０G','auホームルーター','楽天光１G','楽天光１０G','楽天ホームルーター','コミュファ１G','コミュファ１０G','ケーブルプラス','ケーブルライン','その他コラボ光','その他他社光'];
 
     function makeItemCol(id, label, disabled) {
         var col = document.createElement('div');
-        col.className = 'col-6 col-md-4 col-lg-3';
+        col.className = 'col-4 col-md-3 col-lg-2';
         var lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:.72rem;font-weight:600;margin-bottom:2px';
+        lbl.style.cssText = 'font-size:.65rem;font-weight:600;margin-bottom:2px';
         lbl.textContent = label;
         var inp = document.createElement('input');
         inp.type = 'text'; inp.id = id;
@@ -380,38 +366,30 @@ require_once __DIR__ . '/../includes/header.php';
         return col;
     }
 
+    // ---- イベント: 全体獲得内訳 ----
     function buildEvtAcq(carrier) {
         var wrap = document.getElementById('evtAcqFields');
         wrap.innerHTML = '';
         var items = CARRIER_ITEMS[carrier];
         if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; buildPerAcq(carrier); return; }
-        var row = document.createElement('div'); row.className = 'row g-2';
+        var row = document.createElement('div'); row.className = 'row g-1';
         items.forEach(function(label, i) { row.appendChild(makeItemCol('evtacq_' + i, label, false)); });
         wrap.appendChild(row);
         buildPerAcq(carrier);
     }
 
+    // ---- イベント: 個人獲得内訳 ----
     function buildPerAcq(carrier) {
         var wrap = document.getElementById('perAcqFields');
         wrap.innerHTML = '';
         var items = CARRIER_ITEMS[carrier];
-        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">イベント獲得内訳を入力すると活性化されます</p>'; return; }
-        var row = document.createElement('div'); row.className = 'row g-2';
+        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>'; return; }
+        var row = document.createElement('div'); row.className = 'row g-1';
         items.forEach(function(label, i) {
             var ev = document.getElementById('evtacq_' + i);
             row.appendChild(makeItemCol('peracq_' + i, label, !(ev && ev.value.trim())));
         });
         wrap.appendChild(row);
-    }
-
-    function buildFixed() {
-        var chkWrap = document.getElementById('fixChkFields');
-        var acqWrap = document.getElementById('fixAcqFields');
-        if (chkWrap.children.length > 0) return;
-        FIXED_ITEMS.forEach(function(label, i) {
-            chkWrap.appendChild(makeItemCol('fixchk_' + i, label, false));
-            acqWrap.appendChild(makeItemCol('fixacq_' + i, label, true));
-        });
     }
 
     document.getElementById('evtAcqFields').addEventListener('input', function(e) {
@@ -423,31 +401,27 @@ require_once __DIR__ . '/../includes/header.php';
         else { per.disabled = false; per.style.background = ''; }
     });
 
-    document.getElementById('fixChkFields').addEventListener('input', function(e) {
-        if (!e.target.id || !e.target.id.startsWith('fixchk_')) return;
-        var idx = e.target.id.slice(7);
-        var acq = document.getElementById('fixacq_' + idx);
-        if (!acq) return;
-        if (e.target.value.trim() === '') { acq.disabled = true; acq.value = ''; acq.style.background = '#f3f4f6'; }
-        else { acq.disabled = false; acq.style.background = ''; }
-    });
-
-    // ---- ショップ獲得内訳 構築 ----
+    // ---- ショップ: 全体獲得内訳 ----
     function buildShopAcq(carrier) {
         var wrap = document.getElementById('shopAcqFields');
         wrap.innerHTML = '';
         var items = CARRIER_ITEMS[carrier];
-        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; return; }
-        var row = document.createElement('div'); row.className = 'row g-2';
+        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; buildShopPerAcq(carrier); return; }
+        var row = document.createElement('div'); row.className = 'row g-1';
         items.forEach(function(label, i) { row.appendChild(makeItemCol('shopacq_' + i, label, false)); });
         wrap.appendChild(row);
+        buildShopPerAcq(carrier);
     }
 
-    // ---- ショップ固定出現内訳 構築 ----
-    function buildShopFixed() {
-        var wrap = document.getElementById('shopFixChkFields');
-        if (wrap.children.length > 0) return;
-        FIXED_ITEMS.forEach(function(label, i) { wrap.appendChild(makeItemCol('shopfixchk_' + i, label, false)); });
+    // ---- ショップ: 個人獲得内訳 ----
+    function buildShopPerAcq(carrier) {
+        var wrap = document.getElementById('shopPerAcqFields');
+        wrap.innerHTML = '';
+        var items = CARRIER_ITEMS[carrier];
+        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; return; }
+        var row = document.createElement('div'); row.className = 'row g-1';
+        items.forEach(function(label, i) { row.appendChild(makeItemCol('shopperacq_' + i, label, false)); });
+        wrap.appendChild(row);
     }
 
     document.getElementById('drCarrier').addEventListener('change', function() {
@@ -465,8 +439,8 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drShopForm').style.display  = showSh ? 'block' : 'none';
         document.getElementById('drSubmitBtn').disabled      = !(loc && wt);
         var c = document.getElementById('drCarrier').value;
-        if (showEv) { buildFixed(); if (c) buildEvtAcq(c); }
-        if (showSh) { buildShopFixed(); if (c) buildShopAcq(c); }
+        if (showEv && c) buildEvtAcq(c);
+        if (showSh && c) buildShopAcq(c);
     }
     document.getElementById('drLocation').addEventListener('change', updateDrForm);
     document.getElementById('drWorkType').addEventListener('change', updateDrForm);
@@ -478,45 +452,28 @@ require_once __DIR__ . '/../includes/header.php';
         var items = CARRIER_ITEMS[carrier] || [];
 
         if (evForm.style.display !== 'none') {
-            var evtAcq = {}, perAcq = {}, fixChk = {}, fixAcq = {};
+            var evtAcq = {}, perAcq = {};
             items.forEach(function(label, i) {
                 var ev = document.getElementById('evtacq_' + i); if (ev && ev.value.trim()) evtAcq[label] = ev.value.trim();
                 var per = document.getElementById('peracq_' + i); if (per && !per.disabled && per.value.trim()) perAcq[label] = per.value.trim();
             });
-            FIXED_ITEMS.forEach(function(label, i) {
-                var chk = document.getElementById('fixchk_' + i); if (chk && chk.value.trim()) fixChk[label] = chk.value.trim();
-                var acq = document.getElementById('fixacq_' + i); if (acq && !acq.disabled && acq.value.trim()) fixAcq[label] = acq.value.trim();
-            });
+            // バリデーション: 個人獲得内訳の合計が成約数と一致
             var contracts = parseFloat(document.getElementById('evtContracts').value) || 0;
             if (contracts > 0) {
                 var perSum = Object.values(perAcq).reduce(function(s,v){return s+(parseFloat(v)||0);},0);
                 if (Math.round(perSum) !== Math.round(contracts)) { e.preventDefault(); alert('個人獲得内訳の合計（'+perSum+'件）が成約数（'+contracts+'件）と一致しません。'); return; }
             }
-            var evtNeg = parseFloat(document.getElementById('evtNegotiations').value) || 0;
-            if (evtNeg > 0) {
-                var fixSum = Object.values(fixChk).reduce(function(s,v){return s+(parseFloat(v)||0);},0);
-                if (Math.round(fixSum) !== Math.round(evtNeg)) { e.preventDefault(); alert('固定出現内訳の合計（'+fixSum+'件）が商談数（'+evtNeg+'件）と一致しません。'); return; }
-            }
             document.getElementById('evtAcqJson').value = JSON.stringify(evtAcq);
             document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
-            document.getElementById('fixChkJson').value = JSON.stringify(fixChk);
-            document.getElementById('fixAcqJson').value = JSON.stringify(fixAcq);
 
         } else if (shForm.style.display !== 'none') {
-            var shopAcq = {}, shopFixChk = {};
+            var shopAcq = {}, shopPerAcq = {};
             items.forEach(function(label, i) {
                 var inp = document.getElementById('shopacq_' + i); if (inp && inp.value.trim()) shopAcq[label] = inp.value.trim();
+                var per = document.getElementById('shopperacq_' + i); if (per && per.value.trim()) shopPerAcq[label] = per.value.trim();
             });
-            FIXED_ITEMS.forEach(function(label, i) {
-                var chk = document.getElementById('shopfixchk_' + i); if (chk && chk.value.trim()) shopFixChk[label] = chk.value.trim();
-            });
-            var shNeg = parseFloat(document.getElementById('shopNegotiations').value) || 0;
-            if (shNeg > 0) {
-                var shFixSum = Object.values(shopFixChk).reduce(function(s,v){return s+(parseFloat(v)||0);},0);
-                if (Math.round(shFixSum) !== Math.round(shNeg)) { e.preventDefault(); alert('固定出現内訳の合計（'+shFixSum+'件）が商談数（'+shNeg+'件）と一致しません。'); return; }
-            }
-            document.getElementById('shopAcqJson').value = JSON.stringify(shopAcq);
-            document.getElementById('shopFixChkJson').value = JSON.stringify(shopFixChk);
+            document.getElementById('shopAcqJson').value    = JSON.stringify(shopAcq);
+            document.getElementById('shopPerAcqJson').value = JSON.stringify(shopPerAcq);
         }
     });
 
@@ -525,12 +482,10 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drLocation').value = '';
         document.getElementById('drWorkType').value = '';
         document.getElementById('drCarrier').value  = '';
-        document.getElementById('evtAcqFields').innerHTML  = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
-        document.getElementById('perAcqFields').innerHTML  = '<p class="text-muted small text-center mb-0 py-1">イベント獲得内訳を入力すると活性化されます</p>';
-        document.getElementById('fixChkFields').innerHTML  = '';
-        document.getElementById('fixAcqFields').innerHTML  = '';
-        document.getElementById('shopAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
-        document.getElementById('shopFixChkFields').innerHTML = '';
+        document.getElementById('evtAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
+        document.getElementById('perAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
+        document.getElementById('shopAcqFields').innerHTML    = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
+        document.getElementById('shopPerAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
         updateDrForm();
     });
 })();

@@ -237,12 +237,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <input type="date" name="work_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">稼働場所</label>
-                            <select name="location" id="drLocation" class="form-select form-select-sm" required>
-                                <option value="">選択してください</option>
-                                <option value="量販店">量販店</option>
-                                <option value="ショップ">ショップ</option>
-                            </select>
+                            <label class="form-label fw-bold">稼働店舗</label>
+                            <input type="text" name="location" id="drLocation" class="form-control form-control-sm" placeholder="店舗名を入力" required>
                             <div class="form-text" style="font-size:.7rem;color:#6b7280">正式名称で入力してください</div>
                         </div>
                         <div class="col-md-3">
@@ -269,10 +265,10 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <!-- フォーム切り替えエリア -->
                     <div id="drFormGuide" class="alert alert-light text-muted text-center py-3" style="font-size:.85rem">
-                        場所と業務形態を選択すると日報入力欄が表示されます
+                        業務形態を選択すると日報入力欄が表示されます
                     </div>
 
-                    <!-- イベントフォーム (量販店 OR 業務形態=イベント) -->
+                    <!-- イベントフォーム (業務形態=イベント) -->
                     <div id="drEventForm" style="display:none">
                         <div class="border rounded p-2" style="background:#fffbeb">
                             <div class="fw-bold mb-2" style="color:#b45309;font-size:.85rem"><i class="bi bi-lightning me-1"></i>日報</div>
@@ -436,19 +432,18 @@ require_once __DIR__ . '/../includes/header.php';
     });
 
     function updateDrForm() {
-        var loc = document.getElementById('drLocation').value;
         var wt  = document.getElementById('drWorkType').value;
-        var showEv = (wt === 'イベント') || (loc === '量販店' && wt === '常勤');
-        var showSh = (loc === 'ショップ' && wt === '常勤');
+        var showEv = (wt === 'イベント');
+        var showSh = (wt === '常勤');
         document.getElementById('drFormGuide').style.display = (showEv || showSh) ? 'none' : 'block';
         document.getElementById('drEventForm').style.display = showEv ? 'block' : 'none';
         document.getElementById('drShopForm').style.display  = showSh ? 'block' : 'none';
-        document.getElementById('drSubmitBtn').disabled      = !(loc && wt);
+        document.getElementById('drSubmitBtn').disabled      = !wt;
         var c = document.getElementById('drCarrier').value;
         if (showEv && c) buildEvtAcq(c);
         if (showSh && c) buildShopAcq(c);
     }
-    document.getElementById('drLocation').addEventListener('change', updateDrForm);
+    document.getElementById('drLocation').addEventListener('input', updateDrForm);
     document.getElementById('drWorkType').addEventListener('change', updateDrForm);
 
     document.getElementById('reportForm').addEventListener('submit', function(e) {

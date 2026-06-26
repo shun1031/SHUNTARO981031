@@ -161,12 +161,12 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php if ($empFilter): ?>
                             <input type="text" class="form-control" name="employee_name" value="<?= h($empFilter) ?>" readonly>
                             <?php else: ?>
-                            <select name="employee_name" class="form-select" required>
-                                <option value="">選択してください</option>
+                            <input type="text" class="form-control" name="employee_name" list="transportEmpList" required placeholder="選択または入力してください" autocomplete="off">
+                            <datalist id="transportEmpList">
                                 <?php foreach ($salesReps as $rep): ?>
-                                <option value="<?= h($rep) ?>"><?= h($rep) ?></option>
+                                <option value="<?= h($rep) ?>">
                                 <?php endforeach; ?>
-                            </select>
+                            </datalist>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-4">

@@ -96,6 +96,9 @@ $migrations = [
     "ALTER TABLE sales_daily_reports ADD COLUMN IF NOT EXISTS shop_acquisition_detail TEXT DEFAULT NULL",
     "ALTER TABLE sales_daily_reports ADD COLUMN IF NOT EXISTS shop_fixed_check_detail TEXT DEFAULT NULL",
     "ALTER TABLE sales_daily_reports ADD COLUMN IF NOT EXISTS shop_comment TEXT DEFAULT NULL",
+
+    // ---- sales_transport_costs: 申請ステータス ----
+    "ALTER TABLE sales_transport_costs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'submitted' COMMENT '申請ステータス'",
 ];
 
 $ok = 0;

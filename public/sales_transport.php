@@ -65,12 +65,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
         deleteTransportCost($delId, $cid);
         redirect(BASE_PATH . '/public/sales_transport.php?year='.$year.'&month='.$month.'&msg=deleted');
     }
+    // 管理者: 申請ステータス更新
+    if ($action === 'update_status' && isAdmin()) {
+        $newStatus = $_POST['new_status'] ?? '';
+        $targetId  = (int)($_POST['id'] ?? 0);
+        if ($targetId && in_array($newStatus, ['submitted','approved','rejected'])) {
+            getDB()->prepare("UPDATE sales_transport_costs SET status=? WHERE id=? AND company_id=?")
+                   ->execute([$newStatus, $targetId, $cid]);
+        }
+        redirect(BASE_PATH . '/public/sales_transport.php?year='.$year.'&month='.$month.'&msg=status_updated');
+    }
 }
 
 $empFilter = getEmployeeNameFilter();
 $salesReps = getSalesReps($cid, $year);
 $costs = getTransportCosts($cid, $year, $month, $empFilter);
 $totalAll = array_sum(array_column($costs, 'total_amount'));
+
+// 管理者: 申請一覧データ取得
+$adminData = [];
+$adminFilterEmp    = $_GET['filter_emp']    ?? '';
+$adminFilterStatus = $_GET['filter_status'] ?? '';
+if (isAdmin()) {
+    $_aDb = getDB();
+    $_aSql = "SELECT *, DATE_FORMAT(submitted_at,'%Y/%m/%d') AS submitted_date
+              FROM sales_transport_costs
+              WHERE company_id=? AND target_year=? AND target_month=?";
+    $_aParams = [$cid, $year, $month];
+    if ($adminFilterEmp)    { $_aSql .= " AND employee_name=?"; $_aParams[] = $adminFilterEmp; }
+    if ($adminFilterStatus) { $_aSql .= " AND status=?";         $_aParams[] = $adminFilterStatus; }
+    $_aSql .= " ORDER BY COALESCE(submitted_at, created_at) DESC";
+    $_aStmt = $_aDb->prepare($_aSql);
+    $_aStmt->execute($_aParams);
+    $adminData = $_aStmt->fetchAll();
+
+    // 集計
+    $adminTotalCount = count($adminData);
+    $adminTotalSum   = array_sum(array_column($adminData, 'total_amount'));
+    $adminSum1 = array_sum(array_column($adminData, 'cost_1'));
+    $adminSum2 = array_sum(array_column($adminData, 'cost_2'));
+    $adminSum3 = array_sum(array_column($adminData, 'cost_3'));
+}
+
+$_statusLabel = ['submitted'=>'申請中','approved'=>'承認済','rejected'=>'差戻し'];
+$_statusColor = ['submitted'=>'warning','approved'=>'success','rejected'=>'danger'];
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -240,6 +278,173 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <?php if (isAdmin()): ?>
+    <!-- 管理者: 交通費申請一覧 -->
+    <hr class="my-4">
+    <h5 class="fw-bold mb-3"><i class="bi bi-list-check me-1"></i>交通費申請一覧</h5>
+
+    <!-- 絞り込み -->
+    <form method="get" class="row g-2 mb-3 align-items-end">
+        <input type="hidden" name="year" value="<?= $year ?>">
+        <input type="hidden" name="month" value="<?= $month ?>">
+        <div class="col-auto">
+            <label class="form-label small mb-1">社員名</label>
+            <select name="filter_emp" class="form-select form-select-sm" style="width:160px">
+                <option value="">すべて</option>
+                <?php foreach ($salesReps as $rep): ?>
+                <option value="<?= h($rep) ?>" <?= $adminFilterEmp===$rep?'selected':'' ?>><?= h($rep) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label small mb-1">申請ステータス</label>
+            <select name="filter_status" class="form-select form-select-sm" style="width:140px">
+                <option value="">すべて</option>
+                <option value="submitted" <?= $adminFilterStatus==='submitted'?'selected':'' ?>>申請中</option>
+                <option value="approved"  <?= $adminFilterStatus==='approved' ?'selected':'' ?>>承認済</option>
+                <option value="rejected"  <?= $adminFilterStatus==='rejected' ?'selected':'' ?>>差戻し</option>
+            </select>
+        </div>
+        <div class="col-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>絞り込み</button>
+            <a href="?year=<?= $year ?>&month=<?= $month ?>" class="btn btn-outline-secondary btn-sm">リセット</a>
+        </div>
+    </form>
+
+    <!-- 集計カード -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md">
+            <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#eff6ff;border:1px solid #bfdbfe">
+                <i class="bi bi-file-text fs-5" style="color:#2563eb"></i>
+                <div><div class="small text-muted">申請件数</div><div class="fw-bold"><?= $adminTotalCount ?> 件</div></div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
+                <i class="bi bi-currency-yen fs-5" style="color:#059669"></i>
+                <div><div class="small text-muted">合計金額</div><div class="fw-bold"><?= number_format($adminTotalSum) ?> 円</div></div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#fef3c7;border:1px solid #fde68a">
+                <i class="bi bi-train-front fs-5" style="color:#d97706"></i>
+                <div><div class="small text-muted">交通費① 合計</div><div class="fw-bold"><?= number_format($adminSum1) ?> 円</div></div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#fff7ed;border:1px solid #fed7aa">
+                <i class="bi bi-car-front fs-5" style="color:#ea580c"></i>
+                <div><div class="small text-muted">交通費② 合計</div><div class="fw-bold"><?= number_format($adminSum2) ?> 円</div></div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#f0f9ff;border:1px solid #bae6fd">
+                <i class="bi bi-signpost-2 fs-5" style="color:#0284c7"></i>
+                <div><div class="small text-muted">交通費③ 合計</div><div class="fw-bold"><?= number_format($adminSum3) ?> 円</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 申請一覧テーブル -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" style="font-size:.75rem">
+                    <thead class="table-light">
+                        <tr>
+                            <th>申請日</th>
+                            <th>社員名</th>
+                            <th>対象年月</th>
+                            <th class="text-end">距離①</th><th class="text-end">日数①</th><th class="text-end">金額①</th>
+                            <th class="text-end">距離②</th><th class="text-end">日数②</th><th class="text-end">金額②</th>
+                            <th class="text-end">距離③</th><th class="text-end">日数③</th><th class="text-end">金額③</th>
+                            <th class="text-end">高速代</th>
+                            <th class="text-end">合計</th>
+                            <th class="text-center">エビデンス</th>
+                            <th class="text-center">ステータス</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($adminData as $a):
+                            $st = $a['status'] ?? 'submitted';
+                            $stLabel = $_statusLabel[$st] ?? $st;
+                            $stColor = $_statusColor[$st] ?? 'secondary';
+                        ?>
+                        <tr>
+                            <td><?= h($a['submitted_date'] ?? date('Y/m/d', strtotime($a['created_at']))) ?></td>
+                            <td class="fw-medium"><?= h($a['employee_name']) ?></td>
+                            <td><?= $a['target_year'] ?>年<?= $a['target_month'] ?>月</td>
+                            <td class="text-end"><?= $a['distance_km_1'] ? $a['distance_km_1'].'km' : '-' ?></td>
+                            <td class="text-end"><?= $a['work_days_1'] ?? '-' ?></td>
+                            <td class="text-end"><?= $a['cost_1'] ? number_format($a['cost_1']) : '-' ?></td>
+                            <td class="text-end"><?= $a['distance_km_2'] ? $a['distance_km_2'].'km' : '-' ?></td>
+                            <td class="text-end"><?= $a['work_days_2'] ?? '-' ?></td>
+                            <td class="text-end"><?= $a['cost_2'] ? number_format($a['cost_2']) : '-' ?></td>
+                            <td class="text-end"><?= $a['distance_km_3'] ? $a['distance_km_3'].'km' : '-' ?></td>
+                            <td class="text-end"><?= $a['work_days_3'] ?? '-' ?></td>
+                            <td class="text-end"><?= $a['cost_3'] ? number_format($a['cost_3']) : '-' ?></td>
+                            <td class="text-end"><?= $a['highway_cost'] ? number_format($a['highway_cost']) : '-' ?></td>
+                            <td class="text-end fw-bold" style="color:#059669"><?= number_format($a['total_amount']) ?></td>
+                            <td class="text-center">
+                                <?php for ($ei=1; $ei<=3; $ei++):
+                                    $eu = $a['evidence_url_'.$ei] ?? '';
+                                    if ($eu):
+                                        $ext = strtolower(pathinfo($eu, PATHINFO_EXTENSION));
+                                        $icon = $ext==='pdf' ? 'bi-file-pdf' : 'bi-image';
+                                        $color = $ext==='pdf' ? '#ef4444' : '#3b82f6';
+                                ?>
+                                <a href="<?= BASE_PATH ?>/uploads/<?= h($eu) ?>" target="_blank" class="me-1" style="color:<?= $color ?>" title="エビデンス<?= $ei ?>">
+                                    <i class="bi <?= $icon ?> fs-6"></i>
+                                </a>
+                                <?php endif; endfor; ?>
+                            </td>
+                            <td class="text-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-<?= $stColor ?> btn-sm dropdown-toggle py-0 px-2" style="font-size:.7rem" data-bs-toggle="dropdown"><?= $stLabel ?></button>
+                                    <ul class="dropdown-menu dropdown-menu-end" style="font-size:.8rem;min-width:100px">
+                                        <?php foreach ($_statusLabel as $sv => $sl): if ($sv===$st) continue; ?>
+                                        <li>
+                                            <form method="post" style="display:contents">
+                                                <input type="hidden" name="csrf" value="<?= getCsrfToken() ?>">
+                                                <input type="hidden" name="action" value="update_status">
+                                                <input type="hidden" name="id" value="<?= $a['id'] ?>">
+                                                <input type="hidden" name="new_status" value="<?= $sv ?>">
+                                                <button type="submit" class="dropdown-item"><?= $sl ?></button>
+                                            </form>
+                                        </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php if (empty($adminData)): ?>
+                        <tr><td colspan="16" class="text-center text-muted py-4">申請データがありません</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                    <?php if (!empty($adminData)): ?>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="3">合計</td>
+                            <td colspan="2" class="text-end"></td>
+                            <td class="text-end"><?= number_format($adminSum1) ?></td>
+                            <td colspan="2" class="text-end"></td>
+                            <td class="text-end"><?= number_format($adminSum2) ?></td>
+                            <td colspan="2" class="text-end"></td>
+                            <td class="text-end"><?= number_format($adminSum3) ?></td>
+                            <td class="text-end">—</td>
+                            <td class="text-end" style="color:#059669"><?= number_format($adminTotalSum) ?></td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                    <?php endif; ?>
+                </table>
+            </div>
+        </div>
+    </div>
+    <hr class="my-4">
+    <?php endif; ?>
 
     <div class="card mb-3">
         <div class="card-body p-0">

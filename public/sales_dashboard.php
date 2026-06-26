@@ -120,8 +120,8 @@ $clientTop = getSalesRevenueByClientFiltered($cid, $year, $month, $salesRep);
 $workerBreakdown = getSalesWorkerBreakdownFiltered($cid, $year, $month, $salesRep, $caseTypeFilter);
 
 // スタッフ区分別売上を「自社」「アライアンス」の2グループに集約
-$inhouseTypes  = ['正社員', 'アルバイト', '自社外注'];
-$allianceTypes = ['アライアンス', '個人外注'];
+$inhouseTypes  = ['正社員', 'アルバイト', '自社外注', '個人外注'];
+$allianceTypes = ['アライアンス'];
 $workerGrouped = [
     '自社'       => ['revenue' => 0, 'profit' => 0, 'case_count' => 0],
     'アライアンス' => ['revenue' => 0, 'profit' => 0, 'case_count' => 0],
@@ -228,8 +228,8 @@ $empStatsYoy = buildEmpStats($empStatsYoy);
 // 常勤・イベント別 自社/アライアンス 案件数（sales_casesから取得）
 $_caseDetailSql = "
     SELECT case_type,
-           SUM(CASE WHEN worker_type IN ('正社員','自社外注','アルバイト') THEN 1 ELSE 0 END) AS inhouse,
-           SUM(CASE WHEN worker_type IN ('アライアンス','個人外注') THEN 1 ELSE 0 END) AS alliance
+           SUM(CASE WHEN worker_type IN ('正社員','自社外注','アルバイト','個人外注') THEN 1 ELSE 0 END) AS inhouse,
+           SUM(CASE WHEN worker_type IN ('アライアンス') THEN 1 ELSE 0 END) AS alliance
     FROM sales_cases
     WHERE company_id = ? AND case_year = ? AND case_month = ? AND status = 'confirmed'
     GROUP BY case_type

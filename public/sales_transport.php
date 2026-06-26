@@ -415,7 +415,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <hr class="my-4">
     <?php endif; ?>
-
+</div>
 
 <!-- 交通費モーダル -->
 <div class="modal fade" id="costModal" tabindex="-1">

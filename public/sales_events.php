@@ -81,7 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
         $_crM = (int)($_GET['month'] ?? date('n'));
         $_crBase = BASE_PATH . '/public/sales_events.php?year=' . $_crY . '&month=' . $_crM;
         if ($action === 'create') {
-            createSalesCase($cid, $data);
+            $newCaseId = createSalesCase($cid, $data);
+            // 予定案件と紐付け（plan_idが指定された場合）
+            $_planId = (int)($_POST['plan_id'] ?? 0);
+            if ($_planId && $newCaseId) {
+                getDB()->prepare("UPDATE event_plans SET status='confirmed', linked_case_id=? WHERE id=? AND company_id=? AND status='pending'")
+                       ->execute([$newCaseId, $_planId, $cid]);
+                getDB()->prepare("UPDATE sales_cases SET plan_id=? WHERE id=? AND company_id=?")
+                       ->execute([$_planId, $newCaseId, $cid]);
+            }
             redirect($_crBase . '&msg=' . urlencode('案件を追加しました'));
         } else {
             $id = (int)$_POST['id'];
@@ -127,6 +135,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
 }
 
 $msg = $_GET['msg'] ?? '';
+
+// 予定案件リスト（フォームのプルダウン用）
+$_pendingPlans = [];
+if (isAdmin()) {
+    $_pp = getDB()->prepare("SELECT * FROM event_plans WHERE company_id=? AND status='pending' ORDER BY work_date DESC LIMIT 100");
+    $_pp->execute([$cid]);
+    $_pendingPlans = $_pp->fetchAll();
+}
 
 // フィルタ
 $year = (int)($_GET['year'] ?? date('Y'));
@@ -365,11 +381,30 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="csrf" value="<?= $csrf ?>">
             <input type="hidden" name="action" id="form_action" value="create">
             <input type="hidden" name="id" id="form_id" value="">
+            <input type="hidden" name="plan_id" id="f_plan_id" value="">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalTitle">イベント案件追加</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <?php if (!empty($_pendingPlans)): ?>
+                <!-- 予定案件から選択 -->
+                <div class="mb-3 p-2 rounded" style="background:#fef3c7;border:1px solid #fde68a">
+                    <label class="form-label small fw-bold" style="color:#92400e"><i class="bi bi-link-45deg me-1"></i>予定案件から選択（任意）</label>
+                    <select id="f_plan_select" class="form-select form-select-sm" onchange="applyPlan(this.value)">
+                        <option value="">-- 予定案件を選択して自動入力（省略可）--</option>
+                        <?php foreach ($_pendingPlans as $_pp): ?>
+                        <option value="<?= $_pp['id'] ?>"
+                            data-client="<?= h($_pp['client_name']) ?>"
+                            data-store="<?= h($_pp['store_name'] ?? '') ?>"
+                            data-date="<?= h($_pp['work_date']) ?>">
+                            <?= date('m/d', strtotime($_pp['work_date'])) ?> / <?= h($_pp['client_name']) ?> / <?= h($_pp['store_name'] ?? '') ?> (<?= $_pp['required_count'] ?>名)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text" style="font-size:.68rem">選択すると日付・クライアント・店舗が自動入力されます。確定時に予定案件が「確定済」に変わります。</div>
+                </div>
+                <?php endif; ?>
                 <div class="row g-3">
                     <div class="col-12">
                         <label class="form-label fw-medium">取引先</label>
@@ -610,11 +645,27 @@ function toggleAllianceGroup() {
     var ag = document.getElementById('alliance_group');
     if (ag) ag.style.display = wt === 'アライアンス' ? 'block' : 'none';
 }
+// 予定案件選択時の自動入力
+function applyPlan(planId) {
+    var sel = document.getElementById('f_plan_select');
+    if (!sel || !planId) { document.getElementById('f_plan_id').value = ''; return; }
+    var opt = sel.options[sel.selectedIndex];
+    document.getElementById('f_plan_id').value = planId;
+    var client = opt.dataset.client || '';
+    var store  = opt.dataset.store  || '';
+    var date   = opt.dataset.date   || '';
+    if (client) { document.getElementById('f_client_name_input').value = client; document.getElementById('f_client_name_hidden').value = client; document.getElementById('f_client_id').value = ''; }
+    if (store)  document.getElementById('f_store_name').value = store;
+    if (date)   document.getElementById('f_start_date').value = date.substring(0,7);
+}
+
 function resetCaseForm() {
     document.getElementById('form_action').value = 'create';
     document.getElementById('form_id').value = '';
+    document.getElementById('f_plan_id').value = '';
     document.getElementById('modalTitle').textContent = 'イベント案件追加';
     document.getElementById('submitBtn').textContent = '追加';
+    var ps = document.getElementById('f_plan_select'); if (ps) ps.value = '';
     document.getElementById('f_client_name_input').value = '';
     document.getElementById('f_client_id').value = '';
     document.getElementById('f_client_name_hidden').value = '';

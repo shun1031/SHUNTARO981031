@@ -188,9 +188,9 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
     </div>
 
     <!-- 2画面カレンダー -->
-    <div class="row g-3 mb-4">
+    <div class="row g-2 mb-4">
         <!-- 左: 確定イベントカレンダー -->
-        <div class="col-lg-6">
+        <div class="col-xl-6 col-12">
             <div class="card h-100" style="border:2px solid #3b82f6">
                 <div class="card-header" style="background:#eff6ff;border-bottom:2px solid #3b82f6">
                     <div class="d-flex justify-content-between align-items-center">
@@ -220,15 +220,8 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
             </div>
         </div>
 
-        <!-- 中央: 自動連携説明 -->
-        <div class="d-none d-lg-flex align-items-center justify-content-center" style="width:40px;flex-shrink:0">
-            <div class="text-center text-muted" style="font-size:.65rem;writing-mode:vertical-rl;text-orientation:mixed">
-                <i class="bi bi-arrow-left-right d-block mb-1"></i>自動連携
-            </div>
-        </div>
-
         <!-- 右: 予定・未確定カレンダー -->
-        <div class="col-lg-6">
+        <div class="col-xl-6 col-12">
             <div class="card h-100" style="border:2px solid #10b981">
                 <div class="card-header" style="background:#f0fdf4;border-bottom:2px solid #10b981">
                     <div class="d-flex justify-content-between align-items-center">

@@ -49,8 +49,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
 $clientFilter = (int)($_GET['client_id'] ?? 0);
 $empFilter    = getEmployeeNameFilter();
 
-// 確定イベントカレンダー（既存 sales_cases から）
-$calendar = getEventCalendar($cid, $year, $month, $clientFilter ?: null, $empFilter);
+// 確定イベントカレンダー（詳細フィールド付き独自クエリ）
+$_startDate = sprintf('%04d-%02d-01', $year, $month);
+$_endDate   = date('Y-m-t', strtotime($_startDate));
+$_cSql = "SELECT sc.id, cl.client_name, sc.store_name, sc.worker_name, sc.worker_type,
+                 al.alliance_name, sc.start_date, sc.end_date
+          FROM sales_cases sc
+          LEFT JOIN sales_clients cl ON sc.client_id = cl.id
+          LEFT JOIN sales_alliances al ON sc.alliance_id = al.id
+          WHERE sc.company_id=? AND sc.case_type='event' AND sc.status='confirmed'
+            AND sc.start_date <= ? AND sc.end_date >= ?";
+$_cParams = [$cid, $_endDate, $_startDate];
+if ($clientFilter) { $_cSql .= " AND sc.client_id=?"; $_cParams[] = $clientFilter; }
+if ($empFilter)    { $_cSql .= " AND sc.worker_name=?"; $_cParams[] = $empFilter; }
+$_cSql .= " ORDER BY sc.start_date, cl.client_name";
+$_cStmt = $db->prepare($_cSql);
+$_cStmt->execute($_cParams);
+
+$confirmedByDay = [];
+foreach ($_cStmt->fetchAll() as $_c) {
+    $_sd = max($_startDate, $_c['start_date']);
+    $_ed = min($_endDate,   $_c['end_date']);
+    $_cur = $_sd;
+    while ($_cur <= $_ed) {
+        $confirmedByDay[(int)date('j', strtotime($_cur))][] = $_c;
+        $_cur = date('Y-m-d', strtotime($_cur . ' +1 day'));
+    }
+}
+
+// 後方互換: $calendar は他の箇所で使わないが念のため
+$calendar = $confirmedByDay;
 
 // 予定案件（event_plans から当月 pending のみ）
 $planStmt = $db->prepare("SELECT * FROM event_plans
@@ -115,8 +143,6 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
             $cellDay = ($week===0 && $d<$firstDow) ? null : ($day > $daysInMonth ? null : $day);
             if ($cellDay === null) {
                 echo '<td class="bg-light" style="height:80px;vertical-align:top;padding:.15rem"></td>';
-                if ($week===0 && $d<$firstDow-1) continue;
-                if ($week===0 && $d<$firstDow) { $day_dummy=null; }
             } else {
                 $isToday = $isCurrentMonth && $cellDay===$today;
                 $borderClass = $isToday ? 'border border-primary border-2' : '';
@@ -127,23 +153,32 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                 $events = $byDay[$cellDay] ?? [];
                 foreach ($events as $ev) {
                     if ($mode === 'confirmed') {
-                        $client = $ev['client_name'] ?? '';
-                        $store  = $ev['store_name']  ?? '';
-                        $worker = $ev['worker_name'] ?? '';
-                        $color  = $clientColors[$client] ?? '#6b7280';
-                        $bg     = 'rgba('.implode(',',sscanf($color,'#%02x%02x%02x')).','.'0.18)';
-                        echo '<div style="border-left:2px solid '.$color.';background:'.$bg.';padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
+                        $client   = $ev['client_name']  ?? '';
+                        $store    = $ev['store_name']   ?? '';
+                        $worker   = $ev['worker_name']  ?? '';
+                        $wtype    = $ev['worker_type']  ?? '';
+                        $alliance = $ev['alliance_name']?? '';
+                        $color    = $clientColors[$client] ?? '#6b7280';
+                        $bg       = 'rgba('.implode(',',array_map('intval',sscanf($color,'#%02x%02x%02x'))).', 0.18)';
+                        // tooltip text
+                        $tip  = 'クライアント: '.$client;
+                        if ($store)  $tip .= "\n稼働店舗: ".$store;
+                        if ($worker) $tip .= "\nスタッフ: ".$worker;
+                        if ($wtype==='アライアンス' && $alliance) $tip .= "\n外注先: ".$alliance;
+                        echo '<div title="'.htmlspecialchars($tip, ENT_QUOTES).'" style="cursor:default;border-left:2px solid '.$color.';background:'.$bg.';padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
                         echo '<div style="color:'.$color.';font-weight:700">'.h(mb_substr($client,0,6,'UTF-8')).'</div>';
                         if ($store)  echo '<div style="color:#374151">'.h(mb_substr($store,0,8,'UTF-8')).'</div>';
                         if ($worker) echo '<div style="color:#6b7280">'.h(mb_substr($worker,0,8,'UTF-8')).'</div>';
                         echo '</div>';
                     } else {
-                        // pending plan
-                        $client = $ev['client_name'] ?? '';
-                        $store  = $ev['store_name']  ?? '';
+                        $client = $ev['client_name']   ?? '';
+                        $store  = $ev['store_name']    ?? '';
                         $count  = (int)($ev['required_count'] ?? 1);
                         $color  = '#f59e0b';
-                        echo '<div style="border-left:2px solid '.$color.';background:rgba(245,158,11,.12);padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
+                        $tip    = 'クライアント: '.$client;
+                        if ($store) $tip .= "\n稼働店舗: ".$store;
+                        $tip .= "\n必要人数: ".$count.'名';
+                        echo '<div title="'.htmlspecialchars($tip, ENT_QUOTES).'" style="cursor:default;border-left:2px solid '.$color.';background:rgba(245,158,11,.12);padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
                         echo '<div style="color:'.$color.';font-weight:700">'.h(mb_substr($client,0,6,'UTF-8')).'</div>';
                         if ($store) echo '<div style="color:#374151">'.h(mb_substr($store,0,8,'UTF-8')).'</div>';
                         echo '<div style="color:#ef4444;font-weight:600">'.$count.'名必要</div>';
@@ -202,16 +237,7 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                     <div style="font-size:.68rem;color:#6b7280;margin-top:2px">確定済みのイベント案件を表示（稼働者まで確定）</div>
                 </div>
                 <div class="card-body p-1">
-                    <?php
-                    // confirmed calendar data keyed by day
-                    $confirmedByDay = [];
-                    foreach ($calendar as $d => $evs) {
-                        foreach ($evs as $ev) {
-                            $confirmedByDay[$d][] = $ev;
-                        }
-                    }
-                    renderCalendarGrid($confirmedByDay, $firstDow, $daysInMonth, $isCurrentMonth, (int)$today, 'confirmed', $clientColors);
-                    ?>
+                    <?php renderCalendarGrid($confirmedByDay, $firstDow, $daysInMonth, $isCurrentMonth, (int)$today, 'confirmed', $clientColors); ?>
                 </div>
                 <div class="card-footer d-flex justify-content-between align-items-center" style="background:#eff6ff;font-size:.78rem">
                     <span><i class="bi bi-people me-1"></i>確定稼働数（延べ人数）</span>

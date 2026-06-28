@@ -101,22 +101,7 @@ $migrations = [
     "ALTER TABLE sales_transport_costs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'submitted' COMMENT '申請ステータス'",
 
     // ---- event_plans: 予定案件テーブル ----
-    "CREATE TABLE IF NOT EXISTS event_plans (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        company_id INT NOT NULL,
-        client_name VARCHAR(200) NOT NULL,
-        store_name VARCHAR(200) DEFAULT NULL,
-        work_date DATE NOT NULL,
-        required_count INT NOT NULL DEFAULT 1,
-        status ENUM('pending','confirmed') NOT NULL DEFAULT 'pending',
-        linked_case_id INT DEFAULT NULL,
-        note TEXT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_ep_company (company_id),
-        INDEX idx_ep_date (work_date),
-        FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    "CREATE TABLE IF NOT EXISTS event_plans (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, client_name VARCHAR(200) NOT NULL, store_name VARCHAR(200) DEFAULT NULL, work_date DATE NOT NULL, required_count INT NOT NULL DEFAULT 1, status ENUM('pending','confirmed') NOT NULL DEFAULT 'pending', linked_case_id INT DEFAULT NULL, note TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_ep_company (company_id), INDEX idx_ep_date (work_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
     // ---- sales_cases: 予定案件リンク ----
     "ALTER TABLE sales_cases ADD COLUMN IF NOT EXISTS plan_id INT DEFAULT NULL COMMENT '予定案件ID'",

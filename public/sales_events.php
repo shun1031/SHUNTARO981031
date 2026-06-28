@@ -82,13 +82,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
         $_crBase = BASE_PATH . '/public/sales_events.php?year=' . $_crY . '&month=' . $_crM;
         if ($action === 'create') {
             $newCaseId = createSalesCase($cid, $data);
-            // 予定案件と紐付け（plan_idが指定された場合）
+            // 予定案件と紐付け（plan_idが指定された場合・テーブル未存在時もエラーにしない）
             $_planId = (int)($_POST['plan_id'] ?? 0);
             if ($_planId && $newCaseId) {
-                getDB()->prepare("UPDATE event_plans SET status='confirmed', linked_case_id=? WHERE id=? AND company_id=? AND status='pending'")
-                       ->execute([$newCaseId, $_planId, $cid]);
-                getDB()->prepare("UPDATE sales_cases SET plan_id=? WHERE id=? AND company_id=?")
-                       ->execute([$_planId, $newCaseId, $cid]);
+                try {
+                    getDB()->prepare("UPDATE event_plans SET status='confirmed', linked_case_id=? WHERE id=? AND company_id=? AND status='pending'")
+                           ->execute([$newCaseId, $_planId, $cid]);
+                    getDB()->prepare("UPDATE sales_cases SET plan_id=? WHERE id=? AND company_id=?")
+                           ->execute([$_planId, $newCaseId, $cid]);
+                } catch (Exception $_e) {
+                    error_log('Plan linking error: ' . $_e->getMessage());
+                }
             }
             redirect($_crBase . '&msg=' . urlencode('案件を追加しました'));
         } else {

@@ -68,9 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
     }
 }
 
-$reports = getDailyReports($cid, $year, $month, $filterEmp ?: null);
-$summary = getDailyReportSummary($cid, $year, $month, $empFilter);
+$reports   = getDailyReports($cid, $year, $month, $filterEmp ?: null);
 $employees = getReportEmployees($cid);
+// 社員選択（Ajax 初期値: ログインユーザー or 全員）
+$selectedEmp = $empFilter ?? ($filterEmp ?: '');
+$drApiBase   = BASE_PATH . '/public/api/daily_report_kpi.php';
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -80,19 +82,13 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1><i class="bi bi-journal-check me-2"></i>日報管理</h1>
-                <p><?= $year ?>年<?= $month ?>月</p>
+                <p id="drSubtitle"><?= $year ?>年<?= $month ?>月</p>
             </div>
-            <?php
-            $prevM = $month - 1; $prevY = $year;
-            if ($prevM < 1) { $prevM = 12; $prevY--; }
-            $nextM = $month + 1; $nextY = $year;
-            if ($nextM > 12) { $nextM = 1; $nextY++; }
-            ?>
             <div class="d-flex align-items-center gap-2">
                 <div class="d-flex align-items-center gap-1">
-                    <a href="?year=<?= $prevY ?>&month=<?= $prevM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</a>
-                    <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
-                    <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
+                    <button onclick="drChangeMonth(-1)" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</button>
+                    <span id="drMonthLabel" class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
+                    <button onclick="drChangeMonth(1)" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</button>
                 </div>
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reportModal"><i class="bi bi-plus"></i> 日報入力</button>
             </div>
@@ -106,9 +102,69 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- 月間サマリー -->
-    <?php if (!empty($summary)): ?>
+    <!-- ① 社員選択 + KPI + 一覧 (Ajax) -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <?php if (isAdmin()): ?>
+        <div class="d-flex align-items-center gap-2">
+            <label class="fw-semibold small mb-0" style="white-space:nowrap">社員を選択</label>
+            <select id="drEmpSelect" class="form-select form-select-sm" style="width:200px">
+                <?php foreach ($employees as $e): ?>
+                <option value="<?= h($e) ?>" <?= $selectedEmp === $e ? 'selected' : '' ?>><?= h($e) ?></option>
+                <?php endforeach; ?>
+                <?php if (!$selectedEmp): ?><option value="" selected>全員</option><?php endif; ?>
+            </select>
+        </div>
+        <?php else: ?>
+        <div></div>
+        <?php endif; ?>
+        <button id="drWeekBtn" class="btn btn-outline-secondary btn-sm" onclick="drToggleWeek()">
+            <i class="bi bi-calendar-week me-1"></i>直近1週間
+        </button>
+    </div>
+
+    <!-- ② KPIカード -->
+    <div class="row g-3 mb-4" id="drKpiRow">
+        <?php
+        $kpiDefs = [
+            ['key'=>'catch_count',        'label'=>'キャッチ数', 'icon'=>'bi-megaphone',    'color'=>'#2563eb'],
+            ['key'=>'event_seated',       'label'=>'着座数',     'icon'=>'bi-person-check', 'color'=>'#059669'],
+            ['key'=>'event_proposals',    'label'=>'提案数',     'icon'=>'bi-clipboard-check','color'=>'#d97706'],
+            ['key'=>'event_negotiations', 'label'=>'昇段数',     'icon'=>'bi-graph-up-arrow','color'=>'#7c3aed'],
+            ['key'=>'event_contracts',    'label'=>'成約数',     'icon'=>'bi-handshake',    'color'=>'#dc2626'],
+        ];
+        foreach ($kpiDefs as $kd): ?>
+        <div class="col-6 col-md">
+            <div class="card h-100 kpi-card" data-key="<?= $kd['key'] ?>" style="border-top:3px solid <?= $kd['color'] ?>">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi <?= $kd['icon'] ?> fs-5" style="color:<?= $kd['color'] ?>"></i>
+                        <span class="fw-bold small" style="color:<?= $kd['color'] ?>"><?= $kd['label'] ?></span>
+                    </div>
+                    <div class="kpi-month-label text-muted" style="font-size:.68rem">月合計</div>
+                    <div class="kpi-month-val fw-bold" style="font-size:1.8rem;color:<?= $kd['color'] ?>">- <small style="font-size:.8rem">件</small></div>
+                    <div class="kpi-prev text-muted" style="font-size:.7rem">前月比 読込中...</div>
+                    <div class="kpi-week" style="display:none;margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;font-size:.72rem;color:#6b7280">
+                        直近1週間: <span class="kpi-week-val fw-bold">-</span> 件
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- ③ 日報一覧 -->
     <div class="card mb-3">
+        <div class="card-header fw-bold"><i class="bi bi-list-ul me-1"></i>日報一覧
+            <span class="ms-2 text-muted fw-normal" style="font-size:.78rem">個人獲得内訳 / 全体獲得内訳</span>
+        </div>
+        <div class="card-body p-0" id="drListWrap">
+            <div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat"></i> 読込中...</div>
+        </div>
+    </div>
+
+    <!-- 旧月間サマリー（非表示） -->
+    <?php if (false && !empty([])): ?>
+    <div class="card mb-3" style="display:none">
         <div class="card-header"><strong><i class="bi bi-bar-chart me-1"></i>月間サマリー</strong></div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -146,62 +202,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- 日報一覧 -->
-    <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-list-ul me-1"></i>日報一覧</strong>
-            <?php if (isAdmin()): ?>
-            <select onchange="location.href='?year=<?= $year ?>&month=<?= $month ?>&employee='+this.value" class="form-select form-select-sm" style="width:150px">
-                <option value="">全員</option>
-                <?php foreach ($employees as $e): ?>
-                <option value="<?= h($e) ?>" <?= $filterEmp === $e ? 'selected' : '' ?>><?= h($e) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <?php endif; ?>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0" style="font-size:.75rem">
-                    <thead class="table-light">
-                        <tr><th>日付</th><th>社員名</th><th>場所</th><th>キャリア</th><th class="text-center">声掛</th><th class="text-center">相談</th><th class="text-center">着席</th><th class="text-center">SB系</th><th class="text-center">YM系</th><th class="text-center">au系</th><th class="text-center">UQ系</th><th>操作</th></tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($reports as $r):
-                            $sbTotal = $r['sb_mnp'] + $r['sb_new'] + $r['sb_change'] + $r['sb_upgrade'];
-                            $ymTotal = $r['ym_mnp'] + $r['ym_new'] + $r['ym_change'] + $r['ym_downgrade'];
-                            $auTotal = $r['au_mnp'] + $r['au_new'] + $r['au_change'] + $r['au_upgrade'];
-                            $uqTotal = $r['uq_mnp'] + $r['uq_new'] + $r['uq_change'] + $r['uq_downgrade'];
-                        ?>
-                        <tr>
-                            <td><?= $r['work_date'] ?></td>
-                            <td><?= h($r['employee_name']) ?></td>
-                            <td><?= h($r['location'] ?? '') ?></td>
-                            <td><?= h($r['carrier'] ?? '') ?></td>
-                            <td class="text-center"><?= $r['contacts'] ?></td>
-                            <td class="text-center"><?= $r['consultations'] ?></td>
-                            <td class="text-center"><?= $r['seated'] ?></td>
-                            <td class="text-center"><?= $sbTotal ?></td>
-                            <td class="text-center"><?= $ymTotal ?></td>
-                            <td class="text-center"><?= $auTotal ?></td>
-                            <td class="text-center"><?= $uqTotal ?></td>
-                            <td>
-                                <form method="post" style="display:inline" onsubmit="return confirm('削除しますか？')">
-                                    <input type="hidden" name="csrf" value="<?= getCsrfToken() ?>">
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="id" value="<?= $r['id'] ?>">
-                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.65rem"><i class="bi bi-trash"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                        <?php if (empty($reports)): ?>
-                        <tr><td colspan="12" class="text-center text-muted py-4">日報データがありません</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- 日報入力モーダル -->
@@ -436,6 +436,131 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('perAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
         updateDrForm();
     });
+})();
+</script>
+
+<script>
+(function(){
+    var drYear = <?= $year ?>, drMonth = <?= $month ?>;
+    var drEmp  = <?= json_encode($selectedEmp) ?>;
+    var drWeekMode = false;
+    var drApiBase  = <?= json_encode($drApiBase) ?>;
+    var drCsrf     = <?= json_encode(getCsrfToken()) ?>;
+    var KPI_KEYS   = ['catch_count','event_seated','event_proposals','event_negotiations','event_contracts'];
+    var KPI_LABELS = ['キャッチ数','着座数','提案数','昇段数','成約数'];
+
+    function drLoad() {
+        var url = drApiBase + '?employee=' + encodeURIComponent(drEmp) + '&year=' + drYear + '&month=' + drMonth;
+        document.getElementById('drListWrap').innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
+        fetch(url).then(function(r){return r.json();}).then(function(d){
+            drRenderKpi(d);
+            drRenderList(d);
+            document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
+            document.getElementById('drSubtitle').textContent   = drYear + '年' + drMonth + '月';
+        }).catch(function(e){ console.error(e); });
+    }
+
+    function drRenderKpi(d) {
+        var month = d.kpi_month, prev = d.kpi_prev, week = d.kpi_week;
+        KPI_KEYS.forEach(function(k, i) {
+            var card = document.querySelector('.kpi-card[data-key="' + k + '"]');
+            if (!card) return;
+            var mVal = parseInt(month[k]||0);
+            var pVal = parseInt(prev[k]||0);
+            var wVal = parseInt(week[k]||0);
+            var diff = mVal - pVal;
+            var pct  = pVal > 0 ? ((diff/pVal)*100).toFixed(1) : '-';
+            card.querySelector('.kpi-month-val').innerHTML = mVal + ' <small style="font-size:.8rem">件</small>';
+            var prevEl = card.querySelector('.kpi-prev');
+            var sign = diff >= 0 ? '+' : '';
+            var color = diff >= 0 ? '#059669' : '#ef4444';
+            prevEl.innerHTML = '前月比 <span style="color:'+color+'">'+sign+diff+'件 ('+sign+pct+'%)</span>';
+            var wkEl = card.querySelector('.kpi-week-val');
+            if (wkEl) wkEl.textContent = wVal;
+            card.querySelector('.kpi-week').style.display = drWeekMode ? 'block' : 'none';
+        });
+    }
+
+    function drRenderList(d) {
+        var reports = d.reports || [];
+        var wrap = document.getElementById('drListWrap');
+        if (!reports.length) {
+            wrap.innerHTML = '<div class="text-center text-muted py-4">日報データがありません</div>';
+            return;
+        }
+        // キャリア別にグループ化してテーブル作成
+        var html = '';
+        var byCarrier = {};
+        reports.forEach(function(r){ (byCarrier[r.carrier||''] = byCarrier[r.carrier||''] || []).push(r); });
+
+        Object.keys(byCarrier).forEach(function(carrier) {
+            var rows = byCarrier[carrier];
+            var items = (d.carrier_items||{})[carrier] || [];
+            html += '<div class="table-responsive mb-3"><table class="table table-sm table-hover mb-0" style="font-size:.72rem">';
+            html += '<thead class="table-light"><tr>';
+            html += '<th>日付</th><th>社員名</th><th>稼働店舗</th><th>キャリア</th>';
+            html += '<th class="text-center">キャッチ</th><th class="text-center">着席</th><th class="text-center">提案</th><th class="text-center">成約</th>';
+            items.forEach(function(lbl) {
+                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">' + lbl + '</th>';
+            });
+            html += '<th>操作</th></tr></thead><tbody>';
+            rows.forEach(function(r) {
+                html += '<tr>';
+                html += '<td>' + r.work_date + '</td>';
+                html += '<td>' + esc(r.employee) + '</td>';
+                html += '<td>' + esc(r.location) + '</td>';
+                html += '<td>' + esc(r.carrier) + '</td>';
+                html += '<td class="text-center">' + (r.catch||0) + '</td>';
+                html += '<td class="text-center">' + (r.seated||0) + '</td>';
+                html += '<td class="text-center">' + (r.proposals||0) + '</td>';
+                html += '<td class="text-center">' + (r.contracts||0) + '</td>';
+                items.forEach(function(lbl) {
+                    var a = (r.acq||{})[lbl];
+                    var per = a ? (a.person||0) : 0;
+                    var tot = a ? (a.total||0) : 0;
+                    html += '<td class="text-center">' + per + ' / ' + tot + '</td>';
+                });
+                html += '<td><form method="post" style="display:inline" onsubmit="return confirm(\'削除しますか？\')">';
+                html += '<input type="hidden" name="csrf" value="' + drCsrf + '">';
+                html += '<input type="hidden" name="action" value="delete">';
+                html += '<input type="hidden" name="id" value="' + r.id + '">';
+                html += '<button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.6rem"><i class="bi bi-trash"></i></button>';
+                html += '</form></td></tr>';
+            });
+            html += '</tbody></table></div>';
+        });
+        wrap.innerHTML = html;
+    }
+
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    window.drChangeMonth = function(delta) {
+        drMonth += delta;
+        if (drMonth < 1) { drMonth = 12; drYear--; }
+        if (drMonth > 12) { drMonth = 1; drYear++; }
+        drLoad();
+    };
+
+    window.drToggleWeek = function() {
+        drWeekMode = !drWeekMode;
+        var btn = document.getElementById('drWeekBtn');
+        btn.classList.toggle('btn-outline-secondary', !drWeekMode);
+        btn.classList.toggle('btn-secondary', drWeekMode);
+        document.querySelectorAll('.kpi-week').forEach(function(el){
+            el.style.display = drWeekMode ? 'block' : 'none';
+        });
+    };
+
+    var empSel = document.getElementById('drEmpSelect');
+    if (empSel) {
+        empSel.addEventListener('change', function() {
+            drEmp = this.value;
+            drLoad();
+        });
+    }
+
+    // 初回ロード
+    drLoad();
 })();
 </script>
 

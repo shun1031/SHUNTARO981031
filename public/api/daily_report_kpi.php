@@ -1,0 +1,142 @@
+<?php
+/**
+ * 日報管理 KPI・一覧 API
+ * GET ?employee=&year=&month=
+ */
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../includes/functions.php';
+
+header('Content-Type: application/json; charset=utf-8');
+
+requireAnyLogin();
+$cid = getCompanyId();
+if (!$cid) { echo json_encode(['error' => 'Unauthorized']); exit; }
+
+$db       = getDB();
+$empFilter = getEmployeeNameFilter(); // 一般社員は自分のみ
+$employee  = $_GET['employee'] ?? '';
+$year      = (int)($_GET['year']  ?? date('Y'));
+$month     = (int)($_GET['month'] ?? date('n'));
+
+// 権限チェック: 一般社員は自分のデータのみ
+if ($empFilter !== null) { $employee = $empFilter; }
+
+// ─── キャリア別項目定義（フォームと同一）─────────────────────────────
+$CARRIER_ITEMS = [
+    'SB,YM'    => ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','Air新規','Airキヘン','SBでんき','PayPayカード'],
+    'au,UQ'    => ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','auでんき','au PAYカード'],
+    'ドコモ'   => ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','ドコモでんき','dカード'],
+    '楽天'     => ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','楽天でんき','楽天カード'],
+    'コミュファ'=> ['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G'],
+    'CATV'     => ['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','電力系→1G','電力系→10G','その他光→1G','その他光→10G'],
+];
+
+// ─── ヘルパー: JSON から指定ラベルの値取得 ────────────────────────────
+function getJsonVal(string $json, string $label): int {
+    if (!$json) return 0;
+    $d = json_decode($json, true);
+    return isset($d[$label]) ? (int)$d[$label] : 0;
+}
+
+// ─── KPI 集計クエリ ────────────────────────────────────────────────────
+function fetchKpi(PDO $db, int $cid, string $emp, string $startDate, string $endDate): array {
+    $sql = "SELECT
+        COALESCE(SUM(catch_count),0)         AS catch_count,
+        COALESCE(SUM(event_seated),0)        AS event_seated,
+        COALESCE(SUM(event_proposals),0)     AS event_proposals,
+        COALESCE(SUM(event_negotiations),0)  AS event_negotiations,
+        COALESCE(SUM(event_contracts),0)     AS event_contracts,
+        COUNT(*)                             AS report_count
+    FROM sales_daily_reports
+    WHERE company_id=? AND work_date BETWEEN ? AND ?";
+    $params = [$cid, $startDate, $endDate];
+    if ($emp) { $sql .= " AND employee_name=?"; $params[] = $emp; }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: ['catch_count'=>0,'event_seated'=>0,'event_proposals'=>0,'event_negotiations'=>0,'event_contracts'=>0,'report_count'=>0];
+}
+
+// 月の範囲
+$monthStart = sprintf('%04d-%02d-01', $year, $month);
+$monthEnd   = date('Y-m-t', strtotime($monthStart));
+
+// 前月
+$prevM = $month - 1; $prevY = $year;
+if ($prevM < 1) { $prevM = 12; $prevY--; }
+$prevStart = sprintf('%04d-%02d-01', $prevY, $prevM);
+$prevEnd   = date('Y-m-t', strtotime($prevStart));
+
+// 直近1週間
+$weekEnd   = date('Y-m-d');
+$weekStart = date('Y-m-d', strtotime('-6 days'));
+
+$kpiMonth = fetchKpi($db, $cid, $employee, $monthStart, $monthEnd);
+$kpiPrev  = fetchKpi($db, $cid, $employee, $prevStart,  $prevEnd);
+$kpiWeek  = fetchKpi($db, $cid, $employee, $weekStart,  $weekEnd);
+
+// ─── 日報一覧 ─────────────────────────────────────────────────────────
+$listSql = "SELECT id, work_date, employee_name, location, carrier,
+    catch_count, event_seated, event_proposals, event_negotiations, event_contracts,
+    event_acquisition_detail, personal_acquisition_detail,
+    shop_acquisition_detail, shop_fixed_check_detail, work_type
+    FROM sales_daily_reports
+    WHERE company_id=? AND work_date BETWEEN ? AND ?";
+$listParams = [$cid, $monthStart, $monthEnd];
+if ($employee) { $listSql .= " AND employee_name=?"; $listParams[] = $employee; }
+$listSql .= " ORDER BY work_date DESC";
+$listStmt = $db->prepare($listSql);
+$listStmt->execute($listParams);
+$rawReports = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 一覧データを成形（carrier別の items を展開）
+$reports = [];
+foreach ($rawReports as $r) {
+    $carrier  = $r['carrier'] ?? '';
+    $items    = $CARRIER_ITEMS[$carrier] ?? [];
+    $evtJson  = $r['event_acquisition_detail']  ?? '';
+    $perJson  = $r['personal_acquisition_detail'] ?? '';
+    $shopJson = $r['shop_acquisition_detail'] ?? '';
+    $shopPerJson = $r['shop_fixed_check_detail'] ?? '';
+
+    // 全体・個人の acquisition を取得
+    $acqData = [];
+    foreach ($items as $label) {
+        $total  = getJsonVal($evtJson  ?: $shopJson, $label);
+        $person = getJsonVal($perJson  ?: $shopPerJson, $label);
+        $acqData[$label] = ['person' => $person, 'total' => $total];
+    }
+
+    $reports[] = [
+        'id'          => $r['id'],
+        'work_date'   => $r['work_date'],
+        'employee'    => $r['employee_name'],
+        'location'    => $r['location'] ?? '',
+        'carrier'     => $carrier,
+        'carrier_items'=> $items,
+        'catch'       => (int)($r['catch_count'] ?? 0),
+        'seated'      => (int)($r['event_seated'] ?? 0),
+        'proposals'   => (int)($r['event_proposals'] ?? 0),
+        'negotiations'=> (int)($r['event_negotiations'] ?? 0),
+        'contracts'   => (int)($r['event_contracts'] ?? 0),
+        'acq'         => $acqData,
+    ];
+}
+
+// ─── 日報提出済み社員一覧 ─────────────────────────────────────────────
+$empSql = "SELECT DISTINCT employee_name FROM sales_daily_reports WHERE company_id=? ORDER BY employee_name";
+$empStmt = $db->prepare($empSql);
+$empStmt->execute([$cid]);
+$employees = $empStmt->fetchAll(PDO::FETCH_COLUMN);
+
+// ─── レスポンス ───────────────────────────────────────────────────────
+echo json_encode([
+    'kpi_month' => $kpiMonth,
+    'kpi_prev'  => $kpiPrev,
+    'kpi_week'  => $kpiWeek,
+    'reports'   => $reports,
+    'employees' => $employees,
+    'employee'  => $employee,
+    'year'      => $year,
+    'month'     => $month,
+    'carrier_items' => $CARRIER_ITEMS,
+], JSON_UNESCAPED_UNICODE);

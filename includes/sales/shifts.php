@@ -104,14 +104,51 @@ function saveAttendanceStatus(int $companyId, array $data): int {
     $db = getDB();
     $date = $data['work_date'];
     $ym = explode('-', $date);
-    $stmt = $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, attendance_status, checkin_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE attendance_status = VALUES(attendance_status), checkin_time = VALUES(checkin_time)");
-    $stmt->execute([
-        $companyId, $data['employee_name'], $date, (int)$ym[0], (int)$ym[1],
-        $data['attendance_status'] ?? null, $data['checkin_time'] ?? null,
-    ]);
+    $status   = $data['attendance_status'] ?? null;
+    $checkin  = $data['checkin_time']     ?? null;
+    $checkout = $data['checkout_time']    ?? null;
+
+    // 退勤のみの更新（checkin_time を上書きしない）
+    if (isset($data['checkout_only']) && $data['checkout_only']) {
+        $stmt = $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, checkout_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE checkout_time = VALUES(checkout_time)");
+        $stmt->execute([$companyId, $data['employee_name'], $date, (int)$ym[0], (int)$ym[1], $checkout]);
+    } else {
+        $stmt = $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, attendance_status, checkin_time, checkout_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE attendance_status = VALUES(attendance_status),
+                checkin_time  = IF(VALUES(checkin_time)  IS NOT NULL, VALUES(checkin_time),  checkin_time),
+                checkout_time = IF(VALUES(checkout_time) IS NOT NULL, VALUES(checkout_time), checkout_time)");
+        $stmt->execute([
+            $companyId, $data['employee_name'], $date, (int)$ym[0], (int)$ym[1],
+            $status, $checkin, $checkout,
+        ]);
+    }
     return (int)$db->lastInsertId();
+}
+
+/**
+ * シフトと出退勤情報からステータスを自動計算
+ */
+function calcShiftStatus(array $shift): string {
+    if (!empty($shift['is_day_off'])) return '休み';
+    $status   = $shift['attendance_status'] ?? '';
+    $start    = $shift['start_time']   ?? '';
+    $end      = $shift['end_time']     ?? '';
+    $checkin  = $shift['checkin_time'] ?? '';
+    $checkout = $shift['checkout_time'] ?? '';
+    // 明示的に欠勤
+    if ($status === '欠勤') return '欠勤';
+    // シフトはあるが出退勤報告なし → 欠勤
+    if ($start && !$checkin && !$checkout) return '欠勤';
+    // 遅刻: 出勤時刻がシフト開始より遅い
+    if ($checkin && $start && $checkin > $start) return '遅刻';
+    // 早退: 退勤時刻がシフト終了より早い（両方ある場合）
+    if ($checkout && $end && $checkout < $end) return '早退';
+    // 出勤
+    if ($checkin || $checkout) return '出勤';
+    return '';
 }
 
 /**

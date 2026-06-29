@@ -57,82 +57,118 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- シフトカレンダー -->
+    <!-- 詳細テーブル（従業員別・日付別） -->
+    <?php foreach ($employees as $emp):
+        $empGrid = $grid[$emp] ?? [];
+        $counts = ['work'=>0,'late'=>0,'early'=>0,'absent'=>0];
+    ?>
     <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><?= h($emp) ?></span>
+            <div id="kpi_<?= h($emp) ?>" class="d-flex gap-3" style="font-size:.78rem"></div>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-bordered table-sm mb-0" style="font-size:.75rem">
+                <table class="table table-sm table-hover mb-0" style="font-size:.78rem">
                     <thead class="table-light">
                         <tr>
-                            <th class="sticky-col" style="min-width:100px;position:sticky;left:0;z-index:2;background:#f8f9fa">社員名</th>
-                            <?php for ($d = 1; $d <= $daysInMonth; $d++):
-                                $dow = date('w', mktime(0,0,0,$month,$d,$year));
-                                $isWeekend = ($dow == 0 || $dow == 6);
-                                $dowLabel = ['日','月','火','水','木','金','土'][$dow];
-                            ?>
-                            <th class="text-center <?= $isWeekend ? 'table-secondary' : '' ?>" style="min-width:50px">
-                                <?= $d ?><br><small class="<?= $dow == 0 ? 'text-danger' : ($dow == 6 ? 'text-primary' : '') ?>"><?= $dowLabel ?></small>
-                            </th>
-                            <?php endfor; ?>
-                            <th class="text-center" style="min-width:50px">合計</th>
+                            <th style="width:100px">日付</th>
+                            <th style="width:60px">曜日</th>
+                            <th style="width:130px">シフト時間</th>
+                            <th style="width:90px">出勤時間</th>
+                            <th style="width:90px">退勤時間</th>
+                            <th style="width:80px">ステータス</th>
+                            <th>備考</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($employees as $emp):
-                            $empGrid = $grid[$emp] ?? [];
-                            $total = 0;
-                        ?>
-                        <tr>
-                            <td class="fw-medium" style="position:sticky;left:0;z-index:1;background:#fff"><?= h($emp) ?></td>
-                            <?php for ($d = 1; $d <= $daysInMonth; $d++):
-                                $dow = date('w', mktime(0,0,0,$month,$d,$year));
-                                $isWeekend = ($dow == 0 || $dow == 6);
-                                $s = $empGrid[$d] ?? null;
-                                $startTime = $s['start_time'] ?? '';
-                                $endTime   = $s['end_time'] ?? '';
-                                $dayOff    = !empty($s['is_day_off']);
-                                $location  = $s['location'] ?? '';
-                                $checkin   = $s['checkin_time'] ?? '';
-                                $status    = $s['attendance_status'] ?? '';
-                                $dateStr   = sprintf('%04d-%02d-%02d', $year, $month, $d);
-                                $statusBadge = ['出勤' => 'success', '遅刻' => 'warning', '早退' => 'orange', '欠勤' => 'danger'][$status] ?? '';
-                                $bgClass = '';
-                                if ($dayOff) { $bgClass = 'table-secondary'; }
-                                elseif ($status === '欠勤') { $bgClass = 'bg-danger-subtle'; $total++; }
-                                elseif ($status) { $bgClass = 'bg-success-subtle'; $total++; }
-                                elseif ($startTime || $endTime) { $bgClass = 'bg-warning-subtle'; $total++; }
-                                elseif ($isWeekend) { $bgClass = 'table-secondary'; }
-                            ?>
-                            <td class="text-center <?= $bgClass ?>">
-                                <?php if ($dayOff): ?>
-                                <span class="badge bg-secondary" style="font-size:.55rem">休</span>
-                                <?php else: ?>
-                                <?php if ($startTime || $endTime): ?>
-                                <div style="font-size:.7rem;line-height:1.2">
-                                    <?= h($startTime) ?><?= $endTime ? ('~'.h($endTime)) : '' ?>
-                                </div>
-                                <?php endif; ?>
-                                <?php if ($location): ?>
-                                <div class="text-muted" style="font-size:.6rem;overflow:hidden;white-space:nowrap;max-width:48px"><?= h($location) ?></div>
-                                <?php endif; ?>
-                                <?php endif; ?>
-                                <?php if ($status): ?>
-                                <span class="badge bg-<?= $statusBadge ?>" style="font-size:.5rem;<?= $statusBadge === 'orange' ? 'background:#f97316' : '' ?>"><?= h($status) ?><?= $checkin ? ' '.h($checkin) : '' ?></span>
-                                <?php endif; ?>
-                            </td>
-                            <?php endfor; ?>
-                            <td class="text-center fw-bold"><?= $total ?></td>
-                        </tr>
-                        <?php endforeach; ?>
+                        <?php for ($d = 1; $d <= $daysInMonth; $d++):
+                            $dow     = (int)date('w', mktime(0,0,0,$month,$d,$year));
+                            $dowLbl  = ['日','月','火','水','木','金','土'][$dow];
+                            $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $d);
+                            $s = $empGrid[$d] ?? null;
 
-                        <?php if (empty($employees)): ?>
-                        <tr><td colspan="<?= $daysInMonth + 2 ?>" class="text-center text-muted py-4">シフトデータがありません</td></tr>
-                        <?php endif; ?>
+                            $startTime = $s['start_time']    ?? '';
+                            $endTime   = $s['end_time']      ?? '';
+                            $dayOff    = !empty($s['is_day_off']);
+                            $checkin   = $s['checkin_time']  ?? '';
+                            $checkout  = $s['checkout_time'] ?? '';
+                            $note      = $s['note']          ?? '';
+                            $location  = $s['location']      ?? '';
+
+                            // ステータス自動計算
+                            $autoStatus = $s ? calcShiftStatus($s) : '';
+
+                            // 表示設定
+                            $rowClass = '';
+                            $statusBadge = '';
+                            $statusColor = '';
+                            if ($dayOff || $autoStatus === '休み') {
+                                $rowClass = 'table-secondary'; $statusBadge = '休日'; $statusColor = 'secondary';
+                            } elseif ($autoStatus === '欠勤') {
+                                $rowClass = 'table-danger'; $statusBadge = '欠勤'; $statusColor = 'danger'; $counts['absent']++;
+                            } elseif ($autoStatus === '遅刻') {
+                                $statusBadge = '遅刻'; $statusColor = 'warning'; $counts['late']++;
+                            } elseif ($autoStatus === '早退') {
+                                $statusBadge = '早退'; $statusColor = 'warning'; $counts['early']++;
+                            } elseif ($autoStatus === '出勤') {
+                                $statusBadge = '出勤'; $statusColor = 'success'; $counts['work']++;
+                            } elseif ($dow === 0 || $dow === 6) {
+                                $rowClass = 'table-light';
+                            }
+
+                            $isLateCheckin = ($checkin && $startTime && $checkin > $startTime);
+                        ?>
+                        <tr class="<?= $rowClass ?>">
+                            <td><?= $dateStr ?></td>
+                            <td class="<?= $dow===0?'text-danger':($dow===6?'text-primary':'') ?>"><?= $dowLbl ?></td>
+                            <td>
+                                <?php if ($dayOff): ?>
+                                <span class="text-muted">休み</span>
+                                <?php elseif ($startTime): ?>
+                                <?= h($startTime) ?><?= $endTime ? ' 〜 '.h($endTime) : '' ?>
+                                <?php elseif ($location): ?>
+                                <span class="text-muted small"><?= h($location) ?></span>
+                                <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                            </td>
+                            <td class="<?= $isLateCheckin ? 'text-danger fw-bold' : '' ?>">
+                                <?php if ($autoStatus === '欠勤'): ?>
+                                <span class="text-danger">欠勤</span>
+                                <?php elseif ($checkin): ?>
+                                <?= h($checkin) ?>
+                                <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($autoStatus === '欠勤'): ?>
+                                <span class="text-danger">欠勤</span>
+                                <?php elseif ($checkout): ?>
+                                <?= h($checkout) ?>
+                                <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($statusBadge): ?>
+                                <span class="badge bg-<?= $statusColor ?>"><?= $statusBadge ?></span>
+                                <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                            </td>
+                            <td class="text-muted small"><?= h($note) ?></td>
+                        </tr>
+                        <?php endfor; ?>
                     </tbody>
                 </table>
             </div>
         </div>
+        <div class="card-footer d-flex gap-3" style="font-size:.75rem;background:#f8f9fa">
+            <span class="text-success"><i class="bi bi-check-circle me-1"></i>出勤 <?= $counts['work'] ?>日</span>
+            <span class="text-warning"><i class="bi bi-alarm me-1"></i>遅刻 <?= $counts['late'] ?>回</span>
+            <span class="text-warning"><i class="bi bi-box-arrow-left me-1"></i>早退 <?= $counts['early'] ?>回</span>
+            <span class="text-danger"><i class="bi bi-x-circle me-1"></i>欠勤 <?= $counts['absent'] ?>日</span>
+        </div>
     </div>
+    <?php endforeach; ?>
+
+    <?php if (empty($employees)): ?>
+    <div class="card"><div class="card-body text-center text-muted py-4">シフトデータがありません</div></div>
+    <?php endif; ?>
 
     <!-- サマリー -->
     <?php if (!empty($summary)): ?>

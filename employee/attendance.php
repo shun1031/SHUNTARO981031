@@ -23,18 +23,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $date   = trim($_POST['work_date'] ?? '');
     $status = trim($_POST['attendance_status'] ?? '');
     $time   = trim($_POST['checkin_time'] ?? '');
+    $reportType = $_POST['report_type'] ?? 'checkin'; // checkin or checkout
 
-    // 出退勤報告は本日分のみ受け付ける（過去日の修正はここでは行わない。修正が必要な場合は申請画面から）
-    if ($date !== $today || !in_array($status, $validStatuses, true) || !$myName) {
+    if ($date !== $today || !$myName) {
         redirect(BASE_PATH . '/employee/attendance.php?year='.$year.'&month='.$month.'&err=1');
     }
-    saveAttendanceStatus($cid, [
-        'employee_name'     => $myName,
-        'work_date'         => $date,
-        'attendance_status' => $status,
-        'checkin_time'      => $time ?: null,
-    ]);
-    // 本日の年月を表示した状態で結果を確認できるようにリダイレクト
+
+    if ($reportType === 'checkout') {
+        // 退勤報告: checkout_time のみ更新（出勤ステータスは保持）
+        $checkoutStatus = ($status === '早退') ? '早退' : null;
+        saveAttendanceStatus($cid, [
+            'employee_name' => $myName,
+            'work_date'     => $date,
+            'attendance_status' => $checkoutStatus,
+            'checkout_time' => $time ?: null,
+            'checkout_only' => ($checkoutStatus === null), // 早退以外はステータスを保持
+        ]);
+    } else {
+        // 出勤報告
+        if (!in_array($status, $validStatuses, true)) {
+            redirect(BASE_PATH . '/employee/attendance.php?year='.$year.'&month='.$month.'&err=1');
+        }
+        saveAttendanceStatus($cid, [
+            'employee_name'     => $myName,
+            'work_date'         => $date,
+            'attendance_status' => $status,
+            'checkin_time'      => $time ?: null,
+        ]);
+    }
     redirect(BASE_PATH . '/employee/attendance.php?year='.date('Y').'&month='.date('n').'&msg=saved');
 }
 
@@ -78,42 +94,55 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 
     <!-- 出退勤報告フォーム（常時表示） -->
-    <div class="card mb-4" id="attFormCard">
-        <div class="card-header"><i class="bi bi-clock-history me-2"></i>出退勤報告</div>
-        <div class="card-body">
-            <form method="post" id="attForm">
-                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <div class="text-center p-2 rounded h-100 d-flex flex-column justify-content-center" style="background:#f0fdf4">
-                            <div class="text-muted small">現在時刻</div>
-                            <div id="liveClock" style="font-size:1.8rem;font-weight:700;color:#059669;font-family:monospace;letter-spacing:.05em">--:--</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold">日付</label>
-                        <input type="date" name="work_date" id="am_date" class="form-control" value="<?= h($today) ?>" min="<?= h($today) ?>" max="<?= h($today) ?>" readonly required>
-                        <div class="form-text">出退勤報告は本日分のみ。過去日を直す場合は「申請」から依頼してください</div>
-                        <label class="form-label fw-semibold mt-3">時刻</label>
-                        <input type="text" name="checkin_time" id="am_time" class="form-control" maxlength="10" placeholder="例: 09:05">
-                        <div class="form-text">状態ボタンを押すとその時点の時刻が自動入力されます（手動修正も可）</div>
-                    </div>
-                    <div class="col-md-5">
+    <div class="row g-3 mb-4">
+        <!-- 出勤報告 -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold" style="background:#f0fdf4;color:#065f46"><i class="bi bi-box-arrow-in-right me-1"></i>出勤報告</div>
+                <div class="card-body">
+                    <form method="post" id="attForm">
+                        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                        <input type="hidden" name="report_type" value="checkin">
+                        <input type="hidden" name="work_date" value="<?= h($today) ?>">
                         <input type="hidden" name="attendance_status" id="am_status">
-                        <label class="form-label fw-semibold">状態 <span class="text-danger">*</span></label>
-                        <div class="d-flex gap-2 flex-wrap">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">時刻</label>
+                            <input type="text" name="checkin_time" id="am_time" class="form-control" maxlength="10" placeholder="例: 09:05">
+                            <div class="form-text">状態ボタンを押すとその時点の時刻が自動入力されます</div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mb-3">
                             <button type="button" class="btn btn-outline-success att-btn flex-fill" data-status="出勤"><i class="bi bi-box-arrow-in-right me-1"></i>出勤</button>
                             <button type="button" class="btn btn-outline-warning att-btn flex-fill" data-status="遅刻"><i class="bi bi-alarm me-1"></i>遅刻</button>
-                            <button type="button" class="btn btn-outline-orange att-btn flex-fill" data-status="早退"><i class="bi bi-box-arrow-left me-1"></i>早退</button>
                             <button type="button" class="btn btn-outline-danger att-btn flex-fill" data-status="欠勤"><i class="bi bi-x-circle me-1"></i>欠勤</button>
                         </div>
-                        <div id="am_statusErr" class="text-danger small mt-1" style="display:none">状態を選択してください</div>
-                        <div class="text-end mt-3">
-                            <button type="submit" class="btn btn-success"><i class="bi bi-check-circle me-1"></i>報告する</button>
-                        </div>
-                    </div>
+                        <div class="text-end"><button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check-circle me-1"></i>報告する</button></div>
+                    </form>
                 </div>
-            </form>
+            </div>
+        </div>
+        <!-- 退勤報告 -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold" style="background:#eff6ff;color:#1e40af"><i class="bi bi-box-arrow-right me-1"></i>退勤報告</div>
+                <div class="card-body">
+                    <form method="post" id="checkoutForm">
+                        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                        <input type="hidden" name="report_type" value="checkout">
+                        <input type="hidden" name="work_date" value="<?= h($today) ?>">
+                        <input type="hidden" name="attendance_status" id="co_status" value="">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">退勤時刻</label>
+                            <input type="text" name="checkin_time" id="co_time" class="form-control" maxlength="10" placeholder="例: 18:00">
+                            <div class="form-text">ボタンを押すとその時点の時刻が自動入力されます</div>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mb-3">
+                            <button type="button" class="btn btn-outline-primary co-btn flex-fill" data-status=""><i class="bi bi-box-arrow-right me-1"></i>退勤</button>
+                            <button type="button" class="btn btn-outline-orange co-btn flex-fill" data-status="早退" style="border-color:#f97316;color:#f97316"><i class="bi bi-box-arrow-left me-1"></i>早退</button>
+                        </div>
+                        <div class="text-end"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-circle me-1"></i>報告する</button></div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 

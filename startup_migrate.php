@@ -100,6 +100,9 @@ $migrations = [
     // ---- sales_transport_costs: 申請ステータス ----
     "ALTER TABLE sales_transport_costs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'submitted' COMMENT '申請ステータス'",
 
+    // ---- sales_shifts: 退勤時刻カラム追加 ----
+    "ALTER TABLE sales_shifts ADD COLUMN IF NOT EXISTS checkout_time VARCHAR(10) DEFAULT NULL COMMENT '退勤実績時刻'",
+
     // ---- event_plans: 予定案件テーブル ----
     "CREATE TABLE IF NOT EXISTS event_plans (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, client_name VARCHAR(200) NOT NULL, store_name VARCHAR(200) DEFAULT NULL, work_date DATE NOT NULL, required_count INT NOT NULL DEFAULT 1, status ENUM('pending','confirmed') NOT NULL DEFAULT 'pending', linked_case_id INT DEFAULT NULL, note TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_ep_company (company_id), INDEX idx_ep_date (work_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

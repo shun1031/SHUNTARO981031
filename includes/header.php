@@ -20,7 +20,7 @@
                 $cssUrl = BASE_PATH . '/public/assets/css/' . $css;
             }
             ?>
-            <link href="<?= h($cssUrl) ?>?v=20260409" rel="stylesheet">
+            <link href="<?= h($cssUrl) ?>?v=<?= file_exists($_SERVER['DOCUMENT_ROOT'] . parse_url($cssUrl, PHP_URL_PATH)) ? filemtime($_SERVER['DOCUMENT_ROOT'] . parse_url($cssUrl, PHP_URL_PATH)) : time() ?>" rel="stylesheet">
         <?php endforeach; ?>
     <?php endif; ?>
     <script>window.BMS_BASE_PATH = "<?= BASE_PATH ?>";</script>

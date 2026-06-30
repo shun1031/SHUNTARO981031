@@ -85,10 +85,6 @@ function navSection(string $label): string {
         <?= navSection('メイン') ?>
         <?= navLink(BASE_PATH . '/public/employees.php', 'bi-person-lines-fill', '社員一覧', $currentPage === 'employees' && $currentDir === 'public') ?>
 
-        <?= navSection('評価・制度') ?>
-        <?= navLink(BASE_PATH . '/public/interview_notes.php', 'bi-chat-left-text', '面談メモ', $currentPage === 'interview_notes') ?>
-        <?= navLink(BASE_PATH . '/public/evp_book.php', 'bi-journal-text', 'EVP BOOK', $currentPage === 'evp_book') ?>
-        <?= navLink(BASE_PATH . '/public/income_simulator.php', 'bi-calculator', '年収シミュレーター', $currentPage === 'income_simulator') ?>
 
         <?php endif; ?>
 

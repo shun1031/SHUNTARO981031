@@ -207,6 +207,13 @@ if (isset($_GET['admin'])) {
         .login-brand-icon { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #059669, #34d399); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1rem; box-shadow: 0 4px 14px rgba(5,150,105,.2); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .login-card { animation: fadeIn .4s ease both; }
+        @media (max-width: 480px) {
+            .login-wrapper { padding: 12px; }
+            .login-card-inner { padding: 1.5rem 1.25rem 1rem; }
+            h2 { font-size: 1.05rem !important; }
+            .btn-primary, .btn-success, .btn-danger { font-size: .85rem; padding: 9px; }
+            .form-control { padding: 9px 12px; }
+        }
     </style>
 </head>
 <body>

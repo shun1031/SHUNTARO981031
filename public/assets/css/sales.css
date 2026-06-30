@@ -204,9 +204,74 @@
     position: relative;
     height: 300px;
 }
+
+/* ── Sales モジュール レスポンシブ ─────────────────────────── */
+
+/* タブレット (768px〜991px) */
+@media (max-width: 991.98px) {
+    /* フィルタバー: 折り返し */
+    .sales-filters { flex-wrap: wrap; }
+    .sales-filters .form-select,
+    .sales-filters .form-control { max-width: calc(50% - .35rem); flex: 1 1 calc(50% - .35rem); }
+    .sales-filters .btn { flex: 0 0 auto; }
+
+    /* チャート: 少し低く */
+    .sales-chart-wrap { height: 250px; }
+}
+
+/* モバイル (〜768px) */
 @media (max-width: 768px) {
-    .sales-chart-wrap { height: 220px; }
-    .sales-kpi .kpi-value { font-size: 1.2rem; }
+    /* フィルタバー: 縦積み */
+    .sales-filters { flex-direction: column; align-items: stretch; gap: .4rem; }
+    .sales-filters .form-select,
+    .sales-filters .form-control,
+    .sales-filters .btn { max-width: 100% !important; width: 100% !important; flex: none; }
+
+    /* KPIカード: コンパクト */
+    .sales-kpi { padding: .75rem .6rem; }
+    .sales-kpi .kpi-value { font-size: 1.25rem; }
+    .sales-kpi .kpi-label { font-size: .68rem; }
+    .sales-kpi .kpi-sub { font-size: .63rem; }
+
+    /* 案件テーブル: コンパクト */
+    .sales-table th { padding: .3rem .4rem; font-size: .68rem; }
+    .sales-table td { padding: .3rem .4rem; font-size: .74rem; }
+
+    /* チャート */
+    .sales-chart-wrap { height: 200px; }
+
+    /* 担当者別売上レポート */
+    .client-rank { width: 20px; height: 20px; font-size: .65rem; margin-right: .25rem; }
+
+    /* fy-monthly テーブル */
+    .fy-monthly-table { font-size: .62rem !important; }
+    .fy-monthly-table > :not(caption) > * > * { padding: .1rem .2rem !important; }
+
+    /* シフト管理テーブル */
+    .table.table-sm.table-hover td,
+    .table.table-sm.table-hover th { padding: .2rem .3rem; font-size: .7rem; }
+
+    /* レポートページ: 2列サイドバイサイド → 縦積み */
+    .col-xl-6.border-end { border-right: none !important; border-bottom: 1px solid #e5e7eb; padding-bottom: 1rem; margin-bottom: 1rem; }
+}
+
+/* 超小画面 (〜480px) */
+@media (max-width: 480px) {
+    .sales-kpi .kpi-value { font-size: 1rem; }
+    .sales-kpi .kpi-label { font-size: .62rem; }
+    .sales-kpi { padding: .6rem .4rem; }
+
+    .sales-table th { padding: .22rem .3rem; font-size: .64rem; }
+    .sales-table td { padding: .22rem .3rem; font-size: .7rem; }
+
+    .sales-chart-wrap { height: 170px; }
+
+    /* スタッフ区分バッジ */
+    .wt-badge { font-size: .6rem; padding: .15rem .35rem; }
+
+    /* 案件行: アクションボタンを縦積み */
+    .sales-table .btn-group { flex-direction: column; }
+    .sales-table .btn-group .btn { border-radius: var(--r-sm) !important; margin: 1px 0; }
 }
 
 /* 取引先レポート */

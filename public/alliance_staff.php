@@ -56,8 +56,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<!-- 凡例サイドパネル（右端に固定） -->
-<div class="card" style="position:fixed;bottom:1.5rem;right:1.5rem;width:200px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.12)">
+<!-- 凡例パネル（PC: 右下固定 / スマホ: 下部バー） -->
+<div class="card as-legend-fixed" style="position:fixed;bottom:1.5rem;right:1.5rem;width:200px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.12)">
     <div class="card-body p-3">
         <div class="fw-semibold mb-2" style="font-size:.8rem;color:#1e40af">ステータスの色について</div>
         <div class="d-flex align-items-center gap-2 mb-1">

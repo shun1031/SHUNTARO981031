@@ -108,6 +108,9 @@ $migrations = [
 
     // ---- sales_cases: 予定案件リンク ----
     "ALTER TABLE sales_cases ADD COLUMN IF NOT EXISTS plan_id INT DEFAULT NULL COMMENT '予定案件ID'",
+
+    // ---- 会社名 KLG HOLDINGS → LiberTeen ----
+    "UPDATE companies SET company_name='LiberTeen' WHERE company_name='KLG HOLDINGS'",
 ];
 
 $ok = 0;

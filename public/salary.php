@@ -6,8 +6,7 @@ requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 
-$isAdmin = in_array($_SESSION['role'] ?? '', ['super_admin', 'company_admin']);
-if (!$isAdmin) { redirect(BASE_PATH . '/public/index.php'); }
+requireRole('super_admin', 'company_admin');
 
 $pageTitle = '給与管理';
 $extraCss  = ['sales.css'];

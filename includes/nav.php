@@ -16,18 +16,18 @@ function navSection(string $label): string {
 ?>
 <!-- モバイルトップバー -->
 <div class="mobile-topbar d-lg-none">
-    <button class="btn btn-sm" onclick="document.getElementById('sidebar').classList.toggle('show')" aria-label="メニュー">
-        <i class="bi bi-list fs-4"></i>
+    <button class="btn btn-sm" onclick="bmsToggleSidebar()" aria-label="メニュー" style="padding:6px 10px">
+        <i class="bi bi-list" style="font-size:1.4rem;line-height:1"></i>
     </button>
-    <span class="fw-bold">
-        <img src="<?= BASE_PATH ?>/public/assets/images/logos/portal_logo.png" alt="" style="height:24px;width:auto;margin-right:6px;object-fit:contain">
+    <span class="fw-bold d-flex align-items-center">
+        <img src="<?= BASE_PATH ?>/public/assets/images/logos/portal_logo.png" alt="" style="height:22px;width:auto;margin-right:6px;object-fit:contain">
         社内ポータル
     </span>
-    <a href="<?= BASE_PATH ?>/logout.php" class="btn btn-sm text-muted"><i class="bi bi-box-arrow-right"></i></a>
+    <a href="<?= BASE_PATH ?>/logout.php" class="btn btn-sm text-muted" style="padding:6px 10px"><i class="bi bi-box-arrow-right"></i></a>
 </div>
 
 <!-- オーバーレイ -->
-<div class="sidebar-overlay d-lg-none" onclick="document.getElementById('sidebar').classList.remove('show')"></div>
+<div class="sidebar-overlay" onclick="bmsCloseSidebar()"></div>
 
 <!-- サイドバー -->
 <aside id="sidebar" class="sidebar">
@@ -103,3 +103,43 @@ function navSection(string $label): string {
         </div>
     </div>
 </aside>
+
+<script>
+(function () {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.querySelector('.sidebar-overlay');
+
+    function openSidebar() {
+        if (!sidebar) return;
+        sidebar.classList.add('show');
+        if (overlay) overlay.classList.add('active');
+        document.body.classList.add('sidebar-open');
+    }
+    function closeSidebar() {
+        if (!sidebar) return;
+        sidebar.classList.remove('show');
+        if (overlay) overlay.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+    }
+    function toggleSidebar() {
+        sidebar && sidebar.classList.contains('show') ? closeSidebar() : openSidebar();
+    }
+
+    window.bmsToggleSidebar = toggleSidebar;
+    window.bmsCloseSidebar  = closeSidebar;
+
+    // モバイルでリンクをタップしたらサイドバーを閉じる
+    if (sidebar) {
+        sidebar.querySelectorAll('.sidebar-link').forEach(function (a) {
+            a.addEventListener('click', function () {
+                if (window.innerWidth < 992) closeSidebar();
+            });
+        });
+    }
+
+    // ESCキーで閉じる
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeSidebar();
+    });
+})();
+</script>

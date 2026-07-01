@@ -681,57 +681,100 @@ code {
 html { overflow-x: hidden; }
 body { overflow-x: hidden; }
 
-/* === Responsive === */
-@media (max-width: 991.98px) {
-    .sidebar { transform: translateX(-100%); transition: transform .3s var(--ease); width: 280px; }
-    .sidebar.show { transform: translateX(0); box-shadow: var(--sh-xl); }
-    .sidebar.show ~ .sidebar-overlay { display: block; }
-    .app-main { margin-left: 0; }
-    .mobile-topbar { display: flex; }
+/* ===================================================================
+   RESPONSIVE — Mobile-first sidebar hamburger menu
+   =================================================================== */
 
-    /* ページ見出しの詰め込み */
+/* ── スマートフォン / タブレット (〜991px) ── */
+@media (max-width: 991.98px) {
+
+    /* Layout: block で縦積みにしてフレックス行崩れを防止 */
+    .app-layout { display: block !important; }
+
+    /* モバイルトップバー: 画面上部に固定 */
+    .mobile-topbar {
+        display: flex !important;
+        position: fixed !important;
+        top: 0; left: 0; right: 0;
+        height: 52px;
+        z-index: 1035;
+        background: rgba(255,255,255,.96);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+        padding: 0 var(--sp4);
+        align-items: center; justify-content: space-between;
+        box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+
+    /* メインコンテンツ: 全幅 + トップバー分の余白 */
+    .app-main {
+        margin-left: 0 !important;
+        padding-top: 52px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* サイドバー: 画面左外に格納、スライドで表示 */
+    .sidebar {
+        position: fixed !important;
+        top: 0; left: 0; bottom: 0;
+        width: 280px !important;
+        transform: translateX(-100%) !important;
+        transition: transform .28s cubic-bezier(.4,0,.2,1) !important;
+        z-index: 1045 !important;
+        box-shadow: none !important;
+    }
+    .sidebar.show {
+        transform: translateX(0) !important;
+        box-shadow: 4px 0 20px rgba(0,0,0,.15) !important;
+    }
+
+    /* オーバーレイ: JS で .active クラスを付与して表示 */
+    .sidebar-overlay {
+        display: none !important;
+        position: fixed !important;
+        inset: 0;
+        background: rgba(0,0,0,.4) !important;
+        z-index: 1040 !important;
+        backdrop-filter: blur(2px) !important;
+    }
+    .sidebar-overlay.active { display: block !important; }
+
+    /* サイドバー開放中はページスクロール禁止 */
+    body.sidebar-open { overflow: hidden !important; }
+
+    /* ページ見出し */
     .page-header .d-flex { flex-wrap: wrap; gap: var(--sp3); }
     .page-header h1 { font-size: 1.35rem; margin: 0; }
 
-    /* フォーム: ラベルと入力を縦並びに */
+    /* フォーム */
     .row.g-2 > [class*="col-"],
     .row.g-3 > [class*="col-"] { min-width: 0; }
 
-    /* フィルタバー (form-inline風のエリア) */
-    form.row-cols-auto,
-    .filter-bar { gap: var(--sp2); }
-    .filter-bar .form-select,
-    .filter-bar .form-control { min-width: 0; width: 100%; }
-
-    /* テーブル: 小さめに */
+    /* テーブル */
     .table { font-size: .875rem; }
     .table td, .table th { padding: .5rem .5rem; }
+    .table-responsive { -webkit-overflow-scrolling: touch; }
 
-    /* カード: 余白調整 */
+    /* カード */
     .card-body { padding: var(--sp4); }
-
-    /* ボタン群 - タッチ対応 */
-    .btn-group-mobile { display: flex; flex-wrap: wrap; gap: var(--sp2); }
-    .btn-group-mobile .btn { flex: 1 1 auto; }
 
     /* モーダル */
     .modal-dialog { margin: var(--sp3); }
     .modal-dialog.modal-lg,
     .modal-dialog.modal-xl { max-width: calc(100vw - 1.5rem); }
 
-    /* 横スクロール可能テーブル */
-    .table-responsive { -webkit-overflow-scrolling: touch; }
-
     /* 月ナビゲーション */
     [style*="min-width:110px"] { min-width: 85px !important; font-size: .85rem !important; }
 }
 
-/* ── タブレット (768px〜991px) ── */
+/* ── タブレット (769px〜991px) ── */
 @media (min-width: 769px) and (max-width: 991.98px) {
     .main-wrapper { padding: var(--sp5) var(--sp6); }
     .page-header { padding: var(--sp6); }
 }
 
+/* ── スマートフォン (〜768px) ── */
 @media (max-width: 768px) {
     .main-wrapper { padding: var(--sp3); }
     .page-header { padding: var(--sp4); border-radius: var(--r-lg); margin-bottom: var(--sp4); }
@@ -743,13 +786,13 @@ body { overflow-x: hidden; }
     .card-header, .card-body { padding: var(--sp3); }
     .card-footer { padding: var(--sp2) var(--sp3); }
 
-    /* タッチ対応: 最低タップ領域 */
+    /* タッチ操作: 最低タップ領域 */
     .form-control, .form-select { min-height: 44px; }
     .btn { min-height: 40px; }
     .form-control-sm, .form-select-sm { min-height: 36px; }
     .btn-sm { min-height: 34px; }
 
-    /* 見出し縮小 */
+    /* 見出し */
     h1 { font-size: 1.2rem; }
     h2 { font-size: 1.05rem; }
     h3, h4 { font-size: .95rem; }
@@ -765,32 +808,31 @@ body { overflow-x: hidden; }
     /* ログインカード */
     .login-card { padding: var(--sp5) !important; }
 
-    /* 月ナビゲーション: コンパクト化 */
+    /* 月ナビゲーション */
     [style*="min-width:110px"] { min-width: 72px !important; font-size: .8rem !important; }
 
-    /* ページヘッダー内の月ナビ+ボタン */
+    /* ページヘッダー内ボタン */
     .page-header > div > div:last-child { flex-wrap: wrap; gap: .4rem; }
     .page-header .d-flex.align-items-center.gap-1 { gap: .25rem !important; }
     .page-header .btn-sm.px-3 { padding-left: .6rem !important; padding-right: .6rem !important; }
 
-    /* select/input のインライン幅を上書き */
+    /* select/input 幅 */
     .page-header select[style*="width"],
     .page-header .form-select[style*="width"] { width: auto !important; max-width: 110px; }
-    .d-flex.align-items-center.gap-2 > select[style*="width:200px"] { width: 100% !important; flex: 1 1 auto; }
     select[style*="width:200px"] { width: 100% !important; max-width: 200px; }
 
-    /* モーダル: スクロール可能 */
+    /* モーダル */
     .modal-dialog.modal-lg,
     .modal-dialog.modal-xl { max-width: calc(100vw - 1rem); margin: .5rem auto; }
     .modal-body { max-height: 75vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .modal-footer { flex-wrap: wrap; gap: .5rem; }
     .modal-footer .btn { flex: 1 1 auto; }
 
-    /* テーブル: コンパクト */
+    /* テーブル */
     .table th, .table td { padding: .35rem .4rem; font-size: .78rem; }
     .table-sm th, .table-sm td { padding: .25rem .35rem; font-size: .73rem; }
 
-    /* アライアンス人員管理の凡例パネル: モバイルは下部固定帯に */
+    /* アライアンス人員管理の凡例 */
     .as-legend-fixed {
         position: fixed; bottom: 0; left: 0; right: 0; width: 100% !important;
         border-radius: 0 !important;
@@ -802,38 +844,29 @@ body { overflow-x: hidden; }
     .main-wrapper { padding-bottom: 4rem; }
 }
 
+/* ── 小型スマートフォン (〜480px) ── */
 @media (max-width: 480px) {
-    /* 1カラム統計 */
     .stats-grid { grid-template-columns: 1fr !important; }
     .page-header h1 { font-size: 1.05rem; }
     .page-header { padding: var(--sp3); margin-bottom: var(--sp3); }
     .main-wrapper { padding: var(--sp2); }
     .card-body, .card-header { padding: var(--sp2) var(--sp3); }
 
-    /* ページヘッダー: 縦並び強制 */
     .page-header > div { flex-direction: column !important; align-items: flex-start !important; }
     .page-header > div > div:last-child { width: 100%; }
 
-    /* 月ナビ: 小さく */
     [style*="min-width:110px"] { min-width: 60px !important; font-size: .75rem !important; }
     .page-header .btn-sm { font-size: .72rem; padding: 3px 8px; }
 
-    /* テーブル: 最小化 */
     .table th, .table td { padding: .2rem .3rem; font-size: .72rem; }
     .table-sm th, .table-sm td { padding: .18rem .25rem; font-size: .68rem; }
-
-    /* カード */
     .card-header { font-size: .8rem; }
 
-    /* モーダル: ほぼフルスクリーン */
     .modal-dialog { margin: .25rem; max-width: 100% !important; }
     .modal-content { border-radius: var(--r-lg); }
     .modal-body { max-height: 80vh; }
 
-    /* ボタングループ: 縦積み */
     .d-flex.gap-2.flex-wrap { gap: .35rem !important; }
-
-    /* ナビゲーションバッジ */
     .badge { font-size: .55rem; }
 }
 

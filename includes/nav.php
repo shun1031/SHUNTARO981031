@@ -77,6 +77,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_rep_report.php', 'bi-person-badge', '担当者別売上', $currentPage === 'sales_rep_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_carrier_report.php', 'bi-reception-4', 'キャリア別売上', $currentPage === 'sales_carrier_report') ?>
         <?= navLink(BASE_PATH . '/admin/change_requests.php', 'bi-inbox', '申請承認', $currentDir === 'admin' && $currentPage === 'change_requests', ($n = countPendingChangeRequests(getCompanyId() ?? 0)) ? (string)$n : '') ?>
+        <?= navLink(BASE_PATH . '/public/salary.php', 'bi-cash-stack', '給与管理', $currentPage === 'salary') ?>
         <?= navLink(BASE_PATH . '/public/employees.php', 'bi-person-lines-fill', '社員一覧', $currentPage === 'employees' && $currentDir === 'public') ?>
 
 

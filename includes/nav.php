@@ -20,9 +20,7 @@ function navSection(string $label): string {
         <i class="bi bi-list fs-4"></i>
     </button>
     <span class="fw-bold">
-        <?php if (!empty($_SESSION['company_logo'])): ?>
-        <img src="<?= BASE_PATH ?>/<?= h($_SESSION['company_logo']) ?>" alt="" style="height:22px;width:auto;margin-right:6px">
-        <?php endif; ?>
+        <img src="<?= BASE_PATH ?>/public/assets/images/logos/portal_logo.png" alt="" style="height:24px;width:auto;margin-right:6px;object-fit:contain">
         社内ポータル
     </span>
     <a href="<?= BASE_PATH ?>/logout.php" class="btn btn-sm text-muted"><i class="bi bi-box-arrow-right"></i></a>
@@ -35,11 +33,9 @@ function navSection(string $label): string {
 <aside id="sidebar" class="sidebar">
     <!-- ロゴ -->
     <div class="sidebar-brand">
-        <?php if (!empty($_SESSION['company_logo'])): ?>
-        <img src="<?= BASE_PATH ?>/<?= h($_SESSION['company_logo']) ?>" alt="" class="sidebar-logo">
-        <?php else: ?>
-        <div class="sidebar-logo-icon"><i class="bi bi-people-fill"></i></div>
-        <?php endif; ?>
+        <img src="<?= BASE_PATH ?>/public/assets/images/logos/portal_logo.png" alt="社内ポータル" class="sidebar-portal-logo"
+             onerror="this.style.display='none';document.getElementById('sidebarDefaultIcon').style.display='flex'">
+        <div class="sidebar-logo-icon" id="sidebarDefaultIcon" style="display:none"><i class="bi bi-people-fill"></i></div>
         <div class="sidebar-brand-text">
             <span class="fw-bold">社内ポータル</span>
             <?php if (!empty($_SESSION['company_name'])): ?>
@@ -81,8 +77,6 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_rep_report.php', 'bi-person-badge', '担当者別売上', $currentPage === 'sales_rep_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_carrier_report.php', 'bi-reception-4', 'キャリア別売上', $currentPage === 'sales_carrier_report') ?>
         <?= navLink(BASE_PATH . '/admin/change_requests.php', 'bi-inbox', '申請承認', $currentDir === 'admin' && $currentPage === 'change_requests', ($n = countPendingChangeRequests(getCompanyId() ?? 0)) ? (string)$n : '') ?>
-
-        <?= navSection('メイン') ?>
         <?= navLink(BASE_PATH . '/public/employees.php', 'bi-person-lines-fill', '社員一覧', $currentPage === 'employees' && $currentDir === 'public') ?>
 
 

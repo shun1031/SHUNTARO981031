@@ -1078,6 +1078,7 @@ CREATE TABLE IF NOT EXISTS sales_shifts (
         end_time VARCHAR(10) DEFAULT NULL COMMENT '退勤予定時間',
         is_day_off TINYINT(1) DEFAULT 0 COMMENT '休みフラグ',
         checkin_time VARCHAR(10) DEFAULT NULL,
+        checkout_time VARCHAR(10) DEFAULT NULL COMMENT '退勤時刻',
         attendance_status ENUM('出勤','欠勤','早退','遅刻') DEFAULT NULL COMMENT '出退勤報告ステータス',
         report_status VARCHAR(5) DEFAULT '',
         location VARCHAR(100) DEFAULT NULL,

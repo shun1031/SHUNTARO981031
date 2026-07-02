@@ -20,9 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) {
         die('不正なリクエストです');
     }
-    $date   = trim($_POST['work_date'] ?? '');
-    $status = trim($_POST['attendance_status'] ?? '');
-    $time   = trim($_POST['checkin_time'] ?? '');
+    $date       = trim($_POST['work_date'] ?? '');
+    $status     = trim($_POST['attendance_status'] ?? '');
+    $time       = trim($_POST['checkin_time'] ?? '');
+    $checkoutT  = trim($_POST['checkout_time'] ?? '');
     $reportType = $_POST['report_type'] ?? 'checkin'; // checkin or checkout
 
     if ($date !== $today || !$myName) {
@@ -36,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'employee_name' => $myName,
             'work_date'     => $date,
             'attendance_status' => $checkoutStatus,
-            'checkout_time' => $time ?: null,
+            'checkout_time' => $checkoutT ?: null,
             'checkout_only' => ($checkoutStatus === null), // 早退以外はステータスを保持
         ]);
     } else {
@@ -115,6 +116,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn btn-outline-warning att-btn flex-fill" data-status="遅刻"><i class="bi bi-alarm me-1"></i>遅刻</button>
                             <button type="button" class="btn btn-outline-danger att-btn flex-fill" data-status="欠勤"><i class="bi bi-x-circle me-1"></i>欠勤</button>
                         </div>
+                        <div id="am_statusErr" class="text-danger small mb-2" style="display:none">状態（出勤／遅刻／欠勤）を選択してください</div>
                         <div class="text-end"><button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check-circle me-1"></i>報告する</button></div>
                     </form>
                 </div>
@@ -132,7 +134,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="hidden" name="attendance_status" id="co_status" value="">
                         <div class="mb-3">
                             <label class="form-label fw-semibold">退勤時刻</label>
-                            <input type="text" name="checkin_time" id="co_time" class="form-control" maxlength="10" placeholder="例: 18:00">
+                            <input type="text" name="checkout_time" id="co_time" class="form-control" maxlength="10" placeholder="例: 18:00">
                             <div class="form-text">ボタンを押すとその時点の時刻が自動入力されます</div>
                         </div>
                         <div class="d-flex gap-2 flex-wrap mb-3">
@@ -167,7 +169,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
-                        <tr><th style="width:140px">日付</th><th>シフト予定</th><th>状態</th><th>時刻</th></tr>
+                        <tr><th style="width:140px">日付</th><th>シフト予定</th><th>状態</th><th>出勤</th><th>退勤</th></tr>
                     </thead>
                     <tbody>
                         <?php for ($d = 1; $d <= $daysInMonth; $d++):
@@ -192,6 +194,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endif; ?>
                             </td>
                             <td class="small text-muted"><?= h($s['checkin_time'] ?? '') ?: '-' ?></td>
+                            <td class="small text-muted"><?= h($s['checkout_time'] ?? '') ?: '-' ?></td>
                         </tr>
                         <?php endfor; ?>
                     </tbody>

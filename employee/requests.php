@@ -2,11 +2,11 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-requireRole('employee');
+requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/login.php'); }
 
-$myName = getEmployeeNameFilter();
+$myName = getMyEmployeeName();
 $pageTitle = '申請';
 $csrf = getCsrfToken();
 

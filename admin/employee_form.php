@@ -2,8 +2,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-// 社員ロールは自分のプロフィール編集のみ許可
-requireAnyLogin();
+requireRole('super_admin', 'company_admin');
 
 $db       = getDB();
 $cid      = getCompanyId();

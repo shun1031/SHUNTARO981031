@@ -138,10 +138,8 @@ function calcShiftStatus(array $shift): string {
     $end      = $shift['end_time']     ?? '';
     $checkin  = $shift['checkin_time'] ?? '';
     $checkout = $shift['checkout_time'] ?? '';
-    // 明示的に欠勤
+    // 明示的に欠勤（管理者が「欠勤」ボタンで確定した場合のみ）
     if ($status === '欠勤') return '欠勤';
-    // シフトはあるが出退勤報告なし → 欠勤
-    if ($start && !$checkin && !$checkout) return '欠勤';
     // 遅刻: 出勤時刻がシフト開始より遅い
     if ($checkin && $start && $checkin > $start) return '遅刻';
     // 早退: 退勤時刻がシフト終了より早い（両方ある場合）

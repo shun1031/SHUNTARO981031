@@ -5,15 +5,25 @@
 
 /**
  * 現在ログイン中のユーザー情報を取得
+ * 権限変更の即時反映のためDBからロールを再確認する
  */
 function getCurrentUser(): ?array {
     startSession();
     if (empty($_SESSION['user_id'])) {
         return null;
     }
+    $db = getDB();
+    $stmt = $db->prepare("SELECT role FROM users WHERE id = ? AND is_active = 1");
+    $stmt->execute([$_SESSION['user_id']]);
+    $dbRole = $stmt->fetchColumn();
+    if ($dbRole === false) {
+        session_destroy();
+        return null;
+    }
+    $_SESSION['user_role'] = $dbRole;
     return [
         'id'          => $_SESSION['user_id'],
-        'role'        => $_SESSION['user_role'] ?? '',
+        'role'        => $dbRole,
         'company_id'  => $_SESSION['company_id'] ?? null,
         'employee_id' => $_SESSION['employee_id'] ?? null,
         'display_name'=> $_SESSION['display_name'] ?? '',
@@ -106,6 +116,22 @@ function getEmployeeNameFilter(): ?string {
     $stmt->execute([$empId]);
     $name = $stmt->fetchColumn();
     return $name ?: ($_SESSION['display_name'] ?? null);
+}
+
+/**
+ * 一般画面用: ログインユーザー自身のemployee_nameを取得（ロール問わず）
+ * 会社管理者が一般画面を利用する場合にも自分のデータを参照できるようにする
+ */
+function getMyEmployeeName(): ?string {
+    $empId = getSessionEmployeeId();
+    if ($empId) {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT name FROM employees WHERE id = ?");
+        $stmt->execute([$empId]);
+        $name = $stmt->fetchColumn();
+        if ($name) return $name;
+    }
+    return $_SESSION['display_name'] ?? null;
 }
 
 // ============================================================

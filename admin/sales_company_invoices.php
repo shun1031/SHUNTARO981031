@@ -2,11 +2,9 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-requireAnyLogin();
+requireRole('super_admin', 'company_admin');
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
-$user = getCurrentUser();
-if (!in_array($user['role'] ?? '', ['super_admin', 'company_admin'])) { redirect(BASE_PATH . '/public/index.php'); }
 
 $pageTitle = '会社別請求書';
 $extraCss = ['sales.css'];

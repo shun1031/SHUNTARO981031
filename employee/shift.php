@@ -2,11 +2,11 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-requireRole('employee');
+requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/login.php'); }
 
-$myName = getEmployeeNameFilter();
+$myName = getMyEmployeeName();
 $pageTitle = 'シフト提出';
 
 $year  = (int)($_GET['year'] ?? date('Y'));
@@ -131,6 +131,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-center">
                                 <?php if (!empty($s['attendance_status'])): ?>
                                 <span class="badge bg-<?= $s['attendance_status'] === '出勤' ? 'success' : ($s['attendance_status'] === '欠勤' ? 'danger' : 'warning') ?>"><?= h($s['attendance_status']) ?></span>
+                                <?php elseif ($s && empty($s['is_day_off']) && (!empty($s['start_time']) || !empty($s['end_time']))): ?>
+                                <span class="text-danger small fw-semibold">報告未完了</span>
                                 <?php else: ?>
                                 <span class="text-muted small">-</span>
                                 <?php endif; ?>

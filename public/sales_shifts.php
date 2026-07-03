@@ -82,7 +82,9 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 
     <!-- 詳細テーブル（従業員別・日付別） -->
-    <?php foreach ($employees as $emp):
+    <?php
+    $today = date('Y-m-d');
+    foreach ($employees as $emp):
         $empGrid = $grid[$emp] ?? [];
         $counts = ['work'=>0,'late'=>0,'early'=>0,'absent'=>0];
     ?>
@@ -127,19 +129,23 @@ require_once __DIR__ . '/../includes/header.php';
                                 $autoStatus = ''; // 未報告として扱う
                             }
 
+                            // 未来の日付はステータスを表示しない
+                            $isFuture = ($dateStr > $today);
+
                             // 表示設定
                             $rowClass = '';
                             $statusBadge = '';
                             $statusColor = '';
                             if ($dayOff || $autoStatus === '休み') {
-                                $rowClass = 'table-secondary'; $statusBadge = '休日'; $statusColor = 'secondary';
-                            } elseif ($autoStatus === '欠勤') {
+                                $rowClass = 'table-secondary';
+                                if (!$isFuture) { $statusBadge = '休日'; $statusColor = 'secondary'; }
+                            } elseif (!$isFuture && $autoStatus === '欠勤') {
                                 $rowClass = 'table-danger'; $statusBadge = '欠勤'; $statusColor = 'danger'; $counts['absent']++;
-                            } elseif ($autoStatus === '遅刻') {
+                            } elseif (!$isFuture && $autoStatus === '遅刻') {
                                 $statusBadge = '遅刻'; $statusColor = 'warning'; $counts['late']++;
-                            } elseif ($autoStatus === '早退') {
+                            } elseif (!$isFuture && $autoStatus === '早退') {
                                 $statusBadge = '早退'; $statusColor = 'warning'; $counts['early']++;
-                            } elseif ($autoStatus === '出勤') {
+                            } elseif (!$isFuture && $autoStatus === '出勤') {
                                 $statusBadge = '出勤'; $statusColor = 'success'; $counts['work']++;
                             } elseif ($dow === 0 || $dow === 6) {
                                 $rowClass = 'table-light';
@@ -174,7 +180,8 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php else: ?><span class="text-muted">-</span><?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($statusBadge): ?>
+                                <?php if ($isFuture): ?>
+                                <?php elseif ($statusBadge): ?>
                                 <span class="badge bg-<?= $statusColor ?>"><?= $statusBadge ?></span>
                                 <?php elseif ($startTime): ?>
                                 <span class="text-muted small">未報告</span>

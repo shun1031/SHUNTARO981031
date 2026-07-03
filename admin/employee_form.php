@@ -293,6 +293,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->prepare('DELETE FROM career_history WHERE id = ? AND employee_id = ?')->execute([(int)$_POST['career_id'], $id]);
         redirect(BASE_PATH . '/admin/employee_form.php?id=' . $id . '&tab=career');
     }
+
+    // --- 管理者アカウント 有効/無効切り替え ---
+    if ($action === 'toggle_admin_account' && $id) {
+        $adminUserId = (int)($_POST['admin_user_id'] ?? 0);
+        $empCid = $cid;
+        if (!$empCid) {
+            $empCidStmt = $db->prepare('SELECT company_id FROM employees WHERE id = ?');
+            $empCidStmt->execute([$id]);
+            $empCid = (int)$empCidStmt->fetchColumn();
+        }
+        if ($adminUserId && $empCid) {
+            $adminCheck = $db->prepare('SELECT id, is_active FROM users WHERE id = ? AND employee_id = ? AND role = ? AND company_id = ?');
+            $adminCheck->execute([$adminUserId, $id, 'company_admin', $empCid]);
+            $adminAcc = $adminCheck->fetch();
+            if ($adminAcc) {
+                $newActive = $adminAcc['is_active'] ? 0 : 1;
+                $db->prepare('UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?')
+                   ->execute([$newActive, $adminUserId]);
+            }
+        }
+        redirect(BASE_PATH . '/admin/employee_form.php?id=' . $id . '&saved=1');
+    }
 }
 
 // 現在のチームID
@@ -510,7 +532,11 @@ require_once __DIR__ . '/../includes/header.php';
                                    value="<?= h($adminUserAccount['username'] ?? $adminCandidateUsername) ?>">
                             <input type="hidden" name="admin_username" value="<?= h($adminUserAccount['username'] ?? $adminCandidateUsername) ?>">
                             <?php if ($adminUserAccount): ?>
-                            <div class="form-text text-success"><i class="bi bi-check-circle me-1"></i>作成済み<?php if ($adminUserAccount['last_login_at']): ?>（最終: <?= date('Y/m/d H:i', strtotime($adminUserAccount['last_login_at'])) ?>）<?php endif; ?></div>
+                            <?php if ($adminUserAccount['is_active']): ?>
+                            <div class="form-text text-success"><i class="bi bi-check-circle me-1"></i>有効（管理者画面ログイン可）<?php if ($adminUserAccount['last_login_at']): ?>（最終: <?= date('Y/m/d H:i', strtotime($adminUserAccount['last_login_at'])) ?>）<?php endif; ?></div>
+                            <?php else: ?>
+                            <div class="form-text text-danger"><i class="bi bi-pause-circle me-1"></i>管理者権限停止中（管理者画面へのログイン不可）</div>
+                            <?php endif; ?>
                             <?php else: ?>
                             <div class="form-text text-muted"><i class="bi bi-info-circle me-1"></i>自動生成済み（変更不可）</div>
                             <?php endif; ?>
@@ -523,6 +549,19 @@ require_once __DIR__ . '/../includes/header.php';
                                 <button type="button" class="btn btn-outline-secondary" onclick="genPw('adminPwField')"><i class="bi bi-shuffle"></i></button>
                             </div>
                         </div>
+                        <?php if ($adminUserAccount): ?>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <form method="post" class="w-100" onsubmit="return confirm('<?= $adminUserAccount['is_active'] ? '管理者権限を取り消しますか？このユーザーは管理者画面にアクセスできなくなります。' : '管理者権限を再付与しますか？' ?>')">
+                                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                                <input type="hidden" name="action" value="toggle_admin_account">
+                                <input type="hidden" name="admin_user_id" value="<?= $adminUserAccount['id'] ?>">
+                                <button type="submit" class="btn btn-sm w-100 <?= $adminUserAccount['is_active'] ? 'btn-outline-danger' : 'btn-outline-success' ?>">
+                                    <i class="bi bi-<?= $adminUserAccount['is_active'] ? 'x-circle' : 'check-circle' ?> me-1"></i>
+                                    <?= $adminUserAccount['is_active'] ? '権限取り消し' : '権限再付与' ?>
+                                </button>
+                            </form>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endif; ?>

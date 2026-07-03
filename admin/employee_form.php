@@ -31,12 +31,28 @@ $teams    = getAllTeams($cid);
 $sfDefs   = getStrengthsThemeDefinitions();
 $spiDims  = getSpiDimensions();
 
-// ユーザーアカウント情報取得
-$userAccount = null;
+// ユーザーアカウント情報取得（一般・管理者それぞれ取得）
+$empUserAccount   = null; // 一般アカウント (role='employee')
+$adminUserAccount = null; // 管理者アカウント (role='company_admin')
 if ($id) {
     $uaStmt = $db->prepare('SELECT id, username, role, is_active, last_login_at FROM users WHERE employee_id = ?');
     $uaStmt->execute([$id]);
-    $userAccount = $uaStmt->fetch();
+    foreach ($uaStmt->fetchAll() as $acc) {
+        if ($acc['role'] === 'employee') $empUserAccount = $acc;
+        elseif ($acc['role'] === 'company_admin') $adminUserAccount = $acc;
+    }
+}
+// 管理者アカウントがない場合、候補ユーザーIDを事前生成
+$adminCandidateUsername = '';
+if ($id && !$adminUserAccount) {
+    $chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+    do {
+        $cand = '';
+        for ($i = 0; $i < 10; $i++) $cand .= $chars[random_int(0, strlen($chars) - 1)];
+        $ck = $db->prepare('SELECT id FROM users WHERE username = ?');
+        $ck->execute([$cand]);
+    } while ($ck->fetch());
+    $adminCandidateUsername = $cand;
 }
 
 $pageTitle = $id ? ($employee['name'] ?? '') . ' 編集' : '新規社員登録';
@@ -100,11 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // ユーザーアカウント処理（管理者のみ）
             if (isCompanyAdmin() || isSuperAdmin()) {
-                $loginUsername = trim($_POST['login_username'] ?? '');
-                $loginPassword = $_POST['login_password'] ?? '';
-                $loginRole     = $_POST['login_role'] ?? 'employee';
-                if ($loginRole !== 'employee' && $loginRole !== 'company_admin') $loginRole = 'employee';
-
                 // 社員のcompany_idを取得（SAの場合$cidがNULLなのでDBから取得）
                 $empCid = $cid;
                 if (!$empCid) {
@@ -113,37 +124,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $empCid = (int)$empCidStmt->fetchColumn();
                 }
 
-                // 既存アカウント確認
-                $existingUser = $db->prepare('SELECT id, username FROM users WHERE employee_id = ?');
-                $existingUser->execute([$id]);
-                $userRow = $existingUser->fetch();
-
-                if ($loginUsername && $empCid) {
-                    if ($userRow) {
-                        // 更新
-                        if ($loginUsername !== $userRow['username']) {
-                            $dup = $db->prepare('SELECT id FROM users WHERE username = ? AND id != ?');
-                            $dup->execute([$loginUsername, $userRow['id']]);
-                            if (!$dup->fetch()) {
-                                $db->prepare('UPDATE users SET username = ?, role = ?, display_name = ? WHERE id = ?')
-                                   ->execute([$loginUsername, $loginRole, $fields['name'], $userRow['id']]);
+                if ($empCid) {
+                    // --- 一般アカウント処理 (role='employee') ---
+                    $empUsername = trim($_POST['emp_username'] ?? '');
+                    $empPassword = $_POST['emp_password'] ?? '';
+                    $empAccStmt = $db->prepare('SELECT id, username FROM users WHERE employee_id = ? AND role = ?');
+                    $empAccStmt->execute([$id, 'employee']);
+                    $empAccRow = $empAccStmt->fetch();
+                    if ($empUsername) {
+                        if ($empAccRow) {
+                            if ($empUsername !== $empAccRow['username']) {
+                                $dup = $db->prepare('SELECT id FROM users WHERE username = ? AND id != ?');
+                                $dup->execute([$empUsername, $empAccRow['id']]);
+                                if (!$dup->fetch()) {
+                                    $db->prepare('UPDATE users SET username = ?, display_name = ? WHERE id = ?')
+                                       ->execute([$empUsername, $fields['name'], $empAccRow['id']]);
+                                }
+                            } else {
+                                $db->prepare('UPDATE users SET display_name = ? WHERE id = ?')
+                                   ->execute([$fields['name'], $empAccRow['id']]);
                             }
-                        } else {
-                            $db->prepare('UPDATE users SET role = ?, display_name = ? WHERE id = ?')
-                               ->execute([$loginRole, $fields['name'], $userRow['id']]);
+                            if ($empPassword) {
+                                $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+                                   ->execute([password_hash($empPassword, PASSWORD_DEFAULT), $empAccRow['id']]);
+                            }
+                        } elseif ($empPassword) {
+                            $dup = $db->prepare('SELECT id FROM users WHERE username = ?');
+                            $dup->execute([$empUsername]);
+                            if (!$dup->fetch()) {
+                                $db->prepare('INSERT INTO users (username, password_hash, display_name, role, company_id, employee_id, is_active) VALUES (?,?,?,?,?,?,1)')
+                                   ->execute([$empUsername, password_hash($empPassword, PASSWORD_DEFAULT), $fields['name'], 'employee', $empCid, $id]);
+                            }
                         }
-                        if ($loginPassword) {
-                            $hash = password_hash($loginPassword, PASSWORD_DEFAULT);
-                            $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $userRow['id']]);
-                        }
-                    } else {
-                        // 新規作成
-                        $dup = $db->prepare('SELECT id FROM users WHERE username = ?');
-                        $dup->execute([$loginUsername]);
-                        if (!$dup->fetch() && $loginPassword) {
-                            $hash = password_hash($loginPassword, PASSWORD_DEFAULT);
-                            $db->prepare('INSERT INTO users (username, password_hash, display_name, role, company_id, employee_id, is_active) VALUES (?,?,?,?,?,?,1)')
-                               ->execute([$loginUsername, $hash, $fields['name'], $loginRole, $empCid, $id]);
+                    }
+
+                    // --- 管理者アカウント処理 (role='company_admin') ---
+                    $adminUsername = trim($_POST['admin_username'] ?? '');
+                    $adminPassword = $_POST['admin_password'] ?? '';
+                    $adminAccStmt = $db->prepare('SELECT id, username FROM users WHERE employee_id = ? AND role = ?');
+                    $adminAccStmt->execute([$id, 'company_admin']);
+                    $adminAccRow = $adminAccStmt->fetch();
+                    if ($adminUsername) {
+                        if ($adminAccRow) {
+                            $db->prepare('UPDATE users SET display_name = ? WHERE id = ?')
+                               ->execute([$fields['name'], $adminAccRow['id']]);
+                            if ($adminPassword) {
+                                $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+                                   ->execute([password_hash($adminPassword, PASSWORD_DEFAULT), $adminAccRow['id']]);
+                            }
+                        } elseif ($adminPassword) {
+                            $dup = $db->prepare('SELECT id FROM users WHERE username = ?');
+                            $dup->execute([$adminUsername]);
+                            if (!$dup->fetch()) {
+                                $db->prepare('INSERT INTO users (username, password_hash, display_name, role, company_id, employee_id, is_active) VALUES (?,?,?,?,?,?,1)')
+                                   ->execute([$adminUsername, password_hash($adminPassword, PASSWORD_DEFAULT), $fields['name'], 'company_admin', $empCid, $id]);
+                            }
                         }
                     }
                 }
@@ -438,39 +473,56 @@ require_once __DIR__ . '/../includes/header.php';
                 <!-- ユーザーアカウント -->
                 <hr class="my-4">
                 <h6 class="fw-bold mb-3"><i class="bi bi-person-gear me-2"></i>ログインアカウント</h6>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">ユーザーID</label>
-                        <input type="text" name="login_username" class="form-control"
-                               pattern="[a-zA-Z0-9_\-]{3,50}" placeholder="半角英数字（3〜50文字）"
-                               value="<?= h($userAccount['username'] ?? '') ?>">
-                        <?php if ($userAccount): ?>
-                        <div class="form-text text-success"><i class="bi bi-check-circle me-1"></i>アカウント作成済み
-                            <?php if ($userAccount['last_login_at']): ?>
-                            （最終: <?= date('Y/m/d H:i', strtotime($userAccount['last_login_at'])) ?>）
+
+                <!-- 一般アカウント（一般画面用） -->
+                <div class="border rounded p-3 mb-3" style="border-color:#d1fae5 !important;background:#f0fdf4">
+                    <div class="fw-semibold small mb-2" style="color:#065f46"><i class="bi bi-person me-1"></i>一般アカウント（一般画面ログイン用）</div>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label small">ユーザーID</label>
+                            <input type="text" name="emp_username" class="form-control"
+                                   pattern="[a-zA-Z0-9_\-]{3,50}" placeholder="半角英数字（3〜50文字）"
+                                   value="<?= h($empUserAccount['username'] ?? '') ?>">
+                            <?php if ($empUserAccount): ?>
+                            <div class="form-text text-success"><i class="bi bi-check-circle me-1"></i>作成済み<?php if ($empUserAccount['last_login_at']): ?>（最終: <?= date('Y/m/d H:i', strtotime($empUserAccount['last_login_at'])) ?>）<?php endif; ?></div>
+                            <?php else: ?>
+                            <div class="form-text text-muted">IDとパスワードを入力すると自動作成されます</div>
                             <?php endif; ?>
                         </div>
-                        <?php else: ?>
-                        <div class="form-text">ユーザーIDとパスワードを入力するとアカウントが自動作成されます</div>
-                        <?php endif; ?>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">パスワード<?= $userAccount ? '' : ' <span class="text-danger">*</span>' ?></label>
-                        <div class="input-group">
-                            <input type="password" name="login_password" class="form-control" id="loginPwField"
-                                   placeholder="<?= $userAccount ? '変更時のみ入力' : '新規作成時は必須' ?>"
-                                   <?= $userAccount ? '' : 'minlength="6"' ?>>
-                            <button type="button" class="btn btn-outline-secondary" onclick="var c='abcdefghijkmnpqrstuvwxyz23456789',p='';for(var i=0;i<10;i++)p+=c[Math.floor(Math.random()*c.length)];document.getElementById('loginPwField').value=p;">
-                                <i class="bi bi-shuffle"></i>
-                            </button>
+                        <div class="col-md-5">
+                            <label class="form-label small">パスワード</label>
+                            <div class="input-group">
+                                <input type="password" name="emp_password" class="form-control" id="empPwField"
+                                       placeholder="<?= $empUserAccount ? '変更時のみ入力' : '新規作成時は必須' ?>">
+                                <button type="button" class="btn btn-outline-secondary" onclick="genPw('empPwField')"><i class="bi bi-shuffle"></i></button>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">権限</label>
-                        <select name="login_role" class="form-select">
-                            <option value="employee" <?= ($userAccount['role'] ?? '') === 'employee' ? 'selected' : '' ?>>一般社員</option>
-                            <option value="company_admin" <?= ($userAccount['role'] ?? '') === 'company_admin' ? 'selected' : '' ?>>会社管理者</option>
-                        </select>
+                </div>
+
+                <!-- 管理者アカウント（管理者画面用） -->
+                <div class="border rounded p-3" style="border-color:#fde68a !important;background:#fffbeb">
+                    <div class="fw-semibold small mb-2" style="color:#92400e"><i class="bi bi-shield-lock me-1"></i>管理者アカウント（管理者画面ログイン用）<span class="badge bg-warning text-dark ms-2" style="font-size:9px">ユーザーID自動生成</span></div>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label small">ユーザーID</label>
+                            <input type="text" class="form-control bg-light" readonly
+                                   value="<?= h($adminUserAccount['username'] ?? $adminCandidateUsername) ?>">
+                            <input type="hidden" name="admin_username" value="<?= h($adminUserAccount['username'] ?? $adminCandidateUsername) ?>">
+                            <?php if ($adminUserAccount): ?>
+                            <div class="form-text text-success"><i class="bi bi-check-circle me-1"></i>作成済み<?php if ($adminUserAccount['last_login_at']): ?>（最終: <?= date('Y/m/d H:i', strtotime($adminUserAccount['last_login_at'])) ?>）<?php endif; ?></div>
+                            <?php else: ?>
+                            <div class="form-text text-muted"><i class="bi bi-info-circle me-1"></i>自動生成済み（変更不可）</div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small">パスワード<?= !$adminUserAccount ? ' <span class="text-muted" style="font-size:11px">（入力すると管理者アカウントを作成）</span>' : '' ?></label>
+                            <div class="input-group">
+                                <input type="password" name="admin_password" class="form-control" id="adminPwField"
+                                       placeholder="<?= $adminUserAccount ? '変更時のみ入力' : 'パスワードを設定して保存' ?>">
+                                <button type="button" class="btn btn-outline-secondary" onclick="genPw('adminPwField')"><i class="bi bi-shuffle"></i></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -822,6 +874,11 @@ function toggleSubtype() {
         var sub = document.getElementById('empSubtype');
         if (sub) sub.value = '';
     }
+}
+function genPw(fieldId) {
+    var c = 'abcdefghijkmnpqrstuvwxyz23456789', p = '';
+    for (var i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)];
+    document.getElementById(fieldId).value = p;
 }
 JS2;
 require_once __DIR__ . '/../includes/footer.php';

@@ -167,20 +167,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 社員一覧（ユーザー情報付き）
+// 社員一覧（一般アカウントと管理者アカウントを別々に結合）
 $sql = 'SELECT e.id AS emp_id, e.employee_number, e.name, e.job_title, e.department,
-               u.id AS user_id, u.username, u.role AS user_role, u.is_active AS user_active, u.last_login_at
+               u_emp.id AS emp_user_id, u_emp.username AS emp_username, u_emp.is_active AS emp_active, u_emp.last_login_at AS emp_last_login,
+               u_adm.id AS adm_user_id, u_adm.username AS adm_username, u_adm.is_active AS adm_active, u_adm.last_login_at AS adm_last_login
         FROM employees e
-        LEFT JOIN users u ON e.id = u.employee_id AND u.company_id = ?
+        LEFT JOIN users u_emp ON e.id = u_emp.employee_id AND u_emp.company_id = ? AND u_emp.role = ?
+        LEFT JOIN users u_adm ON e.id = u_adm.employee_id AND u_adm.company_id = ? AND u_adm.role = ?
         WHERE e.is_active = 1 AND e.company_id = ?
         ORDER BY e.employee_number, e.name';
 $stmt = $db->prepare($sql);
-$stmt->execute([$cid, $cid]);
+$stmt->execute([$cid, 'employee', $cid, 'company_admin', $cid]);
 $employees = $stmt->fetchAll();
 
 // 統計
 $totalEmps = count($employees);
-$withAccount = count(array_filter($employees, fn($e) => $e['user_id']));
+$withAccount = count(array_filter($employees, fn($e) => $e['emp_user_id'] || $e['adm_user_id']));
 $withoutAccount = $totalEmps - $withAccount;
 
 $pageTitle = 'ユーザー管理';
@@ -258,72 +260,58 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>社員番号</th>
                         <th>氏名</th>
                         <th>役職</th>
-                        <th>ログインID</th>
-                        <th class="text-center">権限</th>
-                        <th class="text-center">状態</th>
-                        <th class="text-center">最終ログイン</th>
+                        <th>一般アカウント</th>
+                        <th>管理者アカウント</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="userTableBody">
                     <?php foreach ($employees as $emp): ?>
-                    <tr data-search="<?= h(($emp['employee_number'] ?? '') . ' ' . $emp['name'] . ' ' . ($emp['username'] ?? '')) ?>">
+                    <tr data-search="<?= h(($emp['employee_number'] ?? '') . ' ' . $emp['name'] . ' ' . ($emp['emp_username'] ?? '') . ' ' . ($emp['adm_username'] ?? '')) ?>">
                         <td class="small text-muted"><?= h($emp['employee_number'] ?? '-') ?></td>
                         <td class="fw-medium"><?= h($emp['name']) ?></td>
                         <td class="small"><?= h($emp['job_title'] ?? '-') ?></td>
-                        <?php if ($emp['user_id']): ?>
-                        <td><code><?= h($emp['username']) ?></code></td>
-                        <td class="text-center">
-                            <?php if ($emp['user_role'] === 'company_admin'): ?>
-                            <span class="badge bg-warning text-dark">管理者</span>
+                        <!-- 一般アカウント -->
+                        <td>
+                            <?php if ($emp['emp_user_id']): ?>
+                            <code class="small"><?= h($emp['emp_username']) ?></code>
+                            <span class="badge bg-<?= $emp['emp_active'] ? 'success' : 'danger' ?> ms-1" style="font-size:9px"><?= $emp['emp_active'] ? '有効' : '無効' ?></span>
+                            <?php if ($emp['emp_last_login']): ?><div class="text-muted" style="font-size:10px"><?= date('m/d H:i', strtotime($emp['emp_last_login'])) ?></div><?php endif; ?>
                             <?php else: ?>
-                            <span class="badge bg-secondary">社員</span>
+                            <span class="text-muted small">未作成</span>
                             <?php endif; ?>
                         </td>
-                        <td class="text-center">
-                            <?php if ($emp['user_active']): ?>
-                            <span class="badge bg-success">有効</span>
+                        <!-- 管理者アカウント -->
+                        <td>
+                            <?php if ($emp['adm_user_id']): ?>
+                            <code class="small"><?= h($emp['adm_username']) ?></code>
+                            <span class="badge bg-<?= $emp['adm_active'] ? 'warning text-dark' : 'danger' ?> ms-1" style="font-size:9px"><?= $emp['adm_active'] ? '有効' : '無効' ?></span>
+                            <?php if ($emp['adm_last_login']): ?><div class="text-muted" style="font-size:10px"><?= date('m/d H:i', strtotime($emp['adm_last_login'])) ?></div><?php endif; ?>
                             <?php else: ?>
-                            <span class="badge bg-danger">無効</span>
+                            <span class="text-muted small">-</span>
                             <?php endif; ?>
                         </td>
-                        <td class="text-center small text-muted"><?= $emp['last_login_at'] ? date('m/d H:i', strtotime($emp['last_login_at'])) : '-' ?></td>
+                        <!-- 操作 -->
                         <td>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-outline-primary" onclick="openEditModal(<?= h(json_encode([
-                                    'user_id' => $emp['user_id'],
-                                    'employee_id' => $emp['emp_id'],
-                                    'name' => $emp['name'],
-                                    'username' => $emp['username'],
-                                    'role' => $emp['user_role'],
-                                ])) ?>)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning" onclick="openPasswordModal(<?= $emp['user_id'] ?>, '<?= h($emp['name']) ?>')" title="パスワード変更">
-                                    <i class="bi bi-key"></i>
-                                </button>
-                                <form method="post" class="d-inline" onsubmit="return confirm('<?= h($emp['name']) ?>のアカウントを<?= $emp['user_active'] ? '無効化' : '有効化' ?>しますか？')">
-                                    <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-                <input type="hidden" name="company_id" value="<?= (int)$cid ?>">
-                                    <input type="hidden" name="action" value="toggle_active">
-                                    <input type="hidden" name="user_id" value="<?= $emp['user_id'] ?>">
-                                    <button class="btn btn-sm btn-outline-<?= $emp['user_active'] ? 'danger' : 'success' ?>" title="<?= $emp['user_active'] ? '無効化' : '有効化' ?>">
-                                        <i class="bi bi-<?= $emp['user_active'] ? 'pause-circle' : 'play-circle' ?>"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                        <?php else: ?>
-                        <td><span class="text-muted">未作成</span></td>
-                        <td class="text-center">-</td>
-                        <td class="text-center">-</td>
-                        <td class="text-center">-</td>
-                        <td>
-                            <button class="btn btn-sm btn-success" onclick="openCreateModal(<?= $emp['emp_id'] ?>, '<?= h($emp['name']) ?>')">
+                            <a href="<?= BASE_PATH ?>/admin/employee_form.php?id=<?= $emp['emp_id'] ?>" class="btn btn-sm btn-outline-primary" title="社員詳細・アカウント編集">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <?php if ($emp['emp_user_id']): ?>
+                            <button class="btn btn-sm btn-outline-warning ms-1" onclick="openPasswordModal(<?= $emp['emp_user_id'] ?>, '<?= h($emp['name']) ?>（一般）')" title="一般パスワード変更">
+                                <i class="bi bi-key"></i>
+                            </button>
+                            <?php endif; ?>
+                            <?php if ($emp['adm_user_id']): ?>
+                            <button class="btn btn-sm btn-outline-warning ms-1" onclick="openPasswordModal(<?= $emp['adm_user_id'] ?>, '<?= h($emp['name']) ?>（管理者）')" title="管理者パスワード変更">
+                                <i class="bi bi-shield-lock"></i>
+                            </button>
+                            <?php endif; ?>
+                            <?php if (!$emp['emp_user_id'] && !$emp['adm_user_id']): ?>
+                            <button class="btn btn-sm btn-success ms-1" onclick="openCreateModal(<?= $emp['emp_id'] ?>, '<?= h($emp['name']) ?>')">
                                 <i class="bi bi-plus-circle me-1"></i>作成
                             </button>
+                            <?php endif; ?>
                         </td>
-                        <?php endif; ?>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

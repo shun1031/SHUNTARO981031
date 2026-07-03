@@ -470,6 +470,20 @@ document.querySelectorAll('.tc-cost').forEach(el => {
     });
 });
 
+// ファイル選択時の即時サイズチェック（10MB上限）
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+document.querySelectorAll('input[type="file"]').forEach(function(input) {
+    input.addEventListener('change', function() {
+        const msg = document.getElementById('transportSubmitMsg');
+        if (this.files && this.files[0] && this.files[0].size > MAX_UPLOAD_BYTES) {
+            if (msg) msg.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>ファイルサイズが大きすぎます（10MB以下にしてください）</span>';
+            this.value = '';
+        } else {
+            if (msg) msg.innerHTML = '';
+        }
+    });
+});
+
 document.getElementById('transportSubmitForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const btn = document.getElementById('transportSubmitBtn');

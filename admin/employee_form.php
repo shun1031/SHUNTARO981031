@@ -518,7 +518,20 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if (isCompanyAdmin() || isSuperAdmin()): ?>
                 <!-- ユーザーアカウント -->
                 <hr class="my-4">
-                <h6 class="fw-bold mb-3"><i class="bi bi-person-gear me-2"></i>ログインアカウント</h6>
+                <div class="d-flex align-items-center flex-wrap gap-3 mb-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-person-gear me-2"></i>ログインアカウント</h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted fw-semibold">権限:</small>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="role_ui_select" id="roleGeneral" value="general"
+                                   <?= !$adminUserAccount ? 'checked' : '' ?> onchange="updateRoleUI()">
+                            <label class="btn btn-outline-secondary" for="roleGeneral"><i class="bi bi-person me-1"></i>一般社員</label>
+                            <input type="radio" class="btn-check" name="role_ui_select" id="roleAdmin" value="admin"
+                                   <?= $adminUserAccount ? 'checked' : '' ?> onchange="updateRoleUI()">
+                            <label class="btn btn-outline-warning" for="roleAdmin"><i class="bi bi-shield-lock me-1"></i>会社管理者</label>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 一般アカウント（一般画面用） -->
                 <div class="border rounded p-3 mb-3" style="border-color:#d1fae5 !important;background:#f0fdf4">
@@ -547,6 +560,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <!-- 管理者アカウント（管理者画面用） -->
+                <div id="adminAccountSection" style="display:<?= $adminUserAccount ? 'block' : 'none' ?>">
                 <div class="border rounded p-3" style="border-color:#fde68a !important;background:#fffbeb">
                     <div class="fw-semibold small mb-2" style="color:#92400e"><i class="bi bi-shield-lock me-1"></i>管理者アカウント（管理者画面ログイン用）<span class="badge bg-warning text-dark ms-2" style="font-size:9px">ユーザーID自動生成</span></div>
                     <div class="row g-3">
@@ -588,6 +602,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                     </div>
                 </div>
+                </div><!-- /adminAccountSection -->
                 <?php endif; ?>
 
                 <div class="mt-4">
@@ -942,6 +957,11 @@ function genPw(fieldId) {
     var c = 'abcdefghijkmnpqrstuvwxyz23456789', p = '';
     for (var i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)];
     document.getElementById(fieldId).value = p;
+}
+function updateRoleUI() {
+    var isAdmin = document.getElementById('roleAdmin') && document.getElementById('roleAdmin').checked;
+    var sec = document.getElementById('adminAccountSection');
+    if (sec) sec.style.display = isAdmin ? 'block' : 'none';
 }
 JS2;
 require_once __DIR__ . '/../includes/footer.php';

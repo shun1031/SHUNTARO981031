@@ -189,8 +189,10 @@ require_once __DIR__ . '/../includes/header.php';
                             <td>
                                 <?php if (!empty($s['attendance_status'])): ?>
                                 <span class="badge bg-<?= $s['attendance_status'] === '出勤' ? 'success' : ($s['attendance_status'] === '欠勤' ? 'danger' : 'warning') ?>"><?= h($s['attendance_status']) ?></span>
+                                <?php elseif ($s && empty($s['is_day_off']) && (!empty($s['start_time']) || !empty($s['end_time']) || !empty($s['scheduled_time']))): ?>
+                                <span class="text-danger small fw-semibold">報告未完了</span>
                                 <?php else: ?>
-                                <span class="text-muted small">未報告</span>
+                                <span class="text-muted small">-</span>
                                 <?php endif; ?>
                             </td>
                             <td class="small text-muted"><?= h($s['checkin_time'] ?? '') ?: '-' ?></td>

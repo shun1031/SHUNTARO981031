@@ -24,6 +24,23 @@ if (!isset($_GET['year']) && !isset($_GET['month'])) {
     }
 }
 
+$csrf = getCsrfToken();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_absent' && verifyCsrfToken($_POST['csrf'] ?? '')) {
+    if (isAdmin()) {
+        $absentEmpName = trim($_POST['employee_name'] ?? '');
+        $absentDate    = trim($_POST['shift_date'] ?? '');
+        if ($absentEmpName !== '' && $absentDate !== '') {
+            saveAttendanceStatus($cid, [
+                'employee_name'     => $absentEmpName,
+                'work_date'         => $absentDate,
+                'attendance_status' => '欠勤',
+            ]);
+        }
+    }
+    redirect(BASE_PATH . '/public/sales_shifts.php?year='.$year.'&month='.$month.'&msg=absent_set');
+}
+
 $empFilter = getEmployeeNameFilter();
 $grid = getShiftGrid($cid, $year, $month, $empFilter);
 $employees = array_keys($grid);
@@ -56,6 +73,13 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <?php if (($_GET['msg'] ?? '') === 'absent_set'): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        欠勤として登録しました
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
 
     <!-- 詳細テーブル（従業員別・日付別） -->
     <?php foreach ($employees as $emp):
@@ -98,6 +122,10 @@ require_once __DIR__ . '/../includes/header.php';
 
                             // ステータス自動計算
                             $autoStatus = $s ? calcShiftStatus($s) : '';
+                            // 自動欠勤判定を無効化: DBに attendance_status='欠勤' が明示設定された場合のみ欠勤扱い
+                            if ($autoStatus === '欠勤' && ($s['attendance_status'] ?? '') !== '欠勤') {
+                                $autoStatus = ''; // 未報告として扱う
+                            }
 
                             // 表示設定
                             $rowClass = '';
@@ -148,6 +176,17 @@ require_once __DIR__ . '/../includes/header.php';
                             <td>
                                 <?php if ($statusBadge): ?>
                                 <span class="badge bg-<?= $statusColor ?>"><?= $statusBadge ?></span>
+                                <?php elseif ($startTime): ?>
+                                <span class="text-muted small">未報告</span>
+                                <?php if (isAdmin()): ?>
+                                <form method="post" class="d-inline ms-1" onsubmit="return confirm('<?= h($emp) ?> <?= $dateStr ?> を欠勤として確定しますか？');">
+                                    <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                                    <input type="hidden" name="action" value="mark_absent">
+                                    <input type="hidden" name="employee_name" value="<?= h($emp) ?>">
+                                    <input type="hidden" name="shift_date" value="<?= h($dateStr) ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.65rem">欠勤</button>
+                                </form>
+                                <?php endif; ?>
                                 <?php else: ?><span class="text-muted">-</span><?php endif; ?>
                             </td>
                             <td class="text-muted small"><?= h($note) ?></td>

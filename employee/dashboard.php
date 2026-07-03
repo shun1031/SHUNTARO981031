@@ -19,6 +19,12 @@ $weekEnd  = date('Y-m-d', strtotime('+6 days'));
 $upcomingShifts = $myName ? getShiftsBetween($cid, $myName, $today, $weekEnd) : [];
 $dowLabels = ['日','月','火','水','木','金','土'];
 
+$todayShift = $myName ? getShiftByDate($cid, $myName, $today) : false;
+$showAttendanceAlert = $todayShift
+    && empty($todayShift['is_day_off'])
+    && (!empty($todayShift['start_time']) || !empty($todayShift['end_time']) || !empty($todayShift['scheduled_time']))
+    && empty($todayShift['attendance_status']);
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="container-fluid">
@@ -27,6 +33,11 @@ require_once __DIR__ . '/../includes/header.php';
             <div>
                 <h1><i class="bi bi-grid-1x2 me-2"></i>ダッシュボード</h1>
                 <p><?= h($myName ?? '') ?>さん、お疲れ様です</p>
+                <?php if ($showAttendanceAlert): ?>
+                <div class="alert alert-danger py-2 px-3 mb-2 d-inline-block">
+                    🔴 本日は出勤予定です。まだ出勤報告が完了していません。
+                </div>
+                <?php endif; ?>
             </div>
             <select onchange="location.href='?year=<?= $year ?>&month='+this.value" class="form-select form-select-sm" style="width:100px">
                 <?php for ($m = 1; $m <= 12; $m++): ?>
@@ -99,8 +110,10 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td>
                                         <?php if ($s['attendance_status']): ?>
                                         <span class="badge bg-<?= $s['attendance_status'] === '出勤' ? 'success' : ($s['attendance_status'] === '欠勤' ? 'danger' : 'warning') ?>"><?= h($s['attendance_status']) ?></span>
+                                        <?php elseif (empty($s['is_day_off']) && (!empty($s['start_time']) || !empty($s['scheduled_time']))): ?>
+                                        <span class="text-danger small fw-semibold">報告未完了</span>
                                         <?php else: ?>
-                                        <span class="text-muted small">未報告</span>
+                                        <span class="text-muted small">-</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="small text-muted"><?= h($s['location'] ?: '-') ?></td>

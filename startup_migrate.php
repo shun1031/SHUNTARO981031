@@ -111,6 +111,9 @@ $migrations = [
 
     // ---- 会社名 KLG HOLDINGS → LiberTeen ----
     "UPDATE companies SET company_name='LiberTeen' WHERE company_name='KLG HOLDINGS'",
+
+    // ---- company_adminアカウントで employee_id 未リンクのものを同名社員に自動リンク ----
+    "UPDATE users u INNER JOIN employees e ON e.company_id = u.company_id AND e.name = u.display_name AND e.is_active = 1 SET u.employee_id = e.id WHERE u.employee_id IS NULL AND u.company_id IS NOT NULL AND u.role = 'company_admin'",
 ];
 
 $ok = 0;

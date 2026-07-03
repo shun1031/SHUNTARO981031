@@ -42,6 +42,30 @@ if ($id) {
         elseif ($acc['role'] === 'company_admin') $adminUserAccount = $acc;
     }
 }
+// 管理者アカウントがない場合: 同一会社・同名の未リンクadminアカウントを自動検索してリンク
+if (!$adminUserAccount && $id && ($employee['name'] ?? '')) {
+    $empCidFb = $cid;
+    if (!$empCidFb) {
+        $s = $db->prepare('SELECT company_id FROM employees WHERE id = ?');
+        $s->execute([$id]);
+        $empCidFb = (int)$s->fetchColumn();
+    }
+    if ($empCidFb) {
+        $fbStmt = $db->prepare(
+            'SELECT id, username, role, is_active, last_login_at FROM users
+             WHERE company_id = ? AND role = ? AND display_name = ?
+             AND (employee_id IS NULL OR employee_id = ?)'
+        );
+        $fbStmt->execute([$empCidFb, 'company_admin', $employee['name'], $id]);
+        $unlinkedAdmin = $fbStmt->fetch();
+        if ($unlinkedAdmin) {
+            $db->prepare('UPDATE users SET employee_id = ? WHERE id = ?')
+               ->execute([$id, $unlinkedAdmin['id']]);
+            $adminUserAccount = $unlinkedAdmin;
+        }
+    }
+}
+
 // 管理者アカウントがない場合、候補ユーザーIDを事前生成
 $adminCandidateUsername = '';
 if ($id && !$adminUserAccount) {

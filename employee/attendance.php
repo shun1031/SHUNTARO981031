@@ -243,6 +243,15 @@ document.getElementById('attForm').addEventListener('submit', function(e) {
     }
 });
 
+document.querySelectorAll('.co-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.co-btn').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        document.getElementById('co_status').value = this.dataset.status;
+        document.getElementById('co_time').value = nowHHMM();
+    });
+});
+
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

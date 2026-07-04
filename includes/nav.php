@@ -58,7 +58,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_daily_report.php', 'bi-journal-check', '日報提出', $currentPage === 'sales_daily_report') ?>
         <?= navLink(BASE_PATH . '/employee/attendance.php', 'bi-clock-history', '出退勤報告', $currentDir === 'employee' && $currentPage === 'attendance') ?>
         <?= navLink(BASE_PATH . '/public/sales_transport.php', 'bi-car-front', '交通費申請', $currentPage === 'sales_transport') ?>
-        <?= navLink(BASE_PATH . '/employee/requests.php', 'bi-pencil-square', '申請', $currentDir === 'employee' && $currentPage === 'requests', $pendingMyReq ? (string)$pendingMyReq : '') ?>
+        <?= navLink(BASE_PATH . '/employee/requests.php', 'bi-pencil-square', '各種申請', $currentDir === 'employee' && $currentPage === 'requests', $pendingMyReq ? (string)$pendingMyReq : '') ?>
 
         <?php else: ?>
 

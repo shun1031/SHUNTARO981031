@@ -114,7 +114,6 @@ require_once __DIR__ . '/../includes/header.php';
                                 <option value="checkout_change">退勤時間変更</option>
                                 <option value="attendance_add">出退勤打刻追加（打刻を忘れた日）</option>
                                 <option value="shift_change">シフト変更（取消も可）</option>
-                                <option value="daily_report_edit">日報修正（取消も可）</option>
                                 <option value="transport_edit">交通費修正（取消も可）</option>
                             </select>
                         </div>

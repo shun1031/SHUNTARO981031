@@ -160,11 +160,15 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <?php endif; ?>
             </div>
-            <select onchange="location.href='?year=<?= $year ?>&month='+this.value" class="form-select form-select-sm" style="width:100px">
-                <?php for ($m = 1; $m <= 12; $m++): ?>
-                <option value="<?= $m ?>" <?= $month == $m ? 'selected' : '' ?>><?= $m ?>月の集計</option>
-                <?php endfor; ?>
-            </select>
+            <?php
+            $prevM = $month - 1; $prevY = $year; if ($prevM < 1) { $prevM = 12; $prevY--; }
+            $nextM = $month + 1; $nextY = $year; if ($nextM > 12) { $nextM = 1;  $nextY++; }
+            ?>
+            <div class="d-flex align-items-center gap-1">
+                <a href="?year=<?= $prevY ?>&month=<?= $prevM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</a>
+                <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
+                <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
+            </div>
         </div>
     </div>
 

@@ -25,6 +25,123 @@ $showAttendanceAlert = $todayShift
     && (!empty($todayShift['start_time']) || !empty($todayShift['end_time']) || !empty($todayShift['scheduled_time']))
     && empty($todayShift['attendance_status']);
 
+// ────────────────────────────────────────────────────────────────
+// アラート判定（リアルタイム判定・DBに保存しない・Asia/Tokyo基準）
+// ────────────────────────────────────────────────────────────────
+$alerts = [];
+if ($myName && $cid) {
+    $tzJST    = new DateTimeZone('Asia/Tokyo');
+    $nowJST   = new DateTime('now', $tzJST);
+    $todayJST = $nowJST->format('Y-m-d');
+    $nowHHMM  = $nowJST->format('H:i');
+    $cyear    = (int)$nowJST->format('Y');
+    $cmonth   = (int)$nowJST->format('n');
+    $past2200 = ($nowHHMM >= '22:00');
+
+    $pmonth = $cmonth - 1; $pyear = $cyear;
+    if ($pmonth < 1) { $pmonth = 12; $pyear--; }
+    $alertFrom = sprintf('%04d-%02d-01', $pyear, $pmonth);
+
+    $db = getDB();
+
+    // Q1: シフト（前月1日〜今日）① ② ③ 判定用
+    $st = $db->prepare(
+        "SELECT shift_date, start_time, checkin_time, checkout_time, attendance_status, is_day_off, scheduled_time
+         FROM sales_shifts
+         WHERE company_id=? AND employee_name=? AND shift_date BETWEEN ? AND ?
+         ORDER BY shift_date DESC"
+    );
+    $st->execute([$cid, $myName, $alertFrom, $todayJST]);
+    $aShifts = $st->fetchAll();
+
+    // Q2: 日報提出済み日付一覧（前月1日〜今日）③ 判定用
+    $st2 = $db->prepare(
+        "SELECT work_date FROM sales_daily_reports WHERE company_id=? AND employee_name=? AND work_date BETWEEN ? AND ?"
+    );
+    $st2->execute([$cid, $myName, $alertFrom, $todayJST]);
+    $rDates = array_column($st2->fetchAll(), 'work_date');
+
+    // Q3: シフト提出有無（今月・前月）④ 判定用
+    $st3 = $db->prepare(
+        "SELECT DISTINCT shift_year, shift_month FROM sales_shifts
+         WHERE company_id=? AND employee_name=?
+           AND ((shift_year=? AND shift_month=?) OR (shift_year=? AND shift_month=?))"
+    );
+    $st3->execute([$cid, $myName, $cyear, $cmonth, $pyear, $pmonth]);
+    $shiftMonths = [];
+    foreach ($st3->fetchAll() as $r) { $shiftMonths[$r['shift_year'].'-'.$r['shift_month']] = true; }
+
+    // Q4: 交通費提出有無（今月・前月）⑤ 判定用
+    $st4 = $db->prepare(
+        "SELECT target_year, target_month FROM sales_transport_costs
+         WHERE company_id=? AND employee_name=?
+           AND ((target_year=? AND target_month=?) OR (target_year=? AND target_month=?))"
+    );
+    $st4->execute([$cid, $myName, $cyear, $cmonth, $pyear, $pmonth]);
+    $transpMonths = [];
+    foreach ($st4->fetchAll() as $r) { $transpMonths[$r['target_year'].'-'.$r['target_month']] = true; }
+
+    // ① 出勤忘れ: シフト開始時刻+1分経過・出勤報告なし
+    foreach ($aShifts as $s) {
+        $dt = $s['shift_date'];
+        if (!empty($s['is_day_off'])) continue;
+        if (empty($s['start_time'])) continue;
+        if (!empty($s['checkin_time'])) continue;
+        if (($s['attendance_status'] ?? '') === '欠勤') continue;
+        if ($dt === $todayJST) {
+            $stDT = DateTime::createFromFormat('Y-m-d H:i', $dt.' '.$s['start_time'], $tzJST);
+            if (!$stDT) continue;
+            $stDT->modify('+1 minute');
+            if ($nowJST < $stDT) continue;
+        }
+        $md = (int)date('n', strtotime($dt)).'/'.(int)date('j', strtotime($dt));
+        $alerts[] = ['date' => $dt, 'type' => 1, 'text' => "{$md} 出勤しておりません。"];
+    }
+
+    // ② 退勤忘れ: 出勤済み・22:00過ぎ・退勤報告なし
+    foreach ($aShifts as $s) {
+        $dt = $s['shift_date'];
+        if (!empty($s['is_day_off'])) continue;
+        if (empty($s['checkin_time'])) continue;
+        if (!empty($s['checkout_time'])) continue;
+        if ($dt === $todayJST && !$past2200) continue;
+        $md = (int)date('n', strtotime($dt)).'/'.(int)date('j', strtotime($dt));
+        $alerts[] = ['date' => $dt, 'type' => 2, 'text' => "{$md} 退勤しておりません。"];
+    }
+
+    // ③ 日報未提出: シフトあり・欠勤でない・22:00過ぎ・日報なし
+    foreach ($aShifts as $s) {
+        $dt = $s['shift_date'];
+        if (!empty($s['is_day_off'])) continue;
+        if (empty($s['start_time']) && empty($s['scheduled_time'])) continue;
+        if (($s['attendance_status'] ?? '') === '欠勤') continue;
+        if (in_array($dt, $rDates, true)) continue;
+        if ($dt === $todayJST && !$past2200) continue;
+        $md = (int)date('n', strtotime($dt)).'/'.(int)date('j', strtotime($dt));
+        $alerts[] = ['date' => $dt, 'type' => 3, 'text' => "{$md} 日報提出しておりません。"];
+    }
+
+    // ④ シフト未提出（今月・前月）
+    foreach ([[$cyear, $cmonth], [$pyear, $pmonth]] as [$y, $m]) {
+        if (!isset($shiftMonths[$y.'-'.$m])) {
+            $alerts[] = ['date' => sprintf('%04d-%02d-01', $y, $m), 'type' => 4, 'text' => "{$m}月分シフト提出しておりません。"];
+        }
+    }
+
+    // ⑤ 交通費未提出（今月・前月）
+    foreach ([[$cyear, $cmonth], [$pyear, $pmonth]] as [$y, $m]) {
+        if (!isset($transpMonths[$y.'-'.$m])) {
+            $alerts[] = ['date' => sprintf('%04d-%02d-01', $y, $m), 'type' => 5, 'text' => "{$m}月分交通費提出しておりません。"];
+        }
+    }
+
+    // 日付降順・種別昇順でソート（新しい順、同日は出勤>退勤>日報>シフト>交通費）
+    usort($alerts, function($a, $b) {
+        if ($a['date'] !== $b['date']) return strcmp($b['date'], $a['date']);
+        return $a['type'] <=> $b['type'];
+    });
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="container-fluid">
@@ -44,6 +161,28 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="<?= $m ?>" <?= $month == $m ? 'selected' : '' ?>><?= $m ?>月の集計</option>
                 <?php endfor; ?>
             </select>
+        </div>
+    </div>
+
+    <!-- アラート一覧 -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#fff5f5">
+            <span class="fw-bold" style="color:#dc2626">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>アラート一覧
+                <?php if (!empty($alerts)): ?>
+                <span class="badge bg-danger ms-1" style="font-size:.75rem"><?= count($alerts) ?>件</span>
+                <?php endif; ?>
+            </span>
+            <i class="bi bi-chevron-up text-muted"></i>
+        </div>
+        <div class="card-body p-0">
+            <?php if (empty($alerts)): ?>
+            <div class="px-3 py-2" style="min-height:44px;display:flex;align-items:center">アラートはありません</div>
+            <?php else: ?>
+            <?php foreach ($alerts as $i => $a): ?>
+            <div class="px-3 py-2 text-danger fw-semibold<?= $i < count($alerts) - 1 ? ' border-bottom' : '' ?>" style="min-height:44px;display:flex;align-items:center"><?= h($a['text']) ?></div>
+            <?php endforeach; ?>
+            <?php endif; ?>
         </div>
     </div>
 

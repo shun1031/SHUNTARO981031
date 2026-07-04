@@ -57,6 +57,12 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-card">
+                <div class="stat-number" style="color:#eab308"><?= $counts['late'] ?></div>
+                <div class="stat-label"><i class="bi bi-alarm me-1"></i>遅刻数</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
                 <div class="stat-number" style="color:#ef4444"><?= $counts['absent'] ?></div>
                 <div class="stat-label"><i class="bi bi-x-circle me-1"></i>欠勤数</div>
             </div>
@@ -65,12 +71,6 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="stat-card">
                 <div class="stat-number" style="color:#f97316"><?= $counts['early_leave'] ?></div>
                 <div class="stat-label"><i class="bi bi-box-arrow-left me-1"></i>早退数</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="stat-card">
-                <div class="stat-number" style="color:#eab308"><?= $counts['late'] ?></div>
-                <div class="stat-label"><i class="bi bi-alarm me-1"></i>遅刻数</div>
             </div>
         </div>
     </div>

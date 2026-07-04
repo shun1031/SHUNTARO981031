@@ -154,13 +154,13 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="stat-card"><div class="stat-number" style="color:#059669"><?= $counts['present'] ?></div><div class="stat-label">出勤日数</div></div>
         </div>
         <div class="col-6 col-md-3">
+            <div class="stat-card"><div class="stat-number" style="color:#eab308"><?= $counts['late'] ?></div><div class="stat-label">遅刻数</div></div>
+        </div>
+        <div class="col-6 col-md-3">
             <div class="stat-card"><div class="stat-number" style="color:#ef4444"><?= $counts['absent'] ?></div><div class="stat-label">欠勤数</div></div>
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-card"><div class="stat-number" style="color:#f97316"><?= $counts['early_leave'] ?></div><div class="stat-label">早退数</div></div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="stat-card"><div class="stat-number" style="color:#eab308"><?= $counts['late'] ?></div><div class="stat-label">遅刻数</div></div>
         </div>
     </div>
 

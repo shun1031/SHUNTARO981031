@@ -33,7 +33,15 @@ $pendingCount = countPendingChangeRequests($cid);
 
 $statusLabel = ['pending' => '承認待ち', 'approved' => '承認済み', 'rejected' => '却下'];
 $statusBadge = ['pending' => 'warning', 'approved' => 'success', 'rejected' => 'danger'];
-$typeLabel = ['shift_change' => 'シフト変更', 'attendance_change' => '出退勤時間変更'];
+$typeLabel = [
+    'checkin_change'    => '出勤時間変更',
+    'checkout_change'   => '退勤時間変更',
+    'attendance_add'    => '出退勤打刻追加',
+    'shift_change'      => 'シフト変更',
+    'daily_report_edit' => '日報修正',
+    'transport_edit'    => '交通費修正',
+    'attendance_change' => '出退勤時間変更', // 旧型式
+];
 
 require_once __DIR__ . '/../includes/header.php';
 ?>

@@ -51,7 +51,7 @@ function countPendingChangeRequests(int $companyId, ?string $employeeName = null
 }
 
 /**
- * 申請を承認し、実データ（sales_shifts）に反映する。
+ * 申請を承認し、実データに反映する。
  */
 function approveChangeRequest(int $id, int $companyId, string $reviewerName): bool {
     $db = getDB();
@@ -60,17 +60,77 @@ function approveChangeRequest(int $id, int $companyId, string $reviewerName): bo
         return false;
     }
 
-    $ym = explode('-', $req['target_date']);
-    if ($req['request_type'] === 'shift_change') {
-        $stmt = $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, scheduled_time)
-            VALUES (?,?,?,?,?,?)
-            ON DUPLICATE KEY UPDATE scheduled_time = VALUES(scheduled_time)");
-        $stmt->execute([$companyId, $req['employee_name'], $req['target_date'], (int)$ym[0], (int)$ym[1], $req['requested_value']]);
-    } else { // attendance_change
-        $stmt = $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, checkin_time)
-            VALUES (?,?,?,?,?,?)
-            ON DUPLICATE KEY UPDATE checkin_time = VALUES(checkin_time)");
-        $stmt->execute([$companyId, $req['employee_name'], $req['target_date'], (int)$ym[0], (int)$ym[1], $req['requested_value']]);
+    $ym  = explode('-', $req['target_date']);
+    $y   = (int)($ym[0] ?? 0);
+    $m   = (int)($ym[1] ?? 0);
+    $emp = $req['employee_name'];
+    $dt  = $req['target_date'];
+    $val = $req['requested_value'];
+    $isCancel = ($val === '取消');
+
+    switch ($req['request_type']) {
+        case 'checkin_change':
+            $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, checkin_time)
+                VALUES (?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE checkin_time = VALUES(checkin_time)")
+               ->execute([$companyId, $emp, $dt, $y, $m, $val]);
+            break;
+
+        case 'checkout_change':
+            $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, checkout_time)
+                VALUES (?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE checkout_time = VALUES(checkout_time)")
+               ->execute([$companyId, $emp, $dt, $y, $m, $val]);
+            break;
+
+        case 'attendance_add':
+            // val = "HH:MM" または "HH:MM/HH:MM"（出勤[/退勤]）
+            $parts    = explode('/', $val, 2);
+            $checkin  = trim($parts[0]) ?: null;
+            $checkout = isset($parts[1]) ? (trim($parts[1]) ?: null) : null;
+            $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, checkin_time, checkout_time)
+                VALUES (?,?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE
+                    checkin_time  = IF(VALUES(checkin_time)  IS NOT NULL, VALUES(checkin_time),  checkin_time),
+                    checkout_time = IF(VALUES(checkout_time) IS NOT NULL, VALUES(checkout_time), checkout_time)")
+               ->execute([$companyId, $emp, $dt, $y, $m, $checkin, $checkout]);
+            break;
+
+        case 'shift_change':
+            if ($isCancel) {
+                $db->prepare("UPDATE sales_shifts SET scheduled_time = NULL, start_time = NULL, end_time = NULL, is_day_off = 1
+                    WHERE company_id = ? AND employee_name = ? AND shift_date = ?")
+                   ->execute([$companyId, $emp, $dt]);
+            } else {
+                $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, scheduled_time)
+                    VALUES (?,?,?,?,?,?)
+                    ON DUPLICATE KEY UPDATE scheduled_time = VALUES(scheduled_time)")
+                   ->execute([$companyId, $emp, $dt, $y, $m, $val]);
+            }
+            break;
+
+        case 'daily_report_edit':
+            if ($isCancel) {
+                $db->prepare("DELETE FROM sales_daily_reports WHERE company_id = ? AND employee_name = ? AND work_date = ?")
+                   ->execute([$companyId, $emp, $dt]);
+            }
+            // 取消以外は管理者が手動で編集後に承認
+            break;
+
+        case 'transport_edit':
+            if ($isCancel) {
+                $db->prepare("DELETE FROM sales_transport_costs WHERE company_id = ? AND employee_name = ? AND target_year = ? AND target_month = ?")
+                   ->execute([$companyId, $emp, $y, $m]);
+            }
+            // 取消以外は管理者が手動で編集後に承認
+            break;
+
+        case 'attendance_change': // 旧型式: 後方互換
+            $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, checkin_time)
+                VALUES (?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE checkin_time = VALUES(checkin_time)")
+               ->execute([$companyId, $emp, $dt, $y, $m, $val]);
+            break;
     }
 
     $db->prepare("UPDATE sales_change_requests SET status = 'approved', reviewed_by = ?, reviewed_at = NOW() WHERE id = ? AND company_id = ?")

@@ -61,25 +61,27 @@ if ($myName && $cid) {
     $st2->execute([$cid, $myName, $alertFrom, $todayJST]);
     $rDates = array_column($st2->fetchAll(), 'work_date');
 
-    // Q3: シフト提出有無（今月・前月）④ 判定用
+    // Q3: シフト提出済み月一覧（全期間）④ 判定用
     $st3 = $db->prepare(
         "SELECT DISTINCT shift_year, shift_month FROM sales_shifts
          WHERE company_id=? AND employee_name=?
-           AND ((shift_year=? AND shift_month=?) OR (shift_year=? AND shift_month=?))"
+         ORDER BY shift_year, shift_month"
     );
-    $st3->execute([$cid, $myName, $cyear, $cmonth, $pyear, $pmonth]);
+    $st3->execute([$cid, $myName]);
+    $shiftMonthRows = $st3->fetchAll();
     $shiftMonths = [];
-    foreach ($st3->fetchAll() as $r) { $shiftMonths[$r['shift_year'].'-'.$r['shift_month']] = true; }
+    foreach ($shiftMonthRows as $r) { $shiftMonths[$r['shift_year'].'-'.$r['shift_month']] = true; }
 
-    // Q4: 交通費提出有無（今月・前月）⑤ 判定用
+    // Q4: 交通費提出済み月一覧（全期間）⑤ 判定用
     $st4 = $db->prepare(
         "SELECT target_year, target_month FROM sales_transport_costs
          WHERE company_id=? AND employee_name=?
-           AND ((target_year=? AND target_month=?) OR (target_year=? AND target_month=?))"
+         ORDER BY target_year, target_month"
     );
-    $st4->execute([$cid, $myName, $cyear, $cmonth, $pyear, $pmonth]);
+    $st4->execute([$cid, $myName]);
+    $transpMonthRows = $st4->fetchAll();
     $transpMonths = [];
-    foreach ($st4->fetchAll() as $r) { $transpMonths[$r['target_year'].'-'.$r['target_month']] = true; }
+    foreach ($transpMonthRows as $r) { $transpMonths[$r['target_year'].'-'.$r['target_month']] = true; }
 
     // ① 出勤忘れ: シフト開始時刻+1分経過・出勤報告なし
     foreach ($aShifts as $s) {
@@ -121,18 +123,28 @@ if ($myName && $cid) {
         $alerts[] = ['date' => $dt, 'type' => 3, 'text' => "{$md} 日報提出しておりません。"];
     }
 
-    // ④ シフト未提出（今月・前月）
-    foreach ([[$cyear, $cmonth], [$pyear, $pmonth]] as [$y, $m]) {
-        if (!isset($shiftMonths[$y.'-'.$m])) {
-            $alerts[] = ['date' => sprintf('%04d-%02d-01', $y, $m), 'type' => 4, 'text' => "{$m}月分シフト提出しておりません。"];
-        }
+    // 起算月を決定（最も古いシフトor交通費提出月、なければ今月）
+    $ckY = $cyear; $ckM = $cmonth;
+    if (!empty($shiftMonthRows)) {
+        $fy = (int)$shiftMonthRows[0]['shift_year']; $fm = (int)$shiftMonthRows[0]['shift_month'];
+        if ($fy < $ckY || ($fy === $ckY && $fm < $ckM)) { $ckY = $fy; $ckM = $fm; }
+    }
+    if (!empty($transpMonthRows)) {
+        $fy = (int)$transpMonthRows[0]['target_year']; $fm = (int)$transpMonthRows[0]['target_month'];
+        if ($fy < $ckY || ($fy === $ckY && $fm < $ckM)) { $ckY = $fy; $ckM = $fm; }
     }
 
-    // ⑤ 交通費未提出（今月・前月）
-    foreach ([[$cyear, $cmonth], [$pyear, $pmonth]] as [$y, $m]) {
-        if (!isset($transpMonths[$y.'-'.$m])) {
-            $alerts[] = ['date' => sprintf('%04d-%02d-01', $y, $m), 'type' => 5, 'text' => "{$m}月分交通費提出しておりません。"];
+    // ④ シフト未提出 ⑤ 交通費未提出（起算月〜今月をすべてチェック）
+    $iterY = $ckY; $iterM = $ckM;
+    while ($iterY < $cyear || ($iterY === $cyear && $iterM <= $cmonth)) {
+        $key = $iterY.'-'.$iterM;
+        if (!isset($shiftMonths[$key])) {
+            $alerts[] = ['date' => sprintf('%04d-%02d-01', $iterY, $iterM), 'type' => 4, 'text' => "{$iterM}月分シフト提出しておりません。"];
         }
+        if (!isset($transpMonths[$key])) {
+            $alerts[] = ['date' => sprintf('%04d-%02d-01', $iterY, $iterM), 'type' => 5, 'text' => "{$iterM}月分交通費提出しておりません。"];
+        }
+        $iterM++; if ($iterM > 12) { $iterM = 1; $iterY++; }
     }
 
     // 日付降順・種別昇順でソート（新しい順、同日は出勤>退勤>日報>シフト>交通費）

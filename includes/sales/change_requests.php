@@ -21,12 +21,17 @@ function createChangeRequest(int $companyId, array $data): int {
     return (int)$db->lastInsertId();
 }
 
-function getChangeRequests(int $companyId, ?string $employeeName = null, ?string $status = null): array {
+function getChangeRequests(int $companyId, ?string $employeeName = null, ?string $status = null, ?int $year = null, ?int $month = null): array {
     $db = getDB();
     $where = ['company_id = ?'];
     $params = [$companyId];
     if ($employeeName !== null) { $where[] = 'employee_name = ?'; $params[] = $employeeName; }
     if ($status !== null) { $where[] = 'status = ?'; $params[] = $status; }
+    if ($year !== null && $month !== null) {
+        $where[] = 'YEAR(created_at) = ? AND MONTH(created_at) = ?';
+        $params[] = $year;
+        $params[] = $month;
+    }
     $sql = 'SELECT * FROM sales_change_requests WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC';
     $stmt = $db->prepare($sql);
     $stmt->execute($params);

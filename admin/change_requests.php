@@ -6,7 +6,10 @@ requireRole('super_admin', 'company_admin');
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/admin/companies.php'); }
 
-$pageTitle = '申請承認';
+$year  = (int)($_GET['year']  ?? date('Y'));
+$month = (int)($_GET['month'] ?? date('n'));
+
+$pageTitle = '各種申請';
 $csrf = getCsrfToken();
 $user = getCurrentUser();
 $reviewerName = $user['display_name'] ?: 'admin';
@@ -15,20 +18,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) {
         die('不正なリクエストです');
     }
+    $postYear  = (int)($_POST['year']  ?? $year);
+    $postMonth = (int)($_POST['month'] ?? $month);
     $action = $_POST['action'] ?? '';
     $id = (int)($_POST['id'] ?? 0);
     if ($action === 'approve' && $id) {
         approveChangeRequest($id, $cid, $reviewerName);
-        redirect(BASE_PATH . '/admin/change_requests.php?msg=approved');
+        redirect(BASE_PATH . '/admin/change_requests.php?year='.$postYear.'&month='.$postMonth.'&msg=approved');
     }
     if ($action === 'reject' && $id) {
         rejectChangeRequest($id, $cid, $reviewerName);
-        redirect(BASE_PATH . '/admin/change_requests.php?msg=rejected');
+        redirect(BASE_PATH . '/admin/change_requests.php?year='.$postYear.'&month='.$postMonth.'&msg=rejected');
     }
 }
 
-$filter = $_GET['status'] ?? 'pending';
-$requests = getChangeRequests($cid, null, $filter !== 'all' ? $filter : null);
+$prevM = $month - 1; $prevY = $year; if ($prevM < 1) { $prevM = 12; $prevY--; }
+$nextM = $month + 1; $nextY = $year; if ($nextM > 12) { $nextM = 1;  $nextY++; }
+
+$requests     = getChangeRequests($cid, null, null, $year, $month);
 $pendingCount = countPendingChangeRequests($cid);
 
 $statusLabel = ['pending' => '承認待ち', 'approved' => '承認済み', 'rejected' => '却下'];
@@ -49,27 +56,25 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h1><i class="bi bi-inbox me-2"></i>申請承認</h1>
-                <p>社員からのシフト変更・出退勤時間変更の申請を確認・承認できます</p>
+                <h1><i class="bi bi-inbox me-2"></i>各種申請</h1>
+                <p id="crSubtitle"><?= $year ?>年<?= $month ?>月</p>
             </div>
-            <?php if ($pendingCount): ?>
-            <span class="badge bg-warning text-dark fs-6"><?= $pendingCount ?>件 承認待ち</span>
-            <?php endif; ?>
+            <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-1">
+                    <a href="?year=<?= $prevY ?>&month=<?= $prevM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">‹</a>
+                    <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
+                    <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
+                </div>
+                <?php if ($pendingCount): ?>
+                <span class="badge bg-warning text-dark"><?= $pendingCount ?>件 承認待ち</span>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
     <?php if (isset($_GET['msg'])): ?>
     <div class="alert alert-success alert-dismissible"><?= $_GET['msg'] === 'approved' ? '承認しました。データに反映されました。' : '却下しました。' ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     <?php endif; ?>
-
-    <div class="card mb-3">
-        <div class="card-body p-2 d-flex gap-2 flex-wrap">
-            <a href="?status=pending" class="btn btn-sm <?= $filter==='pending' ? 'btn-warning' : 'btn-outline-warning' ?>">承認待ち</a>
-            <a href="?status=approved" class="btn btn-sm <?= $filter==='approved' ? 'btn-success' : 'btn-outline-success' ?>">承認済み</a>
-            <a href="?status=rejected" class="btn btn-sm <?= $filter==='rejected' ? 'btn-danger' : 'btn-outline-danger' ?>">却下</a>
-            <a href="?status=all" class="btn btn-sm <?= $filter==='all' ? 'btn-primary' : 'btn-outline-primary' ?>">すべて</a>
-        </div>
-    </div>
 
     <div class="card">
         <div class="card-body p-0">
@@ -109,12 +114,16 @@ require_once __DIR__ . '/../includes/header.php';
                                         <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                                         <input type="hidden" name="action" value="approve">
                                         <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                                        <input type="hidden" name="year" value="<?= $year ?>">
+                                        <input type="hidden" name="month" value="<?= $month ?>">
                                         <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> 承認</button>
                                     </form>
                                     <form method="post" onsubmit="return confirm('却下しますか？')">
                                         <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                                         <input type="hidden" name="action" value="reject">
                                         <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                                        <input type="hidden" name="year" value="<?= $year ?>">
+                                        <input type="hidden" name="month" value="<?= $month ?>">
                                         <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> 却下</button>
                                     </form>
                                 </div>
@@ -125,7 +134,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                         <?php endforeach; ?>
                         <?php if (empty($requests)): ?>
-                        <tr><td colspan="8" class="text-center text-muted py-4">申請がありません</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4">この月の申請はありません</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

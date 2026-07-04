@@ -150,6 +150,32 @@ function calcShiftStatus(array $shift): string {
 }
 
 /**
+ * 社員画面・管理者画面共通のステータス表示情報を返す
+ * 未来日は空、過去/当日はデータに応じたバッジ/テキストを返す
+ * @return array{badge:string, text:string, color:string}
+ */
+function getShiftStatusDisplay(?array $shift, string $dateStr, string $today): array {
+    $empty = ['badge' => '', 'text' => '', 'color' => ''];
+    if ($dateStr > $today || $shift === null) return $empty;
+    if (!empty($shift['is_day_off'])) {
+        return ['badge' => '休み', 'text' => '', 'color' => 'secondary'];
+    }
+    $status = calcShiftStatus($shift);
+    if ($status === '欠勤' && ($shift['attendance_status'] ?? '') !== '欠勤') {
+        $status = '';
+    }
+    $colorMap = ['出勤' => 'success', '遅刻' => 'warning', '早退' => 'warning', '欠勤' => 'danger'];
+    if ($status !== '' && $status !== '休み') {
+        return ['badge' => $status, 'text' => '', 'color' => $colorMap[$status] ?? 'secondary'];
+    }
+    $hasShift = !empty($shift['start_time']) || !empty($shift['end_time']) || !empty($shift['scheduled_time']);
+    if ($hasShift) {
+        return ['badge' => '', 'text' => '報告未完了', 'color' => ''];
+    }
+    return $empty;
+}
+
+/**
  * 月間の出退勤ステータス集計（ダッシュボードKPI用）
  * 戻り値: ['present' => 出勤日数, 'absent' => 欠勤数, 'early_leave' => 早退数, 'late' => 遅刻数]
  */

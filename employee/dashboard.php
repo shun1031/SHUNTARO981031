@@ -108,10 +108,11 @@ require_once __DIR__ . '/../includes/header.php';
                                     </td>
                                     <td><?= h($s['scheduled_time'] ?: '-') ?></td>
                                     <td>
-                                        <?php if ($s['attendance_status']): ?>
-                                        <span class="badge bg-<?= $s['attendance_status'] === '出勤' ? 'success' : ($s['attendance_status'] === '欠勤' ? 'danger' : 'warning') ?>"><?= h($s['attendance_status']) ?></span>
-                                        <?php elseif (empty($s['is_day_off']) && (!empty($s['start_time']) || !empty($s['scheduled_time']))): ?>
-                                        <span class="text-danger small fw-semibold">報告未完了</span>
+                                        <?php $sd = getShiftStatusDisplay($s, $s['shift_date'], $today); ?>
+                                        <?php if ($sd['badge']): ?>
+                                        <span class="badge bg-<?= $sd['color'] ?>"><?= h($sd['badge']) ?></span>
+                                        <?php elseif ($sd['text']): ?>
+                                        <span class="text-danger small fw-semibold"><?= h($sd['text']) ?></span>
                                         <?php else: ?>
                                         <span class="text-muted small">-</span>
                                         <?php endif; ?>

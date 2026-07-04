@@ -180,16 +180,19 @@ function getShiftStatusDisplay(?array $shift, string $dateStr, string $today): a
  * 戻り値: ['present' => 出勤日数, 'absent' => 欠勤数, 'early_leave' => 早退数, 'late' => 遅刻数]
  */
 function getAttendanceStatusCounts(int $companyId, string $employeeName, int $year, int $month): array {
-    $db = getDB();
-    $stmt = $db->prepare("SELECT attendance_status, COUNT(*) as cnt FROM sales_shifts
-        WHERE company_id = ? AND employee_name = ? AND shift_year = ? AND shift_month = ? AND attendance_status IS NOT NULL
-        GROUP BY attendance_status");
-    $stmt->execute([$companyId, $employeeName, $year, $month]);
+    $shifts = getShifts($companyId, $year, $month, $employeeName);
+    $today  = date('Y-m-d');
     $counts = ['present' => 0, 'absent' => 0, 'early_leave' => 0, 'late' => 0];
-    $map = ['出勤' => 'present', '欠勤' => 'absent', '早退' => 'early_leave', '遅刻' => 'late'];
-    foreach ($stmt->fetchAll() as $row) {
-        $key = $map[$row['attendance_status']] ?? null;
-        if ($key) { $counts[$key] = (int)$row['cnt']; }
+    $map    = ['出勤' => 'present', '欠勤' => 'absent', '早退' => 'early_leave', '遅刻' => 'late'];
+    foreach ($shifts as $s) {
+        if (($s['shift_date'] ?? '') > $today) continue;
+        if (!empty($s['is_day_off'])) continue;
+        $status = calcShiftStatus($s);
+        // calcShiftStatus が '欠勤' を返すのは checkin/checkout がない場合だが、
+        // 管理者が明示的に欠勤確定した場合のみカウントする（getShiftStatusDisplay と同一ルール）
+        if ($status === '欠勤' && ($s['attendance_status'] ?? '') !== '欠勤') continue;
+        $key = $map[$status] ?? null;
+        if ($key) $counts[$key]++;
     }
     return $counts;
 }

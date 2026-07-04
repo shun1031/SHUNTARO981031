@@ -126,8 +126,14 @@ function approveChangeRequest(int $id, int $companyId, string $reviewerName): bo
             if ($isCancel) {
                 $db->prepare("DELETE FROM sales_transport_costs WHERE company_id = ? AND employee_name = ? AND target_year = ? AND target_month = ?")
                    ->execute([$companyId, $emp, $y, $m]);
+            } else {
+                // 申請値から数値のみ抽出して total_amount を更新
+                $newAmount = (int)preg_replace('/[^0-9]/', '', $val);
+                if ($newAmount > 0) {
+                    $db->prepare("UPDATE sales_transport_costs SET total_amount = ? WHERE company_id = ? AND employee_name = ? AND target_year = ? AND target_month = ?")
+                       ->execute([$newAmount, $companyId, $emp, $y, $m]);
+                }
             }
-            // 取消以外は管理者が手動で編集後に承認
             break;
 
         case 'attendance_change': // 旧型式: 後方互換

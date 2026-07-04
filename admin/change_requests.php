@@ -76,7 +76,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
-                        <tr><th>申請日時</th><th>社員名</th><th>種別</th><th>対象日</th><th>変更内容</th><th>理由</th><th>状態</th><th>操作</th></tr>
+                        <tr><th style="white-space:nowrap">申請日時</th><th>社員名</th><th>種別</th><th>対象日</th><th>変更内容</th><th style="width:160px">理由</th><th>状態</th><th>操作</th></tr>
                     </thead>
                     <tbody>
                         <?php foreach ($requests as $r): ?>
@@ -86,7 +86,11 @@ require_once __DIR__ . '/../includes/header.php';
                             <td><?= h($typeLabel[$r['request_type']] ?? $r['request_type']) ?></td>
                             <td><?= date('n/j', strtotime($r['target_date'])) ?></td>
                             <td class="small"><?= h($r['current_value'] ?? '-') ?> → <span class="fw-semibold"><?= h($r['requested_value']) ?></span></td>
-                            <td class="small text-muted"><?= h($r['reason'] ?? '-') ?></td>
+                            <td class="small text-muted reason-cell"
+                                style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:help"
+                                title="<?= h($r['reason'] ?? '') ?>"
+                                data-reason="<?= h($r['reason'] ?? '') ?>"
+                            ><?= h($r['reason'] ?? '-') ?></td>
                             <td>
                                 <span class="badge bg-<?= $statusBadge[$r['status']] ?>"><?= $statusLabel[$r['status']] ?></span>
                                 <?php if ($r['status'] !== 'pending' && !empty($r['reviewed_by'])): ?>
@@ -129,5 +133,15 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<script>
+// モバイル: 申請理由セルをタップで全文表示
+document.querySelectorAll('.reason-cell').forEach(function(td) {
+    td.addEventListener('click', function() {
+        var reason = this.dataset.reason;
+        if (reason) alert('申請理由:\n' + reason);
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

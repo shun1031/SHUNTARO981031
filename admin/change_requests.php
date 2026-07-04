@@ -89,8 +89,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="small text-muted"><?= h($r['reason'] ?? '-') ?></td>
                             <td>
                                 <span class="badge bg-<?= $statusBadge[$r['status']] ?>"><?= $statusLabel[$r['status']] ?></span>
-                                <?php if ($r['status'] !== 'pending'): ?>
-                                <div class="small text-muted"><?= h($r['reviewed_by'] ?? '') ?></div>
+                                <?php if ($r['status'] !== 'pending' && !empty($r['reviewed_by'])): ?>
+                                <div class="small text-muted mt-1">
+                                    <?= $r['status'] === 'approved' ? '承認者:' : '却下者:' ?><?= h($r['reviewed_by']) ?>
+                                </div>
+                                <?php if (!empty($r['reviewed_at'])): ?>
+                                <div class="small text-muted"><?= date('Y/n/j H:i', strtotime($r['reviewed_at'])) ?></div>
+                                <?php endif; ?>
                                 <?php endif; ?>
                             </td>
                             <td>

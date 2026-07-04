@@ -1094,7 +1094,7 @@ CREATE TABLE IF NOT EXISTS sales_change_requests (
         id INT PRIMARY KEY AUTO_INCREMENT,
         company_id INT NOT NULL,
         employee_name VARCHAR(100) NOT NULL,
-        request_type ENUM('shift_change','attendance_change') NOT NULL,
+        request_type ENUM('shift_change','attendance_change','checkin_change','checkout_change','attendance_add','daily_report_edit','transport_edit') NOT NULL,
         target_date DATE NOT NULL,
         current_value VARCHAR(100) DEFAULT NULL,
         requested_value VARCHAR(100) NOT NULL,

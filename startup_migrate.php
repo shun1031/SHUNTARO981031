@@ -114,6 +114,9 @@ $migrations = [
 
     // ---- company_adminアカウントで employee_id 未リンクのものを同名社員に自動リンク ----
     "UPDATE users u INNER JOIN employees e ON e.company_id = u.company_id AND e.name = u.display_name AND e.is_active = 1 SET u.employee_id = e.id WHERE u.employee_id IS NULL AND u.company_id IS NOT NULL AND u.role = 'company_admin'",
+
+    // ---- sales_change_requests: request_type ENUM に新申請種別を追加 ----
+    "ALTER TABLE sales_change_requests MODIFY COLUMN request_type ENUM('shift_change','attendance_change','checkin_change','checkout_change','attendance_add','daily_report_edit','transport_edit') NOT NULL",
 ];
 
 $ok = 0;

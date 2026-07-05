@@ -49,7 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 die('他のユーザーのデータは編集できません');
             }
         }
-        saveDailyReport($cid, $_POST);
+        try {
+            saveDailyReport($cid, $_POST);
+        } catch (Throwable $e) {
+            $errMsg = $e->getMessage();
+            error_log('[saveDailyReport] ' . $errMsg . ' | data=' . json_encode(array_intersect_key($_POST, array_flip(['employee_name','work_date','work_type','carrier']))));
+            $_SESSION['_dr_save_error'] = $errMsg;
+            redirect(BASE_PATH . '/public/sales_daily_report.php?year='.$year.'&month='.$month.'&err=save_failed');
+        }
         redirect(BASE_PATH . '/public/sales_daily_report.php?year='.$year.'&month='.$month.'&msg=saved');
     }
     if ($action === 'delete') {
@@ -98,6 +105,16 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (isset($_GET['msg'])): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <?= $_GET['msg'] === 'saved' ? '保存しました' : '削除しました' ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
+    <?php if (isset($_GET['err'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>日報の保存に失敗しました。</strong>
+        <?php if (!empty($_SESSION['_dr_save_error'])): ?>
+        <br><small class="font-monospace"><?= h($_SESSION['_dr_save_error']) ?></small>
+        <?php unset($_SESSION['_dr_save_error']); ?>
+        <?php endif; ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     <?php endif; ?>

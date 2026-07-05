@@ -382,8 +382,9 @@ require_once __DIR__ . '/../includes/header.php';
                                         $ext = strtolower(pathinfo($eu, PATHINFO_EXTENSION));
                                         $icon = $ext==='pdf' ? 'bi-file-pdf' : 'bi-image';
                                         $color = $ext==='pdf' ? '#ef4444' : '#3b82f6';
+                                        $evToken = substr(hash_hmac('sha256', $a['id'].':'.$ei.':'.$cid, 'ev_'.SESSION_NAME.date('Ymd')), 0, 24);
                                 ?>
-                                <a href="<?= BASE_PATH ?>/public/api/serve_evidence.php?id=<?= $a['id'] ?>&field=<?= $ei ?>" target="_blank" class="me-1" style="color:<?= $color ?>" title="エビデンス<?= $ei ?>">
+                                <a href="<?= BASE_PATH ?>/public/api/serve_evidence.php?id=<?= $a['id'] ?>&field=<?= $ei ?>&c=<?= $cid ?>&t=<?= $evToken ?>" target="_blank" class="me-1" style="color:<?= $color ?>" title="エビデンス<?= $ei ?>">
                                     <i class="bi <?= $icon ?> fs-6"></i>
                                 </a>
                                 <?php endif; endfor; ?>

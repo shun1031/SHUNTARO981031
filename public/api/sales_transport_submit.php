@@ -68,7 +68,10 @@ if (!is_dir($uploadDir)) {
 $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
 $maxFileSize = 10 * 1024 * 1024; // 10MB
 
-function handleUpload(string $fieldName, string $uploadDir, int $cid, string $empName, int $year, int $month): ?string {
+/**
+ * @return array{path:string,data:string}|null
+ */
+function handleUpload(string $fieldName, string $uploadDir, int $cid, string $empName, int $year, int $month): ?array {
     global $allowedTypes, $maxFileSize;
 
     if (empty($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] === UPLOAD_ERR_NO_FILE) {
@@ -111,17 +114,23 @@ function handleUpload(string $fieldName, string $uploadDir, int $cid, string $em
     $filename = sprintf('%d_%d%02d_%s_%s.%s', $cid, $year, $month, $safeEmpName, bin2hex(random_bytes(8)), $ext);
 
     $destPath = $uploadDir . $filename;
+    // tmp_nameからバイナリ読み取り（move前に行う）
+    $fileData = file_get_contents($file['tmp_name']);
     if (!move_uploaded_file($file['tmp_name'], $destPath)) {
         throw new RuntimeException('ファイルの保存に失敗しました');
     }
 
-    return 'transport/' . $filename;
+    return ['path' => 'transport/' . $filename, 'data' => $fileData];
 }
 
 try {
-    $evidenceUrl1 = handleUpload('evidence_1', $uploadDir, $cid, $employeeName, $targetYear, $targetMonth);
-    $evidenceUrl2 = handleUpload('evidence_2', $uploadDir, $cid, $employeeName, $targetYear, $targetMonth);
-    $evidenceUrl3 = handleUpload('evidence_3', $uploadDir, $cid, $employeeName, $targetYear, $targetMonth);
+    $evidence1 = handleUpload('evidence_1', $uploadDir, $cid, $employeeName, $targetYear, $targetMonth);
+    $evidence2 = handleUpload('evidence_2', $uploadDir, $cid, $employeeName, $targetYear, $targetMonth);
+    $evidence3 = handleUpload('evidence_3', $uploadDir, $cid, $employeeName, $targetYear, $targetMonth);
+
+    $evidenceUrl1 = $evidence1['path'] ?? null;
+    $evidenceUrl2 = $evidence2['path'] ?? null;
+    $evidenceUrl3 = $evidence3['path'] ?? null;
 
     // エビデンス①は必須
     if (!$evidenceUrl1) {
@@ -186,6 +195,22 @@ try {
     $db = getDB();
     $stmt = $db->prepare("UPDATE sales_transport_costs SET submitted_at = NOW() WHERE id = ? AND company_id = ?");
     $stmt->execute([$id, $cid]);
+
+    // エビデンスバイナリをDBに保存（コンテナ再起動後も画像を参照可能にするため）
+    $blobCols = [];
+    $blobVals = [];
+    foreach ([1 => $evidence1, 2 => $evidence2, 3 => $evidence3] as $i => $ev) {
+        if ($ev !== null && isset($ev['data'])) {
+            $blobCols[] = "evidence_data_{$i} = ?";
+            $blobVals[] = $ev['data'];
+        }
+    }
+    if ($blobCols) {
+        $blobVals[] = $id;
+        $blobVals[] = $cid;
+        $db->prepare("UPDATE sales_transport_costs SET " . implode(', ', $blobCols) . " WHERE id = ? AND company_id = ?")
+           ->execute($blobVals);
+    }
 
     echo json_encode([
         'ok' => true,

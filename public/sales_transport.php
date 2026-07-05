@@ -362,8 +362,8 @@ require_once __DIR__ . '/../includes/header.php';
 
                         <tr>
                             <td><?= h($a['submitted_date'] ?? date('Y/m/d', strtotime($a['created_at']))) ?></td>
-                            <td class="fw-medium"><?= h($a['employee_name']) ?></td>
-                            <td><?= $a['target_year'] ?>年<?= $a['target_month'] ?>月</td>
+                            <td class="fw-medium" style="white-space:nowrap"><?= h($a['employee_name']) ?></td>
+                            <td style="white-space:nowrap"><?= $a['target_year'] ?>年<?= $a['target_month'] ?>月</td>
                             <td class="text-end"><?= $a['distance_km_1'] ? $a['distance_km_1'].'km' : '-' ?></td>
                             <td class="text-end"><?= $a['work_days_1'] ?? '-' ?></td>
                             <td class="text-end"><?= $a['cost_1'] ? number_format($a['cost_1']) : '-' ?></td>
@@ -383,7 +383,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         $icon = $ext==='pdf' ? 'bi-file-pdf' : 'bi-image';
                                         $color = $ext==='pdf' ? '#ef4444' : '#3b82f6';
                                 ?>
-                                <a href="<?= BASE_PATH ?>/uploads/<?= h($eu) ?>" target="_blank" class="me-1" style="color:<?= $color ?>" title="エビデンス<?= $ei ?>">
+                                <a href="<?= BASE_PATH ?>/public/api/serve_evidence.php?id=<?= $a['id'] ?>&field=<?= $ei ?>" target="_blank" class="me-1" style="color:<?= $color ?>" title="エビデンス<?= $ei ?>">
                                     <i class="bi <?= $icon ?> fs-6"></i>
                                 </a>
                                 <?php endif; endfor; ?>

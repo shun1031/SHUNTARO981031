@@ -117,6 +117,11 @@ $migrations = [
 
     // ---- sales_change_requests: request_type ENUM に新申請種別を追加 ----
     "ALTER TABLE sales_change_requests MODIFY COLUMN request_type ENUM('shift_change','attendance_change','checkin_change','checkout_change','attendance_add','daily_report_edit','transport_edit') NOT NULL",
+
+    // ---- sales_transport_costs: エビデンスバイナリをDBに保存（Railway永続化対応） ----
+    "ALTER TABLE sales_transport_costs ADD COLUMN IF NOT EXISTS evidence_data_1 LONGBLOB DEFAULT NULL",
+    "ALTER TABLE sales_transport_costs ADD COLUMN IF NOT EXISTS evidence_data_2 LONGBLOB DEFAULT NULL",
+    "ALTER TABLE sales_transport_costs ADD COLUMN IF NOT EXISTS evidence_data_3 LONGBLOB DEFAULT NULL",
 ];
 
 $ok = 0;

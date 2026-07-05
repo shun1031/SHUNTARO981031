@@ -160,10 +160,11 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <!-- 勤務地：月全体で1回のみ入力 -->
                     <div class="mb-4 p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0">
-                        <label class="form-label fw-semibold">勤務地（月全体で1回入力）</label>
+                        <label class="form-label fw-semibold">勤務地（月全体で1回入力）<span class="text-danger ms-1">*</span></label>
                         <input type="text" name="location" id="sm_location" class="form-control" maxlength="100"
                             placeholder="例：○○店" value="<?= h($defaultLocation) ?>">
                         <div class="form-text">店舗名を正式名称で記入してください。入力した勤務地が<?= $month ?>月全日付に適用されます。</div>
+                        <p id="sm_locationError" class="text-danger mb-0 mt-1" style="font-size:.8rem;display:none">稼働店舗を入力してください</p>
                     </div>
 
                     <!-- 日付ごとのシフト入力 -->
@@ -256,6 +257,19 @@ require_once __DIR__ . '/../includes/header.php';
 function openShiftModal() {
     new bootstrap.Modal(document.getElementById('shiftModal')).show();
 }
+
+// 稼働店舗バリデーション
+document.querySelector('#shiftModal form').addEventListener('submit', function(e) {
+    var loc = document.getElementById('sm_location').value.trim();
+    var err = document.getElementById('sm_locationError');
+    if (!loc) {
+        e.preventDefault();
+        err.style.display = 'block';
+        document.getElementById('sm_location').focus();
+        return;
+    }
+    err.style.display = 'none';
+});
 
 // 選択式 → 隠しinputと同期
 document.querySelectorAll('.time-sel').forEach(function(sel) {

@@ -28,9 +28,12 @@ function getDailyReport(int $id, int $companyId): array|false {
 }
 
 /**
- * sales_daily_reports に必要なカラムが存在しなければ追加する（起動時移行漏れへの保険）
+ * DB に実際に存在するカラム一覧を取得し、不足カラムをその場で追加する。
+ * 追加に成功したカラムは返り値の配列に含まれる。
+ * IF NOT EXISTS を使わず個別 try-catch にすることで MySQL バージョン互換を担保する。
+ * @return array<string,true> 存在が確認されたカラム名のフリップ配列
  */
-function ensureDailyReportColumns(PDO $db): void {
+function getDailyReportExistingColumns(PDO $db): array {
     $required = [
         'location_type'               => "VARCHAR(20) DEFAULT NULL",
         'work_type'                   => "VARCHAR(30) DEFAULT NULL",
@@ -92,27 +95,42 @@ function ensureDailyReportColumns(PDO $db): void {
         'shop_fixed_check_detail'     => "TEXT DEFAULT NULL",
         'shop_comment'                => "TEXT DEFAULT NULL",
     ];
+
+    // 現在のカラム一覧を取得
     try {
         $rows = $db->query("SHOW COLUMNS FROM sales_daily_reports")->fetchAll(PDO::FETCH_ASSOC);
         $existing = array_flip(array_column($rows, 'Field'));
-        foreach ($required as $col => $def) {
-            if (!isset($existing[$col])) {
-                $db->exec("ALTER TABLE `sales_daily_reports` ADD COLUMN IF NOT EXISTS `{$col}` {$def}");
-                error_log("[ensureDailyReportColumns] added missing column: {$col}");
+    } catch (PDOException $e) {
+        error_log('[getDailyReportExistingColumns] SHOW COLUMNS failed: ' . $e->getMessage());
+        return [];
+    }
+
+    // 不足カラムを1件ずつ追加（IF NOT EXISTS を使わず個別 try-catch で互換性確保）
+    foreach ($required as $col => $def) {
+        if (!isset($existing[$col])) {
+            try {
+                $db->exec("ALTER TABLE `sales_daily_reports` ADD COLUMN `{$col}` {$def}");
+                $existing[$col] = true;
+                error_log("[getDailyReportExistingColumns] added column: {$col}");
+            } catch (PDOException $e) {
+                // 1060 = Duplicate column name（競合で二重追加された場合は無視）
+                if (strpos($e->getMessage(), 'Duplicate column') !== false) {
+                    $existing[$col] = true;
+                } else {
+                    error_log("[getDailyReportExistingColumns] cannot add {$col}: " . $e->getMessage());
+                }
             }
         }
-    } catch (PDOException $e) {
-        error_log('[ensureDailyReportColumns] ' . $e->getMessage());
     }
+    return $existing;
 }
 
 function saveDailyReport(int $companyId, array $data): int {
     $db = getDB();
-    // リクエスト初回のみ: 不足カラムをその場で追加（Railway移行漏れの保険）
-    static $migrated = false;
-    if (!$migrated) {
-        ensureDailyReportColumns($db);
-        $migrated = true;
+    // リクエスト初回のみ: 実在カラム取得 & 不足カラム追加
+    static $existingCols = null;
+    if ($existingCols === null) {
+        $existingCols = getDailyReportExistingColumns($db);
     }
     $id = (int)($data['id'] ?? 0);
     // 空文字列を null に正規化（nullable INT カラムへの '' 投入で MySQL strict モードエラーになるのを防ぐ）
@@ -225,6 +243,14 @@ function saveDailyReport(int $companyId, array $data): int {
         'note' => $data['note'] ?? null,
         'submitted_at' => date('Y-m-d H:i:s'),
     ];
+
+    // DB に存在しないカラムを除外（ALTER TABLE が失敗した場合でも INSERT/UPDATE が通るようにする）
+    $empName  = $fields['employee_name'];
+    $workDate = $fields['work_date'];
+    if (!empty($existingCols)) {
+        $fields = array_filter($fields, fn($k) => isset($existingCols[$k]), ARRAY_FILTER_USE_KEY);
+    }
+
     if ($id) {
         $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($fields)));
         $stmt = $db->prepare("UPDATE sales_daily_reports SET $sets WHERE id = ? AND company_id = ?");
@@ -234,7 +260,7 @@ function saveDailyReport(int $companyId, array $data): int {
     // UNIQUE KEY (company_id, employee_name, work_date) 重複時は INSERT が失敗するため
     // 既存レコードを確認し、あれば UPDATE に切り替える
     $chk = $db->prepare("SELECT id FROM sales_daily_reports WHERE company_id = ? AND employee_name = ? AND work_date = ?");
-    $chk->execute([$companyId, $fields['employee_name'], $fields['work_date']]);
+    $chk->execute([$companyId, $empName, $workDate]);
     $existingId = (int)($chk->fetchColumn() ?: 0);
     if ($existingId) {
         $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($fields)));

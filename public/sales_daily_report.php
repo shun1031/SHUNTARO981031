@@ -237,9 +237,10 @@ require_once __DIR__ . '/../includes/header.php';
                             <input type="date" name="work_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">稼働店舗</label>
-                            <input type="text" name="location" id="drLocation" class="form-control form-control-sm" placeholder="店舗名を入力" required>
+                            <label class="form-label fw-bold">稼働店舗 <span class="text-danger">*</span></label>
+                            <input type="text" name="location" id="drLocation" class="form-control form-control-sm" placeholder="店舗名を入力">
                             <div class="form-text" style="font-size:.7rem;color:#6b7280">正式名称で入力してください</div>
+                            <p id="drLocationError" class="text-danger mb-0" style="font-size:.75rem;display:none">稼働店舗を入力してください</p>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">キャリア</label>
@@ -254,11 +255,11 @@ require_once __DIR__ . '/../includes/header.php';
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">業務形態</label>
+                            <label class="form-label fw-bold">店舗種別 <span class="text-danger">*</span></label>
                             <select name="work_type" id="drWorkType" class="form-select form-select-sm" required>
                                 <option value="">選択してください</option>
-                                <option value="常勤">常勤</option>
-                                <option value="イベント">イベント</option>
+                                <option value="ショップ">ショップ</option>
+                                <option value="ショップ以外">ショップ以外</option>
                             </select>
                         </div>
                     </div>
@@ -269,8 +270,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="fw-bold mb-2" style="color:#b45309;font-size:.85rem"><i class="bi bi-lightning me-1"></i>日報</div>
                             <!-- 数値フィールド（コンパクト） -->
                             <div class="d-flex gap-2 flex-wrap mb-2">
-                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">キャッチ数</div><input type="number" name="catch_count" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
-                                <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">着席数</div><input type="number" name="event_seated" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div id="drLabelCatch" style="font-size:.68rem;font-weight:600;margin-bottom:2px">キャッチ数</div><input type="number" name="catch_count" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
+                                <div class="text-center"><div id="drLabelSeated" style="font-size:.68rem;font-weight:600;margin-bottom:2px">着座数</div><input type="number" name="event_seated" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">提案数</div><input type="number" name="event_proposals" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">商談数</div><input type="number" name="event_negotiations" id="evtNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">成約数</div><input type="number" name="event_contracts" id="evtContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
@@ -398,11 +399,18 @@ require_once __DIR__ . '/../includes/header.php';
         if (document.getElementById('drEventForm').style.display !== 'none') buildEvtAcq(this.value);
     });
 
+    function updateFieldLabels(wt) {
+        var isShop = (wt === 'ショップ');
+        document.getElementById('drLabelCatch').textContent  = isShop ? '来店組数' : 'キャッチ数';
+        document.getElementById('drLabelSeated').textContent = isShop ? '接客組数' : '着座数';
+    }
+
     function updateDrForm() {
         var wt = document.getElementById('drWorkType').value;
         var show = !!wt;
         document.getElementById('drEventForm').style.display = show ? 'block' : 'none';
         document.getElementById('drSubmitBtn').disabled = !wt;
+        updateFieldLabels(wt);
         var c = document.getElementById('drCarrier').value;
         if (show && c) buildEvtAcq(c);
     }
@@ -410,6 +418,16 @@ require_once __DIR__ . '/../includes/header.php';
     document.getElementById('drWorkType').addEventListener('change', updateDrForm);
 
     document.getElementById('reportForm').addEventListener('submit', function(e) {
+        // 稼働店舗バリデーション
+        var loc = document.getElementById('drLocation').value.trim();
+        var locError = document.getElementById('drLocationError');
+        if (!loc) {
+            e.preventDefault();
+            locError.style.display = 'block';
+            document.getElementById('drLocation').focus();
+            return;
+        }
+        locError.style.display = 'none';
         var evForm = document.getElementById('drEventForm');
         var carrier = document.getElementById('drCarrier').value;
         var items = CARRIER_ITEMS[carrier] || [];
@@ -432,6 +450,7 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drLocation').value = '';
         document.getElementById('drWorkType').value = '';
         document.getElementById('drCarrier').value  = '';
+        document.getElementById('drLocationError').style.display = 'none';
         document.getElementById('evtAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
         document.getElementById('perAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
         updateDrForm();

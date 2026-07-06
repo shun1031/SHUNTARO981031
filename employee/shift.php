@@ -126,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <span class="text-muted small">未登録</span>
                                 <?php endif; ?>
                             </td>
-                            <td class="small text-muted"><?= h($s['location'] ?? '') ?></td>
+                            <td class="small text-muted"><?= !empty($s['is_day_off']) ? '' : h($s['location'] ?? '') ?></td>
                             <td class="text-center">
                                 <?php $sd = getShiftStatusDisplay($s, $dateStr, $today); ?>
                                 <?php if ($sd['badge']): ?>

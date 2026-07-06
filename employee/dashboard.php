@@ -264,7 +264,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         <span class="text-muted small">-</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="small text-muted"><?= h($s['location'] ?: '-') ?></td>
+                                    <td class="small text-muted"><?= !empty($s['is_day_off']) ? '' : h($s['location'] ?: '-') ?></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>

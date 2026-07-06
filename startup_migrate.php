@@ -125,6 +125,9 @@ $migrations = [
 
     // ---- sales_shifts: 追加稼働フラグ ----
     "ALTER TABLE sales_shifts ADD COLUMN is_additional TINYINT(1) NOT NULL DEFAULT 0 COMMENT '追加稼働フラグ'",
+
+    // ---- salary_additional_payments: 追加支給テーブル ----
+    "CREATE TABLE IF NOT EXISTS salary_additional_payments (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, pay_year INT NOT NULL, pay_month INT NOT NULL, worker_name VARCHAR(100) NOT NULL, amount INT NOT NULL DEFAULT 0, reason VARCHAR(255) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sap (company_id, pay_year, pay_month, worker_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 $ok = 0;

@@ -97,7 +97,9 @@ require_once __DIR__ . '/../includes/header.php';
 .salary-table tbody tr:hover{background:#f8fafc}
 .salary-table .amount-blue{color:#2563eb;font-weight:700}
 .salary-table .amount-orange{color:#d97706;font-weight:600}
+.salary-table .amount-green{color:#059669;font-weight:600}
 .salary-table tfoot td{font-weight:700;background:#f0fdf4;border-top:2px solid #d1fae5}
+.btn-xs{padding:1px 5px;font-size:.68rem;line-height:1.4}
 
 .summary-cards{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .summary-card{flex:1 1 150px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;text-align:center}
@@ -149,7 +151,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div class="text-muted" style="font-size:.8rem">
-                総支給額 ＝ 常勤案件売上（7割）【前月稼働分】＋ インセンティブ費用【2ヶ月前の月分】
+                総支給額 ＝ 常勤案件売上（7割）【前月稼働分】＋ 追加支給 ＋ インセンティブ費用【2ヶ月前の月分】
             </div>
         </div>
     </div>
@@ -242,6 +244,7 @@ require_once __DIR__ . '/../includes/header.php';
                             常勤案件売上（7割）
                             <div class="fw-normal text-muted" id="thWorkMonth" style="font-size:.7rem">(<?= $workYear ?>年<?= $workMonth ?>月稼働分)</div>
                         </th>
+                        <th class="text-end">追加支給</th>
                         <th class="text-end">
                             インセンティブ費用
                             <div class="fw-normal text-muted" id="thIncMonth" style="font-size:.7rem">(<?= $incYear ?>年<?= $incMonth ?>月分)</div>
@@ -259,6 +262,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr>
                         <td colspan="2" class="text-end">合計</td>
                         <td class="text-end" id="tf_regular">¥0</td>
+                        <td class="text-end amount-green" id="tf_additional">¥0</td>
                         <td class="text-end amount-orange" id="tf_incentive">¥0</td>
                         <td class="text-end amount-blue" id="tf_total">¥0</td>
                         <td></td>
@@ -286,6 +290,10 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="s-value" id="sum_regular">¥0</div>
         </div>
         <div class="summary-card">
+            <div class="s-label">追加支給合計</div>
+            <div class="s-value" style="color:#059669" id="sum_additional">¥0</div>
+        </div>
+        <div class="summary-card">
             <div class="s-label">インセンティブ費用合計</div>
             <div class="s-value" style="color:#d97706" id="sum_incentive">¥0</div>
         </div>
@@ -298,6 +306,32 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mt-3" style="font-size:.75rem">
         ※ 表示されているのは、スタッフ区分が「自社外注」の常勤案件に所属するスタッフのみです。
     </p>
+</div>
+
+<!-- 追加支給編集モーダル -->
+<div class="modal fade" id="additionalModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="additionalModalTitle">追加支給の編集</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label form-label-sm fw-semibold">金額（円）</label>
+                    <input type="number" id="addAmount" class="form-control form-control-sm" min="0" step="1" placeholder="0">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label form-label-sm fw-semibold">支給理由</label>
+                    <input type="text" id="addReason" class="form-control form-control-sm" placeholder="例：特別手当・資格手当" maxlength="100">
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-success btn-sm" id="additionalSaveBtn" onclick="submitAdditional()">保存</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- 詳細モーダル -->
@@ -317,6 +351,7 @@ require_once __DIR__ . '/../includes/header.php';
 $csrf = getCsrfToken();
 $inlineJs = 'var SALARY_API = ' . json_encode(BASE_PATH . '/public/api/salary.php') . ';';
 $inlineJs .= 'var initPayYear = ' . $payYear . '; var initPayMonth = ' . $payMonth . ';';
+$inlineJs .= 'var CSRF_TOKEN = ' . json_encode($csrf) . ';';
 $inlineJs .= <<<'JS'
 
 var currentPayYear  = initPayYear;
@@ -347,7 +382,7 @@ function loadSalaryData() {
     var tbody = document.getElementById('salaryTbody');
     var tfoot = document.getElementById('salaryTfoot');
     var sumCards = document.getElementById('summaryCards');
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>読み込み中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>読み込み中...</td></tr>';
     tfoot.style.display = 'none';
     sumCards.style.display = 'none';
 
@@ -392,7 +427,7 @@ function renderPage(summary, wy, wm, iy, im, py, pm) {
     var pageStaff = allStaff.slice(start, start + perPage);
 
     if (pageStaff.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">データがありません</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">データがありません</td></tr>';
         document.getElementById('salaryTfoot').style.display = 'none';
         document.getElementById('summaryCards').style.display = 'none';
         document.getElementById('paginationArea').innerHTML = '';
@@ -401,11 +436,20 @@ function renderPage(summary, wy, wm, iy, im, py, pm) {
 
     var html = '';
     pageStaff.forEach(function(s, i) {
-        var rank = start + i + 1;
+        var rank   = start + i + 1;
+        var absIdx = start + i;
+        var addAmt = s.additional || 0;
+        var addReason = s.additional_reason || '';
+        var addCell = '<div class="d-flex align-items-center justify-content-end gap-1">'
+            + (addAmt > 0 ? '<span class="amount-green">' + yen(addAmt) + '</span>' : '<span class="text-muted">¥0</span>')
+            + '<button class="btn btn-xs btn-outline-secondary" onclick="openAdditionalModal(' + absIdx + ')" title="追加支給を編集"><i class="bi bi-pencil" style="font-size:.65rem"></i></button>'
+            + '</div>'
+            + (addReason ? '<div class="text-muted text-end" style="font-size:.7rem">' + h(addReason) + '</div>' : '');
         html += '<tr>';
         html += '<td class="fw-medium">' + h(s.worker_name) + '</td>';
         html += '<td class="text-center">' + s.case_count + '件</td>';
         html += '<td class="text-end">' + yen(s.regular_salary) + '</td>';
+        html += '<td class="text-end">' + addCell + '</td>';
         html += '<td class="text-end amount-orange">' + (s.incentive > 0 ? yen(s.incentive) : '<span class="text-muted">¥0</span>') + '</td>';
         html += '<td class="text-end amount-blue">' + yen(s.total) + '</td>';
         html += '<td class="text-center"><button class="btn btn-sm btn-outline-primary" onclick="showDetail(' + rank + ')">詳細を見る</button></td>';
@@ -416,18 +460,20 @@ function renderPage(summary, wy, wm, iy, im, py, pm) {
     // tfoot
     var tfoot = document.getElementById('salaryTfoot');
     tfoot.style.display = '';
-    document.getElementById('tf_regular').textContent   = yen(summary.regular_total);
-    document.getElementById('tf_incentive').textContent = yen(summary.incentive_total);
-    document.getElementById('tf_total').textContent     = yen(summary.grand_total);
+    document.getElementById('tf_regular').textContent    = yen(summary.regular_total);
+    document.getElementById('tf_additional').textContent = yen(summary.additional_total || 0);
+    document.getElementById('tf_incentive').textContent  = yen(summary.incentive_total);
+    document.getElementById('tf_total').textContent      = yen(summary.grand_total);
 
     // 集計カード
     var cards = document.getElementById('summaryCards');
     cards.style.display = 'flex';
-    document.getElementById('sum_staff').innerHTML      = summary.staff_count + '<span style="font-size:.8rem;color:#6b7280">人</span>';
-    document.getElementById('sum_cases').innerHTML      = summary.case_count  + '<span style="font-size:.8rem;color:#6b7280">件</span>';
-    document.getElementById('sum_regular').textContent  = yen(summary.regular_total);
-    document.getElementById('sum_incentive').textContent= yen(summary.incentive_total);
-    document.getElementById('sum_total').textContent    = yen(summary.grand_total);
+    document.getElementById('sum_staff').innerHTML        = summary.staff_count + '<span style="font-size:.8rem;color:#6b7280">人</span>';
+    document.getElementById('sum_cases').innerHTML        = summary.case_count  + '<span style="font-size:.8rem;color:#6b7280">件</span>';
+    document.getElementById('sum_regular').textContent    = yen(summary.regular_total);
+    document.getElementById('sum_additional').textContent = yen(summary.additional_total || 0);
+    document.getElementById('sum_incentive').textContent  = yen(summary.incentive_total);
+    document.getElementById('sum_total').textContent      = yen(summary.grand_total);
 
     // ページネーション
     var totalPages = Math.ceil(allStaff.length / perPage);
@@ -448,11 +494,12 @@ function gotoPage(p, e) {
     currentPage = p;
     // re-render with stored summary (need to track it)
     var summaryEl = {
-        staff_count:     allStaff.length,
-        case_count:      allStaff.reduce(function(a,s){return a+s.case_count;},0),
-        regular_total:   allStaff.reduce(function(a,s){return a+s.regular_salary;},0),
-        incentive_total: allStaff.reduce(function(a,s){return a+s.incentive;},0),
-        grand_total:     allStaff.reduce(function(a,s){return a+s.total;},0),
+        staff_count:      allStaff.length,
+        case_count:       allStaff.reduce(function(a,s){return a+s.case_count;},0),
+        regular_total:    allStaff.reduce(function(a,s){return a+s.regular_salary;},0),
+        additional_total: allStaff.reduce(function(a,s){return a+(s.additional||0);},0),
+        incentive_total:  allStaff.reduce(function(a,s){return a+s.incentive;},0),
+        grand_total:      allStaff.reduce(function(a,s){return a+s.total;},0),
     };
     var wl = document.getElementById('thWorkMonth').textContent.replace(/[()年月稼働分]/g,'').split('年');
     var il = document.getElementById('thIncMonth').textContent.replace(/[()年月分]/g,'').split('年');
@@ -496,6 +543,18 @@ function showDetail(rank) {
     html += '<td></td><td class="text-end" style="color:#0369a1">' + yen(caseTotal) + '</td>';
     html += '</tr></tbody></table></div>';
 
+    // 追加支給
+    if ((s.additional || 0) > 0 || (s.additional_reason || '')) {
+        html += '<h6 class="fw-bold mb-2">追加支給</h6>';
+        html += '<div class="table-responsive mb-3"><table class="table table-sm detail-table mb-0"><tbody>';
+        html += '<tr class="fw-bold" style="background:#f0fdf4"><td style="color:#059669">追加支給金額</td>';
+        html += '<td class="text-end" style="color:#059669">' + yen(s.additional || 0) + '</td></tr>';
+        if (s.additional_reason) {
+            html += '<tr><td>支給理由</td><td class="text-end">' + h(s.additional_reason) + '</td></tr>';
+        }
+        html += '</tbody></table></div>';
+    }
+
     // インセンティブ内訳
     html += '<h6 class="fw-bold mb-2">インセンティブ内訳</h6>';
     html += '<div class="table-responsive mb-3"><table class="table table-sm detail-table mb-0"><tbody>';
@@ -510,13 +569,82 @@ function showDetail(rank) {
     html += '<div class="d-flex justify-content-between align-items-center">';
     html += '<span class="fw-bold">給与合計</span>';
     html += '<span class="fw-bold fs-5" style="color:#1d4ed8">' + yen(s.total) + '</span></div>';
-    html += '<div class="d-flex justify-content-end gap-4 mt-1" style="font-size:.8rem;color:#6b7280">';
+    html += '<div class="d-flex justify-content-end gap-3 flex-wrap mt-1" style="font-size:.8rem;color:#6b7280">';
     html += '<span>常勤：' + yen(s.regular_salary) + '</span>';
+    if ((s.additional || 0) > 0) {
+        html += '<span style="color:#059669">追加支給：' + yen(s.additional) + '</span>';
+    }
     html += '<span>インセンティブ：' + yen(s.incentive) + '</span></div></div>';
 
     document.getElementById('detailModalTitle').textContent = s.worker_name + ' さんの給与明細';
     document.getElementById('detailModalBody').innerHTML = html;
     new bootstrap.Modal(document.getElementById('detailModal')).show();
+}
+
+var currentAdditionalIdx = -1;
+
+function openAdditionalModal(idx) {
+    var s = allStaff[idx];
+    if (!s) return;
+    currentAdditionalIdx = idx;
+    document.getElementById('additionalModalTitle').textContent = s.worker_name + ' の追加支給';
+    document.getElementById('addAmount').value = s.additional || 0;
+    document.getElementById('addReason').value = s.additional_reason || '';
+    new bootstrap.Modal(document.getElementById('additionalModal')).show();
+}
+
+function submitAdditional() {
+    var s = allStaff[currentAdditionalIdx];
+    if (!s) return;
+    var amount = Math.max(0, parseInt(document.getElementById('addAmount').value) || 0);
+    var reason = document.getElementById('addReason').value.trim();
+    var btn = document.getElementById('additionalSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+
+    fetch(SALARY_API, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            action:      'save_additional',
+            csrf:        CSRF_TOKEN,
+            pay_year:    currentPayYear,
+            pay_month:   currentPayMonth,
+            worker_name: s.worker_name,
+            amount:      amount,
+            reason:      reason,
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        btn.disabled = false; btn.textContent = '保存';
+        if (!res.ok) { alert('保存に失敗しました'); return; }
+        // allStaff を更新して再描画
+        s.additional        = amount;
+        s.additional_reason = reason;
+        s.total             = s.regular_salary + s.additional + s.incentive;
+        bootstrap.Modal.getInstance(document.getElementById('additionalModal')).hide();
+        rerenderCurrentPage();
+    })
+    .catch(function(e) {
+        btn.disabled = false; btn.textContent = '保存';
+        alert('通信エラー: ' + e.message);
+    });
+}
+
+function rerenderCurrentPage() {
+    var summaryEl = {
+        staff_count:      allStaff.length,
+        case_count:       allStaff.reduce(function(a,s){return a+s.case_count;},0),
+        regular_total:    allStaff.reduce(function(a,s){return a+s.regular_salary;},0),
+        additional_total: allStaff.reduce(function(a,s){return a+(s.additional||0);},0),
+        incentive_total:  allStaff.reduce(function(a,s){return a+s.incentive;},0),
+        grand_total:      allStaff.reduce(function(a,s){return a+s.total;},0),
+    };
+    var wl = document.getElementById('thWorkMonth').textContent.replace(/[()年月稼働分]/g,'').split('年');
+    var il = document.getElementById('thIncMonth').textContent.replace(/[()年月分]/g,'').split('年');
+    renderPage(summaryEl, parseInt(wl[0]), parseInt(wl[1]), parseInt(il[0]), parseInt(il[1]),
+               currentPayYear, currentPayMonth);
 }
 
 function buildExportParams() {

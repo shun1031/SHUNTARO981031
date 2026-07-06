@@ -21,6 +21,7 @@ if ($nextM > 12) { $nextM = 1; $nextY++; }
 $empFilter   = getEmployeeNameFilter();
 $yearlyData  = getSalesRepReport($cid, $year,     $empFilter);
 $prevYearly  = getSalesRepReport($cid, $year - 1, $empFilter);
+$yearlyDataAll = $yearlyData; // 年間推移チャート用（フィルター前）
 
 // 月間: 直営業を分離 → 残りを売上順 → 直営業を末尾
 $monthlyData = $yearlyData;
@@ -64,6 +65,28 @@ foreach ($forcedMembers as $fm) {
     }
 }
 
+// ---- 担当者別年間推移チャートデータ（9月〜翌年8月） ----
+$fiscalMonthSeq = [
+    ['y'=>$year-1,'m'=>9],  ['y'=>$year-1,'m'=>10],
+    ['y'=>$year-1,'m'=>11], ['y'=>$year-1,'m'=>12],
+    ['y'=>$year,  'm'=>1],  ['y'=>$year,  'm'=>2],
+    ['y'=>$year,  'm'=>3],  ['y'=>$year,  'm'=>4],
+    ['y'=>$year,  'm'=>5],  ['y'=>$year,  'm'=>6],
+    ['y'=>$year,  'm'=>7],  ['y'=>$year,  'm'=>8],
+];
+$fiscalChartData = [];
+foreach (array_unique(array_merge(array_keys($yearlyDataAll), array_keys($prevYearly))) as $rk) {
+    $pts = [];
+    foreach ($fiscalMonthSeq as $ym) {
+        $src = $ym['y'] === $year ? ($yearlyDataAll[$rk] ?? []) : ($prevYearly[$rk] ?? []);
+        $md  = $src['months'][$ym['m']] ?? [];
+        $rev = (int)($md['revenue'] ?? 0);
+        $pro = (int)($md['profit']  ?? 0);
+        $pts[] = ['revenue'=>$rev, 'profit'=>$pro, 'profitRate'=> $rev>0 ? round($pro/$rev*100,1) : null];
+    }
+    $fiscalChartData[$rk] = $pts;
+}
+
 // インセンティブ率マップ（0=なし、それ以外は割合）
 $INCENTIVE_RATES = [
     '竹内陽'   => 0,
@@ -86,7 +109,10 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
     $incentive  = ($rate > 0 && $profit > 0) ? (int)round($profit * $rate) : null;
     ob_start(); ?>
         <div class="card-header">
-            <div class="fw-bold fs-6"><?= h($repName) ?> <span class="text-muted small fw-normal ms-1"><?= ($cur['case_count'] ?? 0) ?>件</span></div>
+            <div class="d-flex align-items-center justify-content-between gap-2">
+                <div class="fw-bold fs-6"><?= h($repName) ?> <span class="text-muted small fw-normal ms-1"><?= ($cur['case_count'] ?? 0) ?>件</span></div>
+                <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0 py-0 px-2" style="font-size:.72rem;line-height:1.8" data-repname="<?= htmlspecialchars($repName, ENT_QUOTES) ?>" onclick="openRepDetail(this.dataset.repname)">詳細</button>
+            </div>
             <div class="d-flex align-items-center gap-3 flex-wrap mt-1">
                 <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>
                 <span class="text-muted small">粗利 <?= number_format($profit) ?></span>
@@ -239,4 +265,204 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
         </div>
     </div>
 </div>
+<!-- ▼ 担当者詳細モーダル -->
+<div class="modal fade" id="repDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold" id="repDetailTitle"></h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pb-3">
+                <div style="position:relative;height:300px">
+                    <canvas id="repDetailChart"></canvas>
+                </div>
+                <div class="mt-3" style="overflow-x:auto">
+                    <table class="table table-sm table-bordered mb-0 text-center" style="font-size:.75rem;min-width:680px">
+                        <thead class="table-light" id="repDetailThead"></thead>
+                        <tbody id="repDetailTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var REP_FISCAL_DATA   = <?= json_encode($fiscalChartData, JSON_UNESCAPED_UNICODE) ?>;
+var FISCAL_YEAR_LABEL = '<?= ($year-1) ?>年9月〜<?= $year ?>年8月';
+var _repChart    = null;
+var _repModalBs  = null;
+var _chartReady  = false;
+var _curRepData  = null;
+
+function _ensureChartJs(cb) {
+    if (_chartReady) { cb(); return; }
+    function afterChart() {
+        if (typeof ChartDataLabels !== 'undefined') {
+            try { Chart.register(ChartDataLabels); } catch(e) {}
+            _chartReady = true; cb();
+        } else {
+            var s2 = document.createElement('script');
+            s2.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2';
+            s2.onload = function() {
+                try { Chart.register(ChartDataLabels); } catch(e) {}
+                _chartReady = true; cb();
+            };
+            document.head.appendChild(s2);
+        }
+    }
+    if (typeof Chart !== 'undefined') { afterChart(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4';
+    s.onload = afterChart;
+    document.head.appendChild(s);
+}
+
+function openRepDetail(repName) {
+    var data = REP_FISCAL_DATA[repName];
+    if (!data) return;
+    document.getElementById('repDetailTitle').textContent = repName + '　年間推移（' + FISCAL_YEAR_LABEL + '）';
+    _curRepData = { name: repName, data: data };
+    var modalEl = document.getElementById('repDetailModal');
+    if (!_repModalBs) {
+        _repModalBs = new bootstrap.Modal(modalEl);
+        modalEl.addEventListener('shown.bs.modal', function() {
+            if (_curRepData) _ensureChartJs(function() { _drawRepChart(_curRepData.name, _curRepData.data); });
+        });
+    }
+    _repModalBs.show();
+}
+
+function _drawRepChart(repName, data) {
+    var labels   = ['9月','10月','11月','12月','1月','2月','3月','4月','5月','6月','7月','8月'];
+    var revenues = data.map(function(d) { return d.revenue; });
+    var profits  = data.map(function(d) { return d.profit; });
+    var rates    = data.map(function(d) { return d.profitRate; });
+
+    if (_repChart) { _repChart.destroy(); _repChart = null; }
+    var ctx = document.getElementById('repDetailChart').getContext('2d');
+
+    _repChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '売上',
+                    data: revenues,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.06)',
+                    yAxisID: 'y',
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    datalabels: { display: false },
+                },
+                {
+                    label: '粗利',
+                    data: profits,
+                    borderColor: '#1e40af',
+                    backgroundColor: 'rgba(30,64,175,0.04)',
+                    yAxisID: 'y',
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    datalabels: { display: false },
+                },
+                {
+                    label: '粗利率',
+                    data: rates,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245,158,11,0.06)',
+                    yAxisID: 'y2',
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#f59e0b',
+                    spanGaps: true,
+                    datalabels: {
+                        display: function(ctx) {
+                            var v = ctx.dataset.data[ctx.dataIndex];
+                            return v !== null && v !== undefined;
+                        },
+                        formatter: function(v) { return v + '%'; },
+                        color: '#d97706',
+                        font: { size: 11, weight: 'bold' },
+                        anchor: 'end',
+                        align: 'top',
+                        offset: 2,
+                    },
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(ctx) {
+                            var v = ctx.parsed.y;
+                            if (ctx.datasetIndex === 2) return ' 粗利率: ' + (v !== null ? v + '%' : '-');
+                            return ' ' + ctx.dataset.label + ': ' + (v ? v.toLocaleString() + '円' : '0円');
+                        }
+                    }
+                },
+                datalabels: { display: false },
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) {
+                            if (v === 0) return '0';
+                            if (v >= 1000000) return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+                            return Math.round(v / 10000) + '万';
+                        }
+                    },
+                    grid: { color: 'rgba(0,0,0,0.06)' },
+                },
+                y2: {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: true,
+                    suggestedMax: 80,
+                    ticks: {
+                        callback: function(v) { return v + '%'; },
+                        stepSize: 20,
+                    },
+                    grid: { drawOnChartArea: false },
+                },
+            },
+        },
+    });
+
+    // 月別数値テーブル
+    var thead = document.getElementById('repDetailThead');
+    var tbody = document.getElementById('repDetailTbody');
+    thead.innerHTML = '<tr><th style="min-width:50px">月</th>' +
+        labels.map(function(m) { return '<th class="text-end">' + m + '</th>'; }).join('') + '</tr>';
+    var fmtV = function(v) {
+        return v > 0 ? '<span>' + v.toLocaleString() + '</span>' : '<span class="text-muted">-</span>';
+    };
+    var fmtR = function(v) {
+        return v !== null ? '<span style="color:#d97706;font-weight:600">' + v + '%</span>' : '<span class="text-muted">-</span>';
+    };
+    tbody.innerHTML = [
+        { label: '売上', vals: revenues.map(fmtV) },
+        { label: '粗利', vals: profits.map(fmtV) },
+        { label: '粗利率', vals: rates.map(fmtR) },
+    ].map(function(row) {
+        return '<tr><td class="fw-semibold text-start text-nowrap">' + row.label + '</td>' +
+            row.vals.map(function(v) { return '<td class="text-end text-nowrap">' + v + '</td>'; }).join('') +
+            '</tr>';
+    }).join('');
+}
+</script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

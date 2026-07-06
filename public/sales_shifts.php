@@ -114,7 +114,7 @@ if (!empty($selectedEmp)):
                         $isLateCheckin = ($checkin && $startTime && $checkin > $startTime);
                     ?>
                     <tr class="<?= $rowClass ?>">
-                        <td><?= $dateStr ?></td>
+                        <td><?= $dateStr ?><?php if (!empty($s['is_additional'])): ?> <span class="badge bg-info text-dark" style="font-size:.6rem">追加</span><?php endif; ?></td>
                         <td class="<?= $dow===0?'text-danger':($dow===6?'text-primary':'') ?>"><?= $dowLbl ?></td>
                         <td>
                             <?php if ($dayOff): ?>

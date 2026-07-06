@@ -122,6 +122,9 @@ $migrations = [
     "ALTER TABLE sales_transport_costs ADD COLUMN evidence_data_1 LONGBLOB DEFAULT NULL",
     "ALTER TABLE sales_transport_costs ADD COLUMN evidence_data_2 LONGBLOB DEFAULT NULL",
     "ALTER TABLE sales_transport_costs ADD COLUMN evidence_data_3 LONGBLOB DEFAULT NULL",
+
+    // ---- sales_shifts: 追加稼働フラグ ----
+    "ALTER TABLE sales_shifts ADD COLUMN is_additional TINYINT(1) NOT NULL DEFAULT 0 COMMENT '追加稼働フラグ'",
 ];
 
 $ok = 0;

@@ -24,6 +24,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$myName) {
         redirect(BASE_PATH . '/employee/shift.php?year='.$year.'&month='.$month.'&err=1');
     }
+
+    // ── 追加稼働登録 ──
+    if (($_POST['action'] ?? '') === 'add_additional') {
+        $addDate     = trim($_POST['add_date'] ?? '');
+        $addLocation = trim($_POST['add_location'] ?? '');
+        $addStart    = trim($_POST['add_start'] ?? '');
+        $addEnd      = trim($_POST['add_end'] ?? '');
+        if (!$addDate || !$addLocation || !$addStart) {
+            redirect(BASE_PATH . '/employee/shift.php?year='.$year.'&month='.$month.'&err=1');
+        }
+        $ym2 = explode('-', $addDate);
+        $addYear  = (int)($ym2[0] ?? $year);
+        $addMonth = (int)($ym2[1] ?? $month);
+        // 既存の通常稼働（is_day_off=0）がある日は登録不可
+        $chk = getDB()->prepare(
+            "SELECT is_day_off FROM sales_shifts WHERE company_id = ? AND employee_name = ? AND shift_date = ?"
+        );
+        $chk->execute([$cid, $myName, $addDate]);
+        $existing = $chk->fetch();
+        if ($existing && !(int)$existing['is_day_off']) {
+            redirect(BASE_PATH . '/employee/shift.php?year='.$addYear.'&month='.$addMonth.'&err=already_registered');
+        }
+        saveShift($cid, [
+            'employee_name' => $myName,
+            'shift_date'    => $addDate,
+            'start_time'    => $addStart,
+            'end_time'      => $addEnd ?: null,
+            'is_day_off'    => 0,
+            'is_additional' => 1,
+            'location'      => $addLocation,
+        ]);
+        redirect(BASE_PATH . '/employee/shift.php?year='.$addYear.'&month='.$addMonth.'&msg=saved');
+    }
+
+    // ── 通常シフト一括登録 ──
     $daysInMonthPost = cal_days_in_month(CAL_GREGORIAN, $month, $year);
     $location   = trim($_POST['location'] ?? '');   // 月全体共通の勤務地（1回入力）
     $startTimes = $_POST['start_time'] ?? [];
@@ -41,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'start_time'    => $start ?: null,
             'end_time'      => $end ?: null,
             'is_day_off'    => $dayOff,
+            'is_additional' => 0,
             'location'      => $location ?: null,
         ]);
     }
@@ -80,6 +116,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
                 </div>
                 <button class="btn btn-success" onclick="openShiftModal()"><i class="bi bi-plus-lg me-1"></i>シフトを登録</button>
+                <button class="btn btn-outline-primary" onclick="openAddWorkModal()"><i class="bi bi-plus-circle me-1"></i>追加稼働を登録</button>
             </div>
         </div>
     </div>
@@ -87,7 +124,9 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (isset($_GET['msg'])): ?>
     <div class="alert alert-success alert-dismissible">保存しました。<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     <?php endif; ?>
-    <?php if (isset($_GET['err'])): ?>
+    <?php if (($_GET['err'] ?? '') === 'already_registered'): ?>
+    <div class="alert alert-warning alert-dismissible">この日はすでに通常稼働が登録されています。追加稼働は休日または未登録の日にのみ登録できます。<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    <?php elseif (isset($_GET['err'])): ?>
     <div class="alert alert-danger alert-dismissible">保存に失敗しました。<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     <?php endif; ?>
 
@@ -116,6 +155,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?= $month ?>/<?= $d ?>
                                 (<span class="<?= $dow === 0 ? 'text-danger' : ($dow === 6 ? 'text-primary' : '') ?>"><?= $dowLabels[$dow] ?></span>)
                                 <?php if ($dateStr === $today): ?><span class="badge bg-success ms-1">本日</span><?php endif; ?>
+                                <?php if (!empty($s['is_additional'])): ?><span class="badge bg-info text-dark ms-1" style="font-size:.6rem">追加</span><?php endif; ?>
                             </td>
                             <td>
                                 <?php if (!empty($s['is_day_off'])): ?>
@@ -253,9 +293,56 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- 追加稼働登録モーダル -->
+<div class="modal fade" id="addWorkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="addWorkForm">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="action" value="add_additional">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>追加稼働を登録</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">稼働日 <span class="text-danger">*</span></label>
+                        <input type="date" name="add_date" id="aw_date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">勤務地 <span class="text-danger">*</span></label>
+                        <input type="text" name="add_location" class="form-control" maxlength="100" required
+                            placeholder="例：○○店" value="<?= h($defaultLocation) ?>">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">出勤時間 <span class="text-danger">*</span></label>
+                            <input type="time" name="add_start" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">退勤時間</label>
+                            <input type="time" name="add_end" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>登録する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 function openShiftModal() {
     new bootstrap.Modal(document.getElementById('shiftModal')).show();
+}
+function openAddWorkModal() {
+    // 日付フィールドを今日にデフォルト設定
+    var today = '<?= $today ?>';
+    document.getElementById('aw_date').value = today;
+    new bootstrap.Modal(document.getElementById('addWorkModal')).show();
 }
 
 // 稼働店舗バリデーション

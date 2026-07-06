@@ -47,7 +47,8 @@ function saveShift(int $companyId, array $data): int {
     $ym = explode('-', $date);
     $startTime = $data['start_time'] ?? null;
     $endTime   = $data['end_time'] ?? null;
-    $isDayOff  = (int)($data['is_day_off'] ?? 0);
+    $isDayOff     = (int)($data['is_day_off'] ?? 0);
+    $isAdditional = (int)($data['is_additional'] ?? 0);
     // scheduled_time は既存コードの参照互換用（start_time~end_time を文字列合成）
     if ($isDayOff) {
         $scheduledTime = '休み';
@@ -60,17 +61,18 @@ function saveShift(int $companyId, array $data): int {
     // ここではシフト予定項目のみ更新し、既存の出退勤データは保持する。
     $stmt = $db->prepare("INSERT INTO sales_shifts
         (company_id, employee_name, shift_date, shift_year, shift_month,
-         scheduled_time, start_time, end_time, is_day_off, checkin_time, report_status, location, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         scheduled_time, start_time, end_time, is_day_off, is_additional, checkin_time, report_status, location, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             scheduled_time = VALUES(scheduled_time),
             start_time = VALUES(start_time),
             end_time = VALUES(end_time),
             is_day_off = VALUES(is_day_off),
+            is_additional = VALUES(is_additional),
             location = VALUES(location)");
     $stmt->execute([
         $companyId, $data['employee_name'], $date, (int)$ym[0], (int)$ym[1],
-        $scheduledTime, $startTime, $endTime, $isDayOff,
+        $scheduledTime, $startTime, $endTime, $isDayOff, $isAdditional,
         $data['checkin_time'] ?? null, $data['report_status'] ?? '',
         $data['location'] ?? null, $data['note'] ?? null,
     ]);

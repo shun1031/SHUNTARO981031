@@ -86,15 +86,13 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
     $incentive  = ($rate > 0 && $profit > 0) ? (int)round($profit * $rate) : null;
     ob_start(); ?>
         <div class="card-header">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-                <div class="fw-bold fs-6"><?= h($repName) ?> <span class="text-muted small fw-normal ms-1"><?= ($cur['case_count'] ?? 0) ?>件</span></div>
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>
-                    <span class="text-muted small">粗利 <?= number_format($profit) ?></span>
-                    <?php if ($profitRate !== null): ?>
-                    <span class="text-muted small">粗利率 <?= number_format($profitRate, 1) ?>%</span>
-                    <?php endif; ?>
-                </div>
+            <div class="fw-bold fs-6"><?= h($repName) ?> <span class="text-muted small fw-normal ms-1"><?= ($cur['case_count'] ?? 0) ?>件</span></div>
+            <div class="d-flex align-items-center gap-3 flex-wrap mt-1">
+                <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>
+                <span class="text-muted small">粗利 <?= number_format($profit) ?></span>
+                <?php if ($profitRate !== null): ?>
+                <span class="text-muted small">粗利率 <?= number_format($profitRate, 1) ?>%</span>
+                <?php endif; ?>
             </div>
         </div>
         <div class="card-body p-0">

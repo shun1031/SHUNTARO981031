@@ -317,11 +317,37 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label fw-semibold">出勤時間 <span class="text-danger">*</span></label>
-                            <input type="time" name="add_start" class="form-control" required>
+                            <div class="d-flex gap-1 align-items-center">
+                                <select class="form-select form-select-sm time-sel flex-grow-1"
+                                    id="aw_start_sel" data-inp="aw_start" required>
+                                    <option value="">--</option>
+                                    <?php foreach ($startOpts as $opt): ?>
+                                    <option value="<?= $opt ?>"><?= $opt ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="__other__">手入力</option>
+                                </select>
+                                <input type="text" name="add_start" id="aw_start"
+                                    class="form-control form-control-sm day-time-inp"
+                                    maxlength="10" placeholder="HH:MM"
+                                    style="width:68px;display:none">
+                            </div>
                         </div>
                         <div class="col-6">
                             <label class="form-label fw-semibold">退勤時間</label>
-                            <input type="time" name="add_end" class="form-control">
+                            <div class="d-flex gap-1 align-items-center">
+                                <select class="form-select form-select-sm time-sel flex-grow-1"
+                                    id="aw_end_sel" data-inp="aw_end">
+                                    <option value="">--</option>
+                                    <?php foreach ($endOpts as $opt): ?>
+                                    <option value="<?= $opt ?>"><?= $opt ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="__other__">手入力</option>
+                                </select>
+                                <input type="text" name="add_end" id="aw_end"
+                                    class="form-control form-control-sm day-time-inp"
+                                    maxlength="10" placeholder="HH:MM"
+                                    style="width:68px;display:none">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -339,9 +365,16 @@ function openShiftModal() {
     new bootstrap.Modal(document.getElementById('shiftModal')).show();
 }
 function openAddWorkModal() {
-    // 日付フィールドを今日にデフォルト設定
     var today = '<?= $today ?>';
     document.getElementById('aw_date').value = today;
+    ['aw_start_sel','aw_end_sel'].forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (sel) sel.selectedIndex = 0;
+    });
+    ['aw_start','aw_end'].forEach(function(id) {
+        var inp = document.getElementById(id);
+        if (inp) { inp.value = ''; inp.style.display = 'none'; }
+    });
     new bootstrap.Modal(document.getElementById('addWorkModal')).show();
 }
 

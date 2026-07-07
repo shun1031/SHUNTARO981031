@@ -18,4 +18,5 @@ require_once $__salesDir . '/daily_reports.php';  // 日報管理
 require_once $__salesDir . '/attendance.php';     // 出勤管理
 require_once $__salesDir . '/calendar.php';       // イベントカレンダー・月末総会
 require_once $__salesDir . '/change_requests.php'; // 申請（シフト変更・出退勤時間変更）
+require_once $__salesDir . '/sga.php';             // 販管費管理
 unset($__salesDir);

@@ -426,6 +426,21 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="kpi-sub">粗利率: <?= $kpis['margin'] ?>%</div>
             </div>
         </div>
+        <?php if (!$caseTypeFilter):
+            $_kpiSga      = $sgaFyMap[$year][$month] ?? 0;
+            $_kpiOpIncome = $kpis['profit'] - $_kpiSga;
+            $_kpiOpMargin = $kpis['revenue'] > 0 ? round($_kpiOpIncome / $kpis['revenue'] * 100, 1) : null;
+            $_kpiOpColor  = $_kpiOpIncome >= 0 ? '#8b5cf6' : '#dc2626';
+        ?>
+        <!-- 営業利益（月・総合ダッシュボードのみ） -->
+        <div class="col-6 col-md">
+            <div class="sales-kpi">
+                <div class="kpi-value" style="color:<?= $_kpiOpColor ?>" data-kpi-tax data-raw="<?= $_kpiOpIncome ?>"><?= number_format($_kpiOpIncome) ?></div>
+                <div class="kpi-label">営業利益</div>
+                <div class="kpi-sub">営業利益率: <?= $_kpiOpMargin !== null ? $_kpiOpMargin . '%' : '-' ?></div>
+            </div>
+        </div>
+        <?php endif; ?>
         <!-- 目標達成率（月） -->
         <div class="col-6 col-md">
             <div class="sales-kpi">

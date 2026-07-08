@@ -544,7 +544,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end fw-bold table-secondary"><?= $fyTotalProfit > 0 ? number_format($fyTotalProfit) : '-' ?></td>
                         </tr>
-                        <!-- 営業利益 -->
+                        <?php if (!$caseTypeFilter): ?>
+                        <!-- 営業利益（総合ダッシュボードのみ） -->
                         <tr>
                             <td class="fw-semibold fy-label" style="color:#8b5cf6">営業利益</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i];
@@ -555,6 +556,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end fw-bold table-secondary" style="<?= $fyTotalRev > 0 || $fyTotalSga > 0 ? ($fyTotalOpIncome >= 0 ? 'color:#8b5cf6' : 'color:#dc2626') : '' ?>"><?= ($fyTotalRev > 0 || $fyTotalSga > 0) ? number_format($fyTotalOpIncome) : '-' ?></td>
                         </tr>
+                        <?php endif; ?>
                         <!-- 粗利率 -->
                         <tr class="table-light">
                             <td class="text-muted fy-label">粗利率</td>
@@ -563,7 +565,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end table-secondary text-muted"><?= $fyMargin > 0 ? $fyMargin . '%' : '-' ?></td>
                         </tr>
-                        <!-- 営業利益率 -->
+                        <?php if (!$caseTypeFilter): ?>
+                        <!-- 営業利益率（総合ダッシュボードのみ） -->
                         <tr class="table-light">
                             <td class="text-muted fy-label">営業利益率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
@@ -571,6 +574,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end table-secondary text-muted"><?= $fyTotalOpMargin !== null ? $fyTotalOpMargin . '%' : '-' ?></td>
                         </tr>
+                        <?php endif; ?>
                         <!-- 達成率 -->
                         <tr>
                             <td class="fw-semibold fy-label">達成率</td>

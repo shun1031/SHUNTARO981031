@@ -344,6 +344,20 @@ $_s = $_sDb->prepare($_carrierFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $carrierFyRows = $_s->fetchAll();
 
+// 年度月別販管費合計（営業利益表示用）
+$_sgaFyStmt = $_sDb->prepare("
+    SELECT target_year, target_month, COALESCE(SUM(amount),0) AS sga_total
+    FROM sga_expenses
+    WHERE company_id = ?
+      AND ((target_year = ? AND target_month >= 9) OR (target_year = ? AND target_month <= 8))
+    GROUP BY target_year, target_month
+");
+$_sgaFyStmt->execute([$cid, $year-1, $year]);
+$sgaFyMap = [];
+foreach ($_sgaFyStmt->fetchAll() as $_r) {
+    $sgaFyMap[$_r['target_year']][$_r['target_month']] = (int)$_r['sga_total'];
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <style>
@@ -480,17 +494,21 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php
                         // 月別データを準備
                         $fyRowData = [];
-                        $prevRev = null;
+                        $fyTotalSga = 0;
                         foreach ($fyMonths as $i => $fm) {
-                            $rev    = $fyRevMap[$fm['y']][$fm['m']]['rev']    ?? 0;
-                            $profit = $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
-                            $tgt    = $fyTgtMap[$fm['y']][$fm['m']]          ?? 0;
-                            $margin = $rev > 0 ? round($profit / $rev * 100, 1) : null;
-                            $mom    = ($prevRev !== null && $prevRev > 0) ? round(($rev - $prevRev) / $prevRev * 100, 1) : null;
-                            $ach    = ($tgt > 0) ? round($rev / $tgt * 100, 1) : null;
-                            $fyRowData[$i] = compact('rev','profit','tgt','margin','mom','ach');
-                            $prevRev = $rev;
+                            $rev       = $fyRevMap[$fm['y']][$fm['m']]['rev']    ?? 0;
+                            $profit    = $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
+                            $tgt       = $fyTgtMap[$fm['y']][$fm['m']]          ?? 0;
+                            $margin    = $rev > 0 ? round($profit / $rev * 100, 1) : null;
+                            $ach       = ($tgt > 0) ? round($rev / $tgt * 100, 1) : null;
+                            $sga_total = $sgaFyMap[$fm['y']][$fm['m']] ?? 0;
+                            $op_income = $profit - $sga_total;
+                            $op_margin = $rev > 0 ? round($op_income / $rev * 100, 1) : null;
+                            $fyTotalSga += $sga_total;
+                            $fyRowData[$i] = compact('rev','profit','tgt','margin','ach','sga_total','op_income','op_margin');
                         }
+                        $fyTotalOpIncome = $fyTotalProfit - $fyTotalSga;
+                        $fyTotalOpMargin = $fyTotalRev > 0 ? round($fyTotalOpIncome / $fyTotalRev * 100, 1) : null;
                         ?>
                         <!-- 売上目標（常勤/イベントは入力可、総合は常勤+イベントの合計を読み取り専用） -->
                         <tr>
@@ -526,6 +544,17 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end fw-bold table-secondary"><?= $fyTotalProfit > 0 ? number_format($fyTotalProfit) : '-' ?></td>
                         </tr>
+                        <!-- 営業利益 -->
+                        <tr>
+                            <td class="fw-semibold fy-label" style="color:#8b5cf6">営業利益</td>
+                            <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i];
+                                $hasOp = $d['rev'] > 0 || $d['profit'] > 0 || $d['sga_total'] > 0;
+                                $opStyle = $hasOp ? ($d['op_income'] >= 0 ? 'color:#8b5cf6' : 'color:#dc2626') : '';
+                            ?>
+                            <td class="text-end" style="<?= $opStyle ?>"><?= $hasOp ? number_format($d['op_income']) : '-' ?></td>
+                            <?php endforeach; ?>
+                            <td class="text-end fw-bold table-secondary" style="<?= $fyTotalRev > 0 || $fyTotalSga > 0 ? ($fyTotalOpIncome >= 0 ? 'color:#8b5cf6' : 'color:#dc2626') : '' ?>"><?= ($fyTotalRev > 0 || $fyTotalSga > 0) ? number_format($fyTotalOpIncome) : '-' ?></td>
+                        </tr>
                         <!-- 粗利率 -->
                         <tr class="table-light">
                             <td class="text-muted fy-label">粗利率</td>
@@ -534,15 +563,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end table-secondary text-muted"><?= $fyMargin > 0 ? $fyMargin . '%' : '-' ?></td>
                         </tr>
-                        <!-- 売上前月比 -->
+                        <!-- 営業利益率 -->
                         <tr class="table-light">
-                            <td class="text-muted fy-label">前月比</td>
+                            <td class="text-muted fy-label">営業利益率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i]; ?>
-                            <td class="text-end <?= $d['mom'] === null ? 'text-muted' : ($d['mom'] >= 0 ? 'text-success' : 'text-danger') ?>">
-                                <?= $d['mom'] !== null ? ($d['mom'] >= 0 ? '+' : '') . $d['mom'] . '%' : '-' ?>
-                            </td>
+                            <td class="text-end text-muted"><?= $d['op_margin'] !== null ? $d['op_margin'] . '%' : '-' ?></td>
                             <?php endforeach; ?>
-                            <td class="text-end table-secondary text-muted">-</td>
+                            <td class="text-end table-secondary text-muted"><?= $fyTotalOpMargin !== null ? $fyTotalOpMargin . '%' : '-' ?></td>
                         </tr>
                         <!-- 達成率 -->
                         <tr>

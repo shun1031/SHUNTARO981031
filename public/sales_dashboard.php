@@ -567,32 +567,52 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1">TOP3</small></span>
                     <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="0">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($carrierFyRows) > 3): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">全て表示</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">▼ もっと見る</button>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-sm mb-0" id="carrierFyTable">
-                        <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
-                        <tbody>
-                            <?php if ($carrierFyRows): ?>
-                            <?php foreach ($carrierFyRows as $i => $row): ?>
-                            <tr <?= $i >= 3 ? 'class="extra-row" style="display:none"' : '' ?>>
-                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php else: ?>
-                            <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                    <div id="carrierFyTableWrap">
+                        <table class="table table-sm mb-0" id="carrierFyTable">
+                            <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
+                            <tbody>
+                                <?php if ($carrierFyRows): ?>
+                                <?php foreach ($carrierFyRows as $i => $row): ?>
+                                <tr <?= $i >= 3 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                    <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php else: ?>
+                                <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="carrierPieWrap" style="display:none" class="p-3" data-cardkey="carrier">
+                        <div class="row g-2 justify-content-center">
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
+                                <div style="position:relative;height:150px"><canvas id="carrierPieRev"></canvas></div>
+                            </div>
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
+                                <div style="position:relative;height:150px"><canvas id="carrierPieProfit"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'carrierPieWrap','carrierFyTableWrap')">
+                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -601,32 +621,52 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="0">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($repFyRows) > 5): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'repFyTable')" data-expanded="0">全て表示</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'repFyTable')" data-expanded="0">▼ もっと見る</button>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-sm mb-0" id="repFyTable">
-                        <thead class="table-light"><tr><th style="padding-left:.75rem">氏名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
-                        <tbody>
-                            <?php if ($repFyRows): ?>
-                            <?php foreach ($repFyRows as $i => $row): ?>
-                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
-                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php else: ?>
-                            <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                    <div id="repFyTableWrap">
+                        <table class="table table-sm mb-0" id="repFyTable">
+                            <thead class="table-light"><tr><th style="padding-left:.75rem">氏名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
+                            <tbody>
+                                <?php if ($repFyRows): ?>
+                                <?php foreach ($repFyRows as $i => $row): ?>
+                                <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                    <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php else: ?>
+                                <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="repPieWrap" style="display:none" class="p-3" data-cardkey="rep">
+                        <div class="row g-2 justify-content-center">
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
+                                <div style="position:relative;height:150px"><canvas id="repPieRev"></canvas></div>
+                            </div>
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
+                                <div style="position:relative;height:150px"><canvas id="repPieProfit"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'repPieWrap','repFyTableWrap')">
+                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -639,32 +679,52 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1">TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="0">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($clientFyRows) > 5): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'clientFyTable')" data-expanded="0">全て表示</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'clientFyTable')" data-expanded="0">▼ もっと見る</button>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-sm mb-0" id="clientFyTable">
-                        <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
-                        <tbody>
-                            <?php if ($clientFyRows): ?>
-                            <?php foreach ($clientFyRows as $i => $row): ?>
-                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
-                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php else: ?>
-                            <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                    <div id="clientFyTableWrap">
+                        <table class="table table-sm mb-0" id="clientFyTable">
+                            <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
+                            <tbody>
+                                <?php if ($clientFyRows): ?>
+                                <?php foreach ($clientFyRows as $i => $row): ?>
+                                <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                    <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php else: ?>
+                                <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="clientPieWrap" style="display:none" class="p-3" data-cardkey="client">
+                        <div class="row g-2 justify-content-center">
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
+                                <div style="position:relative;height:150px"><canvas id="clientPieRev"></canvas></div>
+                            </div>
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
+                                <div style="position:relative;height:150px"><canvas id="clientPieProfit"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'clientPieWrap','clientFyTableWrap')">
+                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -673,32 +733,52 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1">TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="0">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($allianceFyRows) > 5): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'allianceFyTable')" data-expanded="0">全て表示</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'allianceFyTable')" data-expanded="0">▼ もっと見る</button>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-sm mb-0" id="allianceFyTable">
-                        <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
-                        <tbody>
-                            <?php if ($allianceFyRows): ?>
-                            <?php foreach ($allianceFyRows as $i => $row): ?>
-                            <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
-                                <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
-                                <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php else: ?>
-                            <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                    <div id="allianceFyTableWrap">
+                        <table class="table table-sm mb-0" id="allianceFyTable">
+                            <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
+                            <tbody>
+                                <?php if ($allianceFyRows): ?>
+                                <?php foreach ($allianceFyRows as $i => $row): ?>
+                                <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
+                                    <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
+                                    <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php else: ?>
+                                <tr><td colspan="3" class="text-center text-muted small p-3">データなし</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="alliancePieWrap" style="display:none" class="p-3" data-cardkey="alliance">
+                        <div class="row g-2 justify-content-center">
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
+                                <div style="position:relative;height:150px"><canvas id="alliancePieRev"></canvas></div>
+                            </div>
+                            <div class="col-6 text-center">
+                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
+                                <div style="position:relative;height:150px"><canvas id="alliancePieProfit"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'alliancePieWrap','allianceFyTableWrap')">
+                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1273,6 +1353,14 @@ function setSummaryTaxMode(incl, btn) {
         var raw = parseInt(el.dataset.raw) || 0;
         el.textContent = Math.round(raw * rate).toLocaleString();
     });
+    // 詳細ビュー（円グラフ）が表示中の場合もリアルタイム更新
+    var pieWrap = scope.querySelector('[data-cardkey]');
+    if (pieWrap && pieWrap.style.display !== 'none') {
+        var cardkey = pieWrap.dataset.cardkey;
+        if (cardkey && typeof drawRankPieCharts === 'function') {
+            drawRankPieCharts(cardkey, incl);
+        }
+    }
 }
 SUMMARYJS;
 
@@ -1282,10 +1370,101 @@ function toggleExpand(btn, tableId) {
     var extras = table.querySelectorAll('.extra-row');
     var expanded = btn.dataset.expanded === '1';
     extras.forEach(function(r) { r.style.display = expanded ? 'none' : ''; });
-    btn.textContent = expanded ? '全て表示' : '閉じる';
+    btn.innerHTML = expanded ? '▼ もっと見る' : '▲ 折りたたむ';
     btn.dataset.expanded = expanded ? '0' : '1';
 }
 EXPANDJS;
+
+$inlineJs .= 'const RANK_PIE_DATA={'
+    . '"carrier":' . json_encode(array_values($carrierFyRows), JSON_UNESCAPED_UNICODE) . ','
+    . '"rep":'     . json_encode(array_values($repFyRows),     JSON_UNESCAPED_UNICODE) . ','
+    . '"client":'  . json_encode(array_values($clientFyRows),  JSON_UNESCAPED_UNICODE) . ','
+    . '"alliance":'. json_encode(array_values($allianceFyRows),JSON_UNESCAPED_UNICODE)
+    . '};';
+$inlineJs .= <<<'RANKPIEJS'
+const PIE_CHART_COLORS=['#3b82f6','#059669','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#a855f7'];
+var _rankPieInsts={};
+
+function togglePieView(btn,pieWrapId,tableWrapId){
+    var pieWrap=document.getElementById(pieWrapId);
+    var tableWrap=document.getElementById(tableWrapId);
+    if(!pieWrap)return;
+    var showing=btn.dataset.pie==='1';
+    if(showing){
+        pieWrap.style.display='none';
+        if(tableWrap)tableWrap.style.display='';
+        btn.dataset.pie='0';
+        btn.classList.remove('btn-info');
+        btn.classList.add('btn-outline-info');
+    }else{
+        if(tableWrap)tableWrap.style.display='none';
+        pieWrap.style.display='';
+        btn.dataset.pie='1';
+        btn.classList.remove('btn-outline-info');
+        btn.classList.add('btn-info');
+        var cardkey=pieWrap.dataset.cardkey;
+        var card=btn.closest?btn.closest('.card'):null;
+        var taxIncl=card?card.querySelector('.summary-tax-incl.active')!==null:false;
+        drawRankPieCharts(cardkey,taxIncl);
+    }
+}
+
+function closePieView(backBtn,pieWrapId,tableWrapId){
+    var pieWrap=document.getElementById(pieWrapId);
+    var tableWrap=document.getElementById(tableWrapId);
+    if(!pieWrap)return;
+    pieWrap.style.display='none';
+    if(tableWrap)tableWrap.style.display='';
+    var card=backBtn.closest?backBtn.closest('.card'):null;
+    if(card){
+        var detailBtn=card.querySelector('[data-pie]');
+        if(detailBtn){
+            detailBtn.dataset.pie='0';
+            detailBtn.classList.remove('btn-info');
+            detailBtn.classList.add('btn-outline-info');
+        }
+    }
+}
+
+function drawRankPieCharts(cardkey,taxIncl){
+    var data=RANK_PIE_DATA[cardkey];
+    if(!data||!data.length)return;
+    var rate=taxIncl?1.1:1.0;
+    var labels  =data.map(function(r){return r.name;});
+    var revenues=data.map(function(r){return Math.round((parseInt(r.revenue)||0)*rate);});
+    var profits =data.map(function(r){return Math.round((parseInt(r.profit) ||0)*rate);});
+    var colors  =labels.map(function(_,i){return PIE_CHART_COLORS[i%PIE_CHART_COLORS.length];});
+
+    function makeOrUpdate(instKey,canvasId,vals){
+        var canvas=document.getElementById(canvasId);
+        if(!canvas)return;
+        if(_rankPieInsts[instKey]){
+            _rankPieInsts[instKey].data.labels=labels;
+            _rankPieInsts[instKey].data.datasets[0].data=vals;
+            _rankPieInsts[instKey].data.datasets[0].backgroundColor=colors;
+            _rankPieInsts[instKey].update();
+            return;
+        }
+        _rankPieInsts[instKey]=new Chart(canvas,{
+            type:'doughnut',
+            data:{labels:labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:1,borderColor:'#fff'}]},
+            options:{
+                responsive:true,maintainAspectRatio:false,
+                plugins:{
+                    legend:{position:'bottom',labels:{font:{size:10},padding:5,boxWidth:10}},
+                    tooltip:{callbacks:{label:function(ctx){
+                        var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+                        var pct=total>0?Math.round(ctx.raw/total*100):0;
+                        return ctx.label+': '+ctx.raw.toLocaleString()+'円 ('+pct+'%)';
+                    }}}
+                }
+            }
+        });
+    }
+    makeOrUpdate(cardkey+'_rev',    cardkey+'PieRev',    revenues);
+    makeOrUpdate(cardkey+'_profit', cardkey+'PieProfit', profits);
+}
+RANKPIEJS;
 
 require_once __DIR__ . '/../includes/footer.php';
 ?>

@@ -98,7 +98,7 @@ $INCENTIVE_DEFAULT = 0.30;
 
 require_once __DIR__ . '/../includes/header.php';
 
-function renderRepCard(string $repName, array $cur, string $footerText): string {
+function renderRepCard(string $repName, array $cur, string $footerText, bool $showDetail = true): string {
     global $INCENTIVE_RATES, $INCENTIVE_DEFAULT;
     $rate = array_key_exists($repName, $INCENTIVE_RATES)
         ? $INCENTIVE_RATES[$repName]
@@ -111,7 +111,9 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
         <div class="card-header">
             <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="fw-bold fs-6"><?= h($repName) ?> <span class="text-muted small fw-normal ms-1"><?= ($cur['case_count'] ?? 0) ?>件</span></div>
+                <?php if ($showDetail): ?>
                 <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0 py-0 px-2" style="font-size:.72rem;line-height:1.8" data-repname="<?= htmlspecialchars($repName, ENT_QUOTES) ?>" onclick="openRepDetail(this.dataset.repname)">詳細</button>
+                <?php endif; ?>
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap mt-1">
                 <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>
@@ -236,7 +238,7 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                         <span class="client-rank rank-<?= $rank <= 3 ? $rank : 'other' ?>"><?= $rank ?></span>
                     </div>
                     <div class="flex-grow-1">
-                        <?= renderRepCard($data['sales_rep'], $annual, $year.'年度合計（前年比：'.$yoyAText.'）') ?>
+                        <?= renderRepCard($data['sales_rep'], $annual, $year.'年度合計（前年比：'.$yoyAText.'）', false) ?>
                     </div>
                 </div>
             </div>
@@ -257,7 +259,7 @@ function renderRepCard(string $repName, array $cur, string $footerText): string 
                         <span class="text-muted" style="font-size:.75rem">—</span>
                     </div>
                     <div class="flex-grow-1">
-                        <?= renderRepCard('直営業', $annual, $year.'年度合計（前年比：-）') ?>
+                        <?= renderRepCard('直営業', $annual, $year.'年度合計（前年比：-）', false) ?>
                     </div>
                 </div>
             </div>
@@ -354,7 +356,7 @@ function _drawRepChart(repName, data) {
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59,130,246,0.06)',
                     yAxisID: 'y',
-                    tension: 0.3,
+                    tension: 0,
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     datalabels: { display: false },
@@ -365,7 +367,7 @@ function _drawRepChart(repName, data) {
                     borderColor: '#1e40af',
                     backgroundColor: 'rgba(30,64,175,0.04)',
                     yAxisID: 'y',
-                    tension: 0.3,
+                    tension: 0,
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     datalabels: { display: false },
@@ -376,7 +378,7 @@ function _drawRepChart(repName, data) {
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245,158,11,0.06)',
                     yAxisID: 'y2',
-                    tension: 0.3,
+                    tension: 0,
                     pointRadius: 5,
                     pointHoverRadius: 7,
                     pointBackgroundColor: '#f59e0b',

@@ -573,7 +573,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($carrierFyRows) > 3): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">▼ もっと見る</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'carrierFyTable')" data-expanded="0">▼</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -627,7 +627,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($repFyRows) > 5): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'repFyTable')" data-expanded="0">▼ もっと見る</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'repFyTable')" data-expanded="0">▼</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -685,7 +685,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($clientFyRows) > 5): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'clientFyTable')" data-expanded="0">▼ もっと見る</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'clientFyTable')" data-expanded="0">▼</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -739,7 +739,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
                         </div>
                         <?php if (count($allianceFyRows) > 5): ?>
-                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'allianceFyTable')" data-expanded="0">▼ もっと見る</button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="toggleExpand(this,'allianceFyTable')" data-expanded="0">▼</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1370,7 +1370,7 @@ function toggleExpand(btn, tableId) {
     var extras = table.querySelectorAll('.extra-row');
     var expanded = btn.dataset.expanded === '1';
     extras.forEach(function(r) { r.style.display = expanded ? 'none' : ''; });
-    btn.innerHTML = expanded ? '▼ もっと見る' : '▲ 折りたたむ';
+    btn.innerHTML = expanded ? '▼' : '▲';
     btn.dataset.expanded = expanded ? '0' : '1';
 }
 EXPANDJS;
@@ -1451,7 +1451,16 @@ function drawRankPieCharts(cardkey,taxIncl){
             options:{
                 responsive:true,maintainAspectRatio:false,
                 plugins:{
-                    legend:{position:'bottom',labels:{font:{size:10},padding:5,boxWidth:10}},
+                    legend:{position:'bottom',labels:{font:{size:10},padding:5,boxWidth:10,
+                        generateLabels:function(chart){
+                            var ds=chart.data.datasets[0];
+                            var total=ds.data.reduce(function(a,b){return a+b;},0);
+                            return chart.data.labels.map(function(lbl,i){
+                                var pct=total>0?Math.round((ds.data[i]||0)/total*100):0;
+                                return{text:lbl+' '+pct+'%',fillStyle:ds.backgroundColor[i],strokeStyle:'#fff',lineWidth:1,hidden:false,index:i};
+                            });
+                        }
+                    }},
                     tooltip:{callbacks:{label:function(ctx){
                         var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
                         var pct=total>0?Math.round(ctx.raw/total*100):0;

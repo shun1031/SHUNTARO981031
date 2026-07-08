@@ -10,11 +10,12 @@ requireRole('super_admin', 'company_admin');
 $pageTitle = '販管費管理';
 $extraCss = ['sales.css'];
 
-$year = (int)($_GET['year'] ?? date('Y'));
+$year  = (int)($_GET['year']  ?? date('Y'));
 $month = (int)($_GET['month'] ?? date('n'));
 
-$summary = getSgaSummary($cid, $year, $month);
+$summary  = getSgaSummary($cid, $year, $month);
 $expenses = getSgaExpenses($cid, $year, $month);
+$options  = getSgaOptions($cid);
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -32,7 +33,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="fw-bold px-2" id="sgaMonthLabel2" style="min-width:120px;text-align:center;font-size:.95rem"><?= $year ?>年<?= $month ?>月</span>
                     <button type="button" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem" onclick="sgaChangeMonth(1)">›</button>
                 </div>
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#sgaModal" onclick="sgaResetForm()">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#sgaModal" onclick="sgaOpenNew()">
                     <i class="bi bi-plus-lg me-1"></i>新規登録
                 </button>
             </div>
@@ -83,12 +84,13 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>費目</th>
                         <th>内容</th>
                         <th class="text-end">金額</th>
+                        <th>備考</th>
                         <th class="text-center">編集</th>
                         <th class="text-center">削除</th>
                     </tr>
                 </thead>
                 <tbody id="sgaTbody">
-                    <tr><td colspan="5" class="text-center text-muted py-4">
+                    <tr><td colspan="6" class="text-center text-muted py-4">
                         <div class="spinner-border spinner-border-sm me-2"></div>読み込み中...
                     </td></tr>
                 </tbody>
@@ -140,22 +142,32 @@ require_once __DIR__ . '/../includes/header.php';
                             </select>
                         </div>
                     </div>
+
+                    <!-- 費目 -->
                     <div class="col-12">
                         <label class="form-label">費目 <span class="text-danger">*</span></label>
-                        <input type="text" id="sga_category" class="form-control" list="sgaCategoryList" maxlength="100" required>
-                        <datalist id="sgaCategoryList">
-                            <option value="家賃"><option value="通信費"><option value="水道光熱費">
-                            <option value="広告宣伝費"><option value="消耗品費"><option value="交通費">
-                            <option value="福利厚生費"><option value="その他">
-                        </datalist>
+                        <select id="sga_category_sel" class="form-select mb-1" onchange="sgaApplySel('sga_category_sel','sga_category')">
+                            <option value="">-- 選択 --</option>
+                        </select>
+                        <input type="text" id="sga_category" class="form-control" maxlength="100" placeholder="費目を入力または上で選択" required>
                     </div>
+
+                    <!-- 内容 -->
+                    <div class="col-12">
+                        <label class="form-label">内容 <span class="text-danger">*</span></label>
+                        <select id="sga_content_sel" class="form-select mb-1" onchange="sgaApplySel('sga_content_sel','sga_content')">
+                            <option value="">-- 選択 --</option>
+                        </select>
+                        <input type="text" id="sga_content" class="form-control" maxlength="255" placeholder="内容を入力または上で選択" required>
+                    </div>
+
                     <div class="col-12">
                         <label class="form-label">金額（円） <span class="text-danger">*</span></label>
                         <input type="number" id="sga_amount" class="form-control" min="0" step="1" required>
                     </div>
                     <div class="col-12">
                         <label class="form-label">備考</label>
-                        <textarea id="sga_note" class="form-control" rows="2"></textarea>
+                        <input type="text" id="sga_note" class="form-control" maxlength="255">
                     </div>
                 </div>
             </div>
@@ -168,33 +180,75 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php
-$inlineJs = 'var SGA_API = ' . json_encode(BASE_PATH . '/public/api/sga_expense.php') . ';';
+$inlineJs  = 'var SGA_API = ' . json_encode(BASE_PATH . '/public/api/sga_expense.php') . ';';
 $inlineJs .= 'var sgaYear = ' . $year . '; var sgaMonth = ' . $month . ';';
 $inlineJs .= 'var sgaExpensesInit = ' . json_encode($expenses, JSON_UNESCAPED_UNICODE) . ';';
+$inlineJs .= 'var sgaOptionsInit  = ' . json_encode($options,  JSON_UNESCAPED_UNICODE) . ';';
 $inlineJs .= <<<'JS'
 
 var sgaCurrentExpenses = [];
+var sgaOptions = { categories: [], contents: [] };
 
-function sgaFmt(n) {
-    return parseInt(n || 0).toLocaleString();
-}
+function sgaFmt(n) { return parseInt(n || 0).toLocaleString(); }
 function sgaH(s) {
-    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+/* ---------- セレクト UI ---------- */
+
+function sgaBuildSel(selId, opts) {
+    var sel = document.getElementById(selId);
+    if (!sel) return;
+    var cur = sel.value;
+    var html = '<option value="">-- 選択 --</option><option value="__manual__">手入力（クリア）</option>';
+    (opts || []).forEach(function(o) {
+        html += '<option value="' + sgaH(o) + '"' + (o === cur ? ' selected' : '') + '>' + sgaH(o) + '</option>';
+    });
+    sel.innerHTML = html;
+}
+
+function sgaRefreshOptions(opts) {
+    if (!opts) return;
+    sgaOptions = opts;
+    sgaBuildSel('sga_category_sel', opts.categories);
+    sgaBuildSel('sga_content_sel',  opts.contents);
+}
+
+function sgaApplySel(selId, inpId) {
+    var sel = document.getElementById(selId);
+    var inp = document.getElementById(inpId);
+    if (!sel || !inp) return;
+    var val = sel.value;
+    if (val === '__manual__') { inp.value = ''; return; }
+    if (val !== '') { inp.value = val; }
+    inp.focus();
+}
+
+function sgaAddLocalOpt(type, value) {
+    if (!value) return;
+    var arr  = type === 'category' ? sgaOptions.categories : sgaOptions.contents;
+    var selId = type === 'category' ? 'sga_category_sel' : 'sga_content_sel';
+    if (arr.indexOf(value) === -1) { arr.push(value); sgaBuildSel(selId, arr); }
+}
+
+/* ---------- 一覧描画 ---------- */
 
 function sgaRenderList(expenses) {
     sgaCurrentExpenses = expenses || [];
     var tbody = document.getElementById('sgaTbody');
     if (sgaCurrentExpenses.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">販管費が登録されていません</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">販管費が登録されていません</td></tr>';
         return;
     }
     var html = '';
     sgaCurrentExpenses.forEach(function(e, idx) {
         html += '<tr>';
         html += '<td class="fw-medium">' + sgaH(e.category) + '</td>';
-        html += '<td>' + sgaH(e.note || '') + '</td>';
-        html += '<td class="amount">' + sgaFmt(e.amount) + '</td>';
+        html += '<td>' + sgaH(e.content || '') + '</td>';
+        html += '<td class="text-end">' + sgaFmt(e.amount) + '</td>';
+        html += '<td class="text-muted small">' + sgaH(e.note || '') + '</td>';
         html += '<td class="text-center"><button class="btn btn-sm btn-outline-primary" onclick="sgaEdit(' + idx + ')"><i class="bi bi-pencil"></i></button></td>';
         html += '<td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="sgaDelete(' + idx + ')"><i class="bi bi-trash"></i></button></td>';
         html += '</tr>';
@@ -202,18 +256,19 @@ function sgaRenderList(expenses) {
     tbody.innerHTML = html;
 }
 
+/* ---------- KPIカード / フッター更新 ---------- */
+
 function sgaRenderSummary(s) {
     document.getElementById('sgaKpiRevenue').textContent = sgaFmt(s.revenue);
-    document.getElementById('sgaKpiProfit').textContent = sgaFmt(s.profit);
-    document.getElementById('sgaKpiMargin').textContent = s.margin;
-    document.getElementById('sgaKpiTotal').textContent = sgaFmt(s.sga_total);
+    document.getElementById('sgaKpiProfit').textContent  = sgaFmt(s.profit);
+    document.getElementById('sgaKpiMargin').textContent  = s.margin;
+    document.getElementById('sgaKpiTotal').textContent   = sgaFmt(s.sga_total);
     var opEl = document.getElementById('sgaKpiOperating');
     opEl.textContent = sgaFmt(s.operating_income);
     opEl.style.color = s.operating_income >= 0 ? '#8b5cf6' : '#dc2626';
     document.getElementById('sgaKpiOperatingMargin').textContent = s.operating_margin;
-    // フッター合計行
     document.getElementById('sgaFooterProfit').textContent = sgaFmt(s.profit);
-    document.getElementById('sgaFooterSga').textContent = sgaFmt(s.sga_total);
+    document.getElementById('sgaFooterSga').textContent    = sgaFmt(s.sga_total);
     var footerOp = document.getElementById('sgaFooterOp');
     footerOp.textContent = sgaFmt(s.operating_income);
     footerOp.style.color = s.operating_income >= 0 ? '#8b5cf6' : '#dc2626';
@@ -221,80 +276,98 @@ function sgaRenderSummary(s) {
 
 function sgaUpdateMonthLabel() {
     var label = sgaYear + '年' + sgaMonth + '月';
-    document.getElementById('sgaMonthLabel').textContent = label;
-    document.getElementById('sgaMonthLabel2').textContent = label;
-    document.getElementById('sgaSubRevMonth').textContent = label;
-    document.getElementById('sgaSubSgaMonth').textContent = label + ' 合計';
+    document.getElementById('sgaMonthLabel').textContent    = label;
+    document.getElementById('sgaMonthLabel2').textContent   = label;
+    document.getElementById('sgaSubRevMonth').textContent   = label;
+    document.getElementById('sgaSubSgaMonth').textContent   = label + ' 合計';
 }
+
+/* ---------- データ取得 ---------- */
 
 function sgaLoad() {
     var tbody = document.getElementById('sgaTbody');
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>読み込み中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>読み込み中...</td></tr>';
     fetch(SGA_API + '?year=' + sgaYear + '&month=' + sgaMonth)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.error) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">' + sgaH(data.error) + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">' + sgaH(data.error) + '</td></tr>';
                 return;
             }
             sgaRenderSummary(data.summary);
             sgaRenderList(data.expenses);
+            sgaRefreshOptions(data.options);
         })
         .catch(function(e) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">データ取得エラー: ' + sgaH(e.message) + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">データ取得エラー: ' + sgaH(e.message) + '</td></tr>';
         });
 }
 
 function sgaChangeMonth(delta) {
     sgaMonth += delta;
-    if (sgaMonth < 1) { sgaMonth = 12; sgaYear--; }
+    if (sgaMonth < 1)  { sgaMonth = 12; sgaYear--; }
     else if (sgaMonth > 12) { sgaMonth = 1; sgaYear++; }
     sgaUpdateMonthLabel();
     var url = new URL(window.location.href);
-    url.searchParams.set('year', sgaYear);
+    url.searchParams.set('year',  sgaYear);
     url.searchParams.set('month', sgaMonth);
     window.history.replaceState(null, '', url);
     sgaLoad();
 }
 
-function sgaResetForm() {
-    document.getElementById('sga_id').value = '';
-    document.getElementById('sga_year').value = sgaYear;
-    document.getElementById('sga_month').value = sgaMonth;
+/* ---------- フォーム ---------- */
+
+function sgaOpenNew() {
+    document.getElementById('sga_id').value       = '';
+    document.getElementById('sga_year').value     = sgaYear;
+    document.getElementById('sga_month').value    = sgaMonth;
+    document.getElementById('sga_category_sel').value = '';
     document.getElementById('sga_category').value = '';
-    document.getElementById('sga_amount').value = '';
-    document.getElementById('sga_note').value = '';
-    document.getElementById('sgaModalTitle').textContent = '販管費 新規登録';
-    document.getElementById('sgaSubmitBtn').textContent = '登録';
+    document.getElementById('sga_content_sel').value  = '';
+    document.getElementById('sga_content').value  = '';
+    document.getElementById('sga_amount').value   = '';
+    document.getElementById('sga_note').value     = '';
+    document.getElementById('sgaModalTitle').textContent    = '販管費 新規登録';
+    document.getElementById('sgaSubmitBtn').textContent     = '登録';
 }
 
 function sgaEdit(idx) {
     var e = sgaCurrentExpenses[idx];
     if (!e) return;
-    document.getElementById('sga_id').value = e.id;
-    document.getElementById('sga_year').value = e.target_year;
+    document.getElementById('sga_id').value    = e.id;
+    document.getElementById('sga_year').value  = e.target_year;
     document.getElementById('sga_month').value = e.target_month;
-    document.getElementById('sga_category').value = e.category;
+    document.getElementById('sga_category_sel').value = '';
+    document.getElementById('sga_category').value     = e.category || '';
+    document.getElementById('sga_content_sel').value  = '';
+    document.getElementById('sga_content').value      = e.content  || '';
     document.getElementById('sga_amount').value = e.amount;
-    document.getElementById('sga_note').value = e.note || '';
+    document.getElementById('sga_note').value   = e.note || '';
     document.getElementById('sgaModalTitle').textContent = '販管費 編集 #' + e.id;
-    document.getElementById('sgaSubmitBtn').textContent = '更新';
+    document.getElementById('sgaSubmitBtn').textContent  = '更新';
     new bootstrap.Modal(document.getElementById('sgaModal')).show();
 }
 
 function sgaSubmit() {
-    var id = document.getElementById('sga_id').value;
+    var id       = document.getElementById('sga_id').value;
     var category = document.getElementById('sga_category').value.trim();
-    var amount = parseInt(document.getElementById('sga_amount').value, 10);
-    if (!category) { alert('費目を入力してください'); return; }
+    var content  = document.getElementById('sga_content').value.trim();
+    var amount   = parseInt(document.getElementById('sga_amount').value, 10);
+    if (!category)           { alert('費目を入力してください');         return; }
+    if (!content)            { alert('内容を入力してください');         return; }
     if (isNaN(amount) || amount < 0) { alert('金額は0以上で入力してください'); return; }
 
+    // 新規入力値をローカルの選択肢に即時追加
+    sgaAddLocalOpt('category', category);
+    sgaAddLocalOpt('content',  content);
+
     var payload = {
-        target_year: parseInt(document.getElementById('sga_year').value, 10),
+        target_year:  parseInt(document.getElementById('sga_year').value,  10),
         target_month: parseInt(document.getElementById('sga_month').value, 10),
         category: category,
-        amount: amount,
-        note: document.getElementById('sga_note').value.trim(),
+        content:  content,
+        amount:   amount,
+        note:     document.getElementById('sga_note').value.trim(),
     };
 
     var btn = document.getElementById('sgaSubmitBtn');
@@ -303,9 +376,9 @@ function sgaSubmit() {
     var req;
     if (id) {
         payload.id = parseInt(id, 10);
-        req = fetch(SGA_API, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        req = fetch(SGA_API, { method: 'PUT',  headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     } else {
-        req = fetch(SGA_API, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        req = fetch(SGA_API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     }
 
     req.then(function(r) { return r.json(); })
@@ -335,6 +408,7 @@ function sgaDelete(idx) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    sgaRefreshOptions(sgaOptionsInit);
     sgaRenderList(sgaExpensesInit);
 });
 JS;

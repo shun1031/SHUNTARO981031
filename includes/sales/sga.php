@@ -31,15 +31,17 @@ function getSgaExpense(int $id, int $companyId): array|false {
 
 function createSgaExpense(int $companyId, array $data): int {
     $db = getDB();
-    $note = trim($data['note'] ?? '');
+    $note    = trim($data['note']    ?? '');
+    $content = trim($data['content'] ?? '');
     $stmt = $db->prepare('INSERT INTO sga_expenses
-        (company_id, target_year, target_month, category, amount, note)
-        VALUES (?, ?, ?, ?, ?, ?)');
+        (company_id, target_year, target_month, category, content, amount, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $companyId,
         (int)$data['target_year'],
         (int)$data['target_month'],
         trim($data['category'] ?? ''),
+        $content,
         max(0, (int)($data['amount'] ?? 0)),
         $note !== '' ? $note : null,
     ]);
@@ -48,18 +50,39 @@ function createSgaExpense(int $companyId, array $data): int {
 
 function updateSgaExpense(int $id, int $companyId, array $data): void {
     $db = getDB();
-    $note = trim($data['note'] ?? '');
+    $note    = trim($data['note']    ?? '');
+    $content = trim($data['content'] ?? '');
     $stmt = $db->prepare('UPDATE sga_expenses SET
-        target_year = ?, target_month = ?, category = ?, amount = ?, note = ?
+        target_year = ?, target_month = ?, category = ?, content = ?, amount = ?, note = ?
         WHERE id = ? AND company_id = ?');
     $stmt->execute([
         (int)$data['target_year'],
         (int)$data['target_month'],
         trim($data['category'] ?? ''),
+        $content,
         max(0, (int)($data['amount'] ?? 0)),
         $note !== '' ? $note : null,
         $id, $companyId,
     ]);
+}
+
+function getSgaOptions(int $companyId): array {
+    $db = getDB();
+    $fixed = ['家賃','通信費','水道光熱費','役員報酬','保険料','正社員給与','正社員交通費','経費'];
+
+    $stmt = $db->prepare('SELECT DISTINCT category FROM sga_expenses
+        WHERE company_id = ? AND category != "" ORDER BY category');
+    $stmt->execute([$companyId]);
+    $dbCats = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    $extras = array_values(array_diff($dbCats, $fixed));
+    $categories = array_merge($fixed, $extras);
+
+    $stmt2 = $db->prepare('SELECT DISTINCT content FROM sga_expenses
+        WHERE company_id = ? AND content != "" ORDER BY content');
+    $stmt2->execute([$companyId]);
+    $contents = $stmt2->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    return ['categories' => $categories, 'contents' => $contents];
 }
 
 function deleteSgaExpense(int $id, int $companyId): void {

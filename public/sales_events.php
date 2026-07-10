@@ -486,41 +486,29 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label fw-medium">スタッフ名</label>
                         <input type="text" name="worker_name" id="f_worker_name" class="form-control">
                     </div>
-                    <!-- キャリア: select + text combo -->
+                    <!-- キャリア -->
                     <div class="col-md-4">
                         <label class="form-label fw-medium">キャリア <span class="text-danger">*</span></label>
-                        <select id="carrier_sel" class="form-select form-select-sm mb-1" onchange="caseApplySel(this,'f_carrier')">
-                            <option value="">-- 選択 --</option>
-                            <option value="ドコモ">ドコモ</option>
-                            <option value="au">au</option>
-                            <option value="SB">SB</option>
-                            <option value="楽天">楽天</option>
-                            <option value="コミュファ">コミュファ</option>
-                            <option value="CATV">CATV</option>
-                        </select>
-                        <input type="text" name="carrier" id="f_carrier" class="form-control" placeholder="選択または入力">
+                        <input type="text" name="carrier" id="f_carrier" class="form-control" placeholder="選択または入力" list="carrierList" autocomplete="off">
+                        <datalist id="carrierList">
+                            <option value="ドコモ"><option value="au"><option value="SB"><option value="楽天"><option value="コミュファ"><option value="CATV">
+                        </datalist>
                     </div>
-                    <!-- 屋号: select + text combo -->
+                    <!-- 屋号 -->
                     <div class="col-md-4">
                         <label class="form-label fw-medium">屋号 <span class="text-danger">*</span></label>
-                        <select id="trade_name_sel" class="form-select form-select-sm mb-1" onchange="caseApplySel(this,'f_trade_name')">
-                            <option value="">-- 選択 --</option>
-                            <?php foreach ($distinctTradeNames as $_tn): ?>
-                            <option value="<?= h($_tn) ?>"><?= h($_tn) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <input type="text" name="trade_name" id="f_trade_name" class="form-control" placeholder="選択または入力">
+                        <input type="text" name="trade_name" id="f_trade_name" class="form-control" placeholder="選択または入力" list="tradeNameList" autocomplete="off">
+                        <datalist id="tradeNameList">
+                            <?php foreach ($distinctTradeNames as $_tn): ?><option value="<?= h($_tn) ?>"><?php endforeach; ?>
+                        </datalist>
                     </div>
-                    <!-- 店舗名: select + text combo -->
+                    <!-- 店舗名 -->
                     <div class="col-md-4">
                         <label class="form-label fw-medium">店舗名 <span class="text-danger">*</span></label>
-                        <select id="store_name_sel" class="form-select form-select-sm mb-1" onchange="caseApplySel(this,'f_store_name')">
-                            <option value="">-- 選択 --</option>
-                            <?php foreach ($distinctStoreNames as $_sn): ?>
-                            <option value="<?= h($_sn) ?>"><?= h($_sn) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <input type="text" name="store_name" id="f_store_name" class="form-control" placeholder="選択または入力">
+                        <input type="text" name="store_name" id="f_store_name" class="form-control" placeholder="選択または入力" list="storeNameList" autocomplete="off">
+                        <datalist id="storeNameList">
+                            <?php foreach ($distinctStoreNames as $_sn): ?><option value="<?= h($_sn) ?>"><?php endforeach; ?>
+                        </datalist>
                         <div class="form-text text-danger">【正式名称で入力】</div>
                     </div>
                     <div class="col-md-3">
@@ -571,11 +559,6 @@ $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
 $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= 'var pageYear = ' . (int)$dispYear . '; var pageMonth = ' . (int)$dispMonth . ';';
 $inlineJs .= <<<'JS'
-
-// select選択 → テキスト入力に転記
-function caseApplySel(sel, inpId) {
-    if (sel.value) document.getElementById(inpId).value = sel.value;
-}
 
 // フィルター非同期更新
 function fetchCases() {
@@ -735,7 +718,7 @@ function applyPlan(planId) {
     var store  = opt.dataset.store  || '';
     var date   = opt.dataset.date   || '';
     if (client) { document.getElementById('f_client_name_input').value = client; document.getElementById('f_client_name_hidden').value = client; document.getElementById('f_client_id').value = ''; }
-    if (store)  { document.getElementById('store_name_sel').value = store; document.getElementById('f_store_name').value = store; }
+    if (store)  { document.getElementById('f_store_name').value = store; }
     if (date)   document.getElementById('f_start_date').value = date.substring(0,7);
 }
 
@@ -757,11 +740,8 @@ function resetCaseForm() {
     document.getElementById('worker_type').value = '正社員';
     document.getElementById('f_alliance_id').value = '';
     document.getElementById('f_worker_name').value = '';
-    var csel = document.getElementById('carrier_sel'); if (csel) csel.value = '';
     document.getElementById('f_carrier').value = '';
-    var tnsel = document.getElementById('trade_name_sel'); if (tnsel) tnsel.value = '';
     document.getElementById('f_trade_name').value = '';
-    var snsel = document.getElementById('store_name_sel'); if (snsel) snsel.value = '';
     document.getElementById('f_store_name').value = '';
     document.getElementById('unit_price_in').value = 0;
     document.getElementById('unit_price_out').value = 0;
@@ -787,11 +767,8 @@ function editCase(c) {
     document.getElementById('worker_type').value = c.worker_type || '正社員';
     document.getElementById('f_alliance_id').value = c.alliance_id || '';
     document.getElementById('f_worker_name').value = c.worker_name || '';
-    var csel = document.getElementById('carrier_sel'); if (csel) csel.value = c.carrier || '';
     document.getElementById('f_carrier').value = c.carrier || '';
-    var tnsel = document.getElementById('trade_name_sel'); if (tnsel) tnsel.value = c.trade_name || '';
     document.getElementById('f_trade_name').value = c.trade_name || '';
-    var snsel = document.getElementById('store_name_sel'); if (snsel) snsel.value = c.store_name || '';
     document.getElementById('f_store_name').value = c.store_name || '';
     document.getElementById('unit_price_in').value = c.unit_price_in || 0;
     document.getElementById('unit_price_out').value = c.unit_price_out || 0;

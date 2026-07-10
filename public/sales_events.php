@@ -46,7 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
     $action = $_POST['action'] ?? '';
     if ($action === 'create' || $action === 'update') {
-        // 取引先: IDがない場合は名前で検索、なければ新規登録
         $_clientId = ($_POST['client_id'] ?? '') ?: null;
         $_clientNameInput = trim($_POST['client_name_input'] ?? '');
         if (!$_clientId && $_clientNameInput) {
@@ -67,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             'worker_type'    => $_POST['worker_type'] ?? '正社員',
             'worker_name'    => trim($_POST['worker_name'] ?? ''),
             'alliance_id'    => ($_POST['alliance_id'] ?? '') ?: null,
-            'carrier'        => $_POST['carrier'] ?? '',
+            'carrier'        => trim($_POST['carrier'] ?? ''),
+            'trade_name'     => trim($_POST['trade_name'] ?? ''),
             'area_id'        => ($_POST['area_id'] ?? '') ?: null,
             'store_name'     => trim($_POST['store_name'] ?? ''),
             'unit_price_in'  => (int)($_POST['unit_price_in'] ?? 0),
@@ -76,13 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             'status'         => $_POST['status'] ?? 'confirmed',
             'note'           => trim($_POST['notes'] ?? ''),
         ];
-        // イベント案件: 請求単価×稼働数=売上、支払単価×稼働数=原価
         $_crY = (int)($_GET['year']  ?? date('Y'));
         $_crM = (int)($_GET['month'] ?? date('n'));
         $_crBase = BASE_PATH . '/public/sales_events.php?year=' . $_crY . '&month=' . $_crM;
         if ($action === 'create') {
             $newCaseId = createSalesCase($cid, $data);
-            // 予定案件と紐付け（plan_idが指定された場合・テーブル未存在時もエラーにしない）
             $_planId = (int)($_POST['plan_id'] ?? 0);
             if ($_planId && $newCaseId) {
                 try {
@@ -127,7 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 'sales_rep' => $pc['sales_rep'], 'manager' => $pc['manager'],
                 'recruiter' => $pc['recruiter'], 'worker_type' => $pc['worker_type'],
                 'worker_name' => $pc['worker_name'], 'alliance_id' => $pc['alliance_id'],
-                'carrier' => $pc['carrier'], 'area_id' => $pc['area_id'],
+                'carrier' => $pc['carrier'], 'trade_name' => $pc['trade_name'] ?? '',
+                'area_id' => $pc['area_id'],
                 'store_name' => $pc['store_name'], 'unit_price_in' => $pc['unit_price_in'],
                 'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
                 'status' => $pc['status'], 'note' => $pc['note'],
@@ -175,10 +174,25 @@ $brands = getSalesStoreBrands($cid);
 $areas = getSalesAreas($cid);
 $workers = getSalesWorkers($cid);
 
-// KPI集計（社員フィルタ・月フィルタ反映）
-$kpiWhere = "company_id = ? AND case_year = ? AND case_type = 'event' AND status != '終了'";
+// 屋号・店舗名の選択肢（過去のDB値）
+$_tns = $db->prepare("SELECT DISTINCT trade_name FROM sales_cases WHERE company_id=? AND case_type='event' AND trade_name IS NOT NULL AND trade_name != '' ORDER BY trade_name");
+$_tns->execute([$cid]);
+$distinctTradeNames = $_tns->fetchAll(PDO::FETCH_COLUMN);
+$_sns = $db->prepare("SELECT DISTINCT store_name FROM sales_cases WHERE company_id=? AND case_type='event' AND store_name IS NOT NULL AND store_name != '' ORDER BY store_name");
+$_sns->execute([$cid]);
+$distinctStoreNames = $_sns->fetchAll(PDO::FETCH_COLUMN);
+
+// KPI集計（フィルター全条件を反映）
+$kpiWhere = "company_id = ? AND case_year = ? AND case_type = 'event' AND status != 'cancelled'";
 $kpiParams = [$cid, $year];
 if ($month) { $kpiWhere .= ' AND case_month = ?'; $kpiParams[] = (int)$month; }
+if (!empty($filters['client_id'])) { $kpiWhere .= ' AND client_id = ?'; $kpiParams[] = (int)$filters['client_id']; }
+if (!empty($filters['worker_type'])) { $kpiWhere .= ' AND worker_type = ?'; $kpiParams[] = $filters['worker_type']; }
+if (!empty($filters['search'])) {
+    $kpiWhere .= ' AND (worker_name LIKE ? OR store_name LIKE ? OR sales_rep LIKE ?)';
+    $_ks = '%' . $filters['search'] . '%';
+    $kpiParams[] = $_ks; $kpiParams[] = $_ks; $kpiParams[] = $_ks;
+}
 if ($empFilter) { $kpiWhere .= ' AND (sales_rep = ? OR worker_name = ?)'; $kpiParams[] = $empFilter; $kpiParams[] = $empFilter; }
 $sumStmt = $db->prepare("SELECT
     COUNT(*) as case_count,
@@ -189,6 +203,82 @@ $sumStmt = $db->prepare("SELECT
 FROM sales_cases WHERE $kpiWhere");
 $sumStmt->execute($kpiParams);
 $monthSummary = $sumStmt->fetch();
+
+// テーブルHTML事前レンダリング（AJAX対応）
+ob_start();
+if (empty($cases)) { echo '<tr><td colspan="11" class="text-center text-muted py-4">案件がありません</td></tr>'; }
+else { foreach ($cases as $c):
+    $splitTo = $c['manager'] ?: ($c['recruiter'] ?: '直営業');
+    $repRev  = (int)floor($c['revenue'] / 2);
+    $otRev   = $c['revenue'] - $repRev;
+    $repPro  = (int)floor($c['gross_profit'] / 2);
+    $otPro   = $c['gross_profit'] - $repPro;
+?><tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" data-price-in="<?= (int)$c['unit_price_in'] ?>" data-price-out="<?= (int)$c['unit_price_out'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
+    <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
+    <td class="small"><?= h($c['sales_rep']) ?></td>
+    <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
+    <td class="fw-medium"><?= h($c['worker_name']) ?></td>
+    <td class="small"><?= h($c['carrier'] ?? '') ?></td>
+    <td class="small"><?= h($c['trade_name'] ?? '') ?></td>
+    <td class="small"><?= h($c['store_name'] ?? '') ?></td>
+    <td class="amount amount-positive" style="vertical-align:top">
+        <span id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></span>
+        <?php if ($c['sales_rep']): ?><div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br><?= h($splitTo) ?> <?= number_format($otRev) ?></div><?php endif; ?>
+    </td>
+    <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" style="vertical-align:top">
+        <span id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></span>
+        <?php if ($c['sales_rep']): ?><div id="profit_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?= h($c['sales_rep']) ?> <?= number_format($repPro) ?><br><?= h($splitTo) ?> <?= number_format($otPro) ?></div><?php endif; ?>
+    </td>
+    <td class="text-center" style="white-space:nowrap">
+        <div class="d-flex align-items-center justify-content-center gap-1">
+            <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,-1)">−</button>
+            <input type="number" id="spin_<?= $c['id'] ?>" value="<?= (int)$c['days_worked'] ?>" min="0" class="form-control form-control-sm p-1 text-center" style="width:52px">
+            <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,1)">＋</button>
+        </div>
+    </td>
+    <td style="white-space:nowrap">
+        <div class="d-flex gap-1 justify-content-end">
+            <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c) ?>)' title="編集"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= $c['id'] ?>)" title="削除"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-success" onclick="applyDays(<?= $c['id'] ?>)" title="金額反映"><i class="bi bi-arrow-repeat"></i></button>
+        </div>
+    </td>
+</tr><?php endforeach; }
+$tbodyHtml = ob_get_clean();
+
+$_tfootRevTotal = array_sum(array_column($cases, 'revenue'));
+$_tfootProTotal = array_sum(array_column($cases, 'gross_profit'));
+$tfootHtml = !empty($cases) ? '<tr class="fw-bold" style="background:#f0fdf4"><td colspan="7" class="text-end">合計</td><td class="amount amount-positive" id="tfoot_revenue">' . number_format($_tfootRevTotal) . '</td><td class="amount amount-positive" id="tfoot_profit">' . number_format($_tfootProTotal) . '</td><td colspan="2"></td></tr>' : '';
+
+// ページネーションHTML
+$_pgGet = array_diff_key($_GET, ['ajax' => null]);
+ob_start();
+if ($totalPages > 1): ?>
+<nav class="mt-3"><ul class="pagination pagination-sm justify-content-center">
+    <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+    <li class="page-item <?= $p === $page ? 'active' : '' ?>"><a class="page-link" href="?<?= http_build_query(array_merge($_pgGet, ['page' => $p])) ?>"><?= $p ?></a></li>
+    <?php endfor; ?>
+</ul></nav>
+<?php endif;
+$paginationHtml = ob_get_clean();
+
+// AJAX応答（フィルター変更時のみ）
+if (!empty($_GET['ajax'])) {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'kpi'        => [
+            'revenue' => number_format($monthSummary['total_revenue'] ?? 0),
+            'profit'  => number_format($monthSummary['total_profit'] ?? 0),
+            'count'   => (int)($monthSummary['case_count'] ?? 0),
+            'margin'  => ($monthSummary['avg_margin'] ?? 0) . '%',
+        ],
+        'tbody'      => $tbodyHtml,
+        'tfoot'      => $tfootHtml,
+        'pagination' => $paginationHtml,
+        'total'      => $totalCount,
+    ]);
+    exit;
+}
 
 $csrf = getCsrfToken();
 require_once __DIR__ . '/../includes/header.php';
@@ -236,7 +326,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="row g-2 mb-3">
         <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_revenue" style="color:#059669"><?= number_format($monthSummary['total_revenue'] ?? 0) ?></div><div class="kpi-label">売上</div></div></div>
         <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_profit" style="color:#3b82f6"><?= number_format($monthSummary['total_profit'] ?? 0) ?></div><div class="kpi-label">粗利</div></div></div>
-        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" style="color:#8b5cf6"><?= $monthSummary['case_count'] ?? 0 ?></div><div class="kpi-label">案件数</div></div></div>
+        <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_count" style="color:#8b5cf6"><?= $monthSummary['case_count'] ?? 0 ?></div><div class="kpi-label">案件数</div></div></div>
         <div class="col-6 col-md-3"><div class="sales-kpi"><div class="kpi-value" id="kpi_margin" style="color:#f59e0b"><?= ($monthSummary['avg_margin'] ?? 0) ?>%</div><div class="kpi-label">平均粗利率</div></div></div>
     </div>
 
@@ -244,13 +334,13 @@ require_once __DIR__ . '/../includes/header.php';
     <form id="salesFilterForm" class="sales-filters">
         <input type="hidden" name="year" value="<?= $dispYear ?>">
         <input type="hidden" name="month" value="<?= $dispMonth ?>">
-        <select name="client_id" class="form-select" onchange="this.form.submit()">
+        <select name="client_id" class="form-select">
             <option value="">全取引先</option>
             <?php foreach ($clients as $cl): ?>
             <option value="<?= $cl['id'] ?>" <?= ($_GET['client_id'] ?? '') == $cl['id'] ? 'selected' : '' ?>><?= h($cl['client_name']) ?></option>
             <?php endforeach; ?>
         </select>
-        <select name="worker_type" class="form-select" onchange="this.form.submit()">
+        <select name="worker_type" class="form-select">
             <option value="">全区分</option>
             <?php foreach (['正社員','自社外注','アライアンス','個人外注','アルバイト'] as $wt): ?>
             <option value="<?= $wt ?>" <?= ($_GET['worker_type'] ?? '') === $wt ? 'selected' : '' ?>><?= $wt ?></option>
@@ -270,92 +360,25 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>営業</th>
                         <th>外注先</th>
                         <th>スタッフ</th>
-                        <th>キャリア/店舗</th>
+                        <th>キャリア</th>
+                        <th>屋号</th>
+                        <th>店舗</th>
                         <th class="text-end">売上</th>
                         <th class="text-end">粗利</th>
                         <th class="text-center">稼働数</th>
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php if (empty($cases)): ?>
-                    <tr><td colspan="9" class="text-center text-muted py-4">案件がありません</td></tr>
-                    <?php endif; ?>
-                    <?php foreach ($cases as $c): ?>
-                    <tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" data-price-in="<?= (int)$c['unit_price_in'] ?>" data-price-out="<?= (int)$c['unit_price_out'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
-                        <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
-                        <td class="small"><?= h($c['sales_rep']) ?></td>
-                        <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
-                        <td class="fw-medium"><?= h($c['worker_name']) ?></td>
-                        <td class="small"><?= h(trim(($c['carrier'] ?? '') . ' ' . ($c['store_name'] ?? ''))) ?></td>
-                        <?php
-                        $splitTo  = $c['manager'] ?: ($c['recruiter'] ?: '直営業');
-                        $repRev   = (int)floor($c['revenue'] / 2);
-                        $otRev    = $c['revenue'] - $repRev;
-                        $repPro   = (int)floor($c['gross_profit'] / 2);
-                        $otPro    = $c['gross_profit'] - $repPro;
-                        ?>
-                        <td class="amount amount-positive" style="vertical-align:top">
-                            <span id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></span>
-                            <?php if ($c['sales_rep']): ?>
-                            <div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px">
-                                <?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br>
-                                <?= h($splitTo) ?> <?= number_format($otRev) ?>
-                            </div>
-                            <?php endif; ?>
-                        </td>
-                        <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" style="vertical-align:top">
-                            <span id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></span>
-                            <?php if ($c['sales_rep']): ?>
-                            <div id="profit_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px">
-                                <?= h($c['sales_rep']) ?> <?= number_format($repPro) ?><br>
-                                <?= h($splitTo) ?> <?= number_format($otPro) ?>
-                            </div>
-                            <?php endif; ?>
-                        </td>
-                        <td class="text-center" style="white-space:nowrap">
-                            <div class="d-flex align-items-center justify-content-center gap-1">
-                                <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,-1)">−</button>
-                                <input type="number" id="spin_<?= $c['id'] ?>" value="<?= (int)$c['days_worked'] ?>" min="0" class="form-control form-control-sm p-1 text-center" style="width:52px">
-                                <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,1)">＋</button>
-                            </div>
-                        </td>
-                        <td style="white-space:nowrap">
-                            <div class="d-flex gap-1 justify-content-end">
-                                <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c) ?>)' title="編集"><i class="bi bi-pencil"></i></button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= $c['id'] ?>)" title="削除"><i class="bi bi-trash"></i></button>
-                                <button class="btn btn-sm btn-outline-success" onclick="applyDays(<?= $c['id'] ?>)" title="金額反映"><i class="bi bi-arrow-repeat"></i></button>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
+                <tbody><?= $tbodyHtml ?></tbody>
                 <?php if (!empty($cases)): ?>
-                <tfoot>
-                    <tr class="fw-bold" style="background:#f0fdf4">
-                        <td colspan="5" class="text-end">合計</td>
-                        <td class="amount amount-positive" id="tfoot_revenue"><?= number_format(array_sum(array_column($cases, 'revenue'))) ?></td>
-                        <td class="amount amount-positive" id="tfoot_profit"><?= number_format(array_sum(array_column($cases, 'gross_profit'))) ?></td>
-                        <td colspan="2"></td>
-                    </tr>
-                </tfoot>
+                <tfoot><?= $tfootHtml ?></tfoot>
                 <?php endif; ?>
             </table>
         </div>
     </div>
 
     <!-- ページネーション -->
-    <?php if ($totalPages > 1): ?>
-    <nav class="mt-3">
-        <ul class="pagination pagination-sm justify-content-center">
-            <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-            <li class="page-item <?= $p === $page ? 'active' : '' ?>">
-                <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $p])) ?>"><?= $p ?></a>
-            </li>
-            <?php endfor; ?>
-        </ul>
-    </nav>
-    <?php endif; ?>
+    <div id="paginationWrapper"><?= $paginationHtml ?></div>
 </div>
 
 <!-- 前月コピー確認モーダル -->
@@ -392,7 +415,6 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="modal-body">
                 <?php if (!empty($_pendingPlans)): ?>
-                <!-- 予定案件から選択 -->
                 <div class="mb-3 p-2 rounded" style="background:#fef3c7;border:1px solid #fde68a">
                     <label class="form-label small fw-bold" style="color:#92400e"><i class="bi bi-link-45deg me-1"></i>予定案件から選択（任意）</label>
                     <select id="f_plan_select" class="form-select form-select-sm" onchange="applyPlan(this.value)">
@@ -406,7 +428,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="form-text" style="font-size:.68rem">選択すると日付・クライアント・店舗が自動入力されます。確定時に予定案件が「確定済」に変わります。</div>
+                    <div class="form-text" style="font-size:.68rem">選択すると日付・クライアント・店舗が自動入力されます。</div>
                 </div>
                 <?php endif; ?>
                 <div class="row g-3">
@@ -464,20 +486,41 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label fw-medium">スタッフ名</label>
                         <input type="text" name="worker_name" id="f_worker_name" class="form-control">
                     </div>
+                    <!-- キャリア: select + text combo -->
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">キャリア</label>
-                        <select name="carrier" id="f_carrier" class="form-select">
+                        <label class="form-label fw-medium">キャリア <span class="text-danger">*</span></label>
+                        <select id="carrier_sel" class="form-select form-select-sm mb-1" onchange="caseApplySel(this,'f_carrier')">
                             <option value="">-- 選択 --</option>
                             <option value="ドコモ">ドコモ</option>
                             <option value="au">au</option>
                             <option value="SB">SB</option>
                             <option value="楽天">楽天</option>
                             <option value="コミュファ">コミュファ</option>
+                            <option value="CATV">CATV</option>
                         </select>
+                        <input type="text" name="carrier" id="f_carrier" class="form-control" placeholder="選択または入力">
                     </div>
+                    <!-- 屋号: select + text combo -->
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">店舗名</label>
-                        <input type="text" name="store_name" id="f_store_name" class="form-control">
+                        <label class="form-label fw-medium">屋号 <span class="text-danger">*</span></label>
+                        <select id="trade_name_sel" class="form-select form-select-sm mb-1" onchange="caseApplySel(this,'f_trade_name')">
+                            <option value="">-- 選択 --</option>
+                            <?php foreach ($distinctTradeNames as $_tn): ?>
+                            <option value="<?= h($_tn) ?>"><?= h($_tn) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="trade_name" id="f_trade_name" class="form-control" placeholder="選択または入力">
+                    </div>
+                    <!-- 店舗名: select + text combo -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">店舗名 <span class="text-danger">*</span></label>
+                        <select id="store_name_sel" class="form-select form-select-sm mb-1" onchange="caseApplySel(this,'f_store_name')">
+                            <option value="">-- 選択 --</option>
+                            <?php foreach ($distinctStoreNames as $_sn): ?>
+                            <option value="<?= h($_sn) ?>"><?= h($_sn) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="store_name" id="f_store_name" class="form-control" placeholder="選択または入力">
                         <div class="form-text text-danger">【正式名称で入力】</div>
                     </div>
                     <div class="col-md-3">
@@ -502,22 +545,10 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <div class="row g-2 text-center" style="background:#f8f9fa;border-radius:8px;padding:.75rem .5rem">
-                            <div class="col-3">
-                                <div class="text-muted small">売上</div>
-                                <div class="fw-bold" id="calc_revenue">¥0</div>
-                            </div>
-                            <div class="col-3">
-                                <div class="text-muted small">原価</div>
-                                <div class="fw-bold" id="calc_cost">¥0</div>
-                            </div>
-                            <div class="col-3">
-                                <div class="text-muted small">粗利</div>
-                                <div class="fw-bold" id="calc_profit">¥0</div>
-                            </div>
-                            <div class="col-3">
-                                <div class="text-muted small">粗利率</div>
-                                <div class="fw-bold" id="calc_margin">0.0%</div>
-                            </div>
+                            <div class="col-3"><div class="text-muted small">売上</div><div class="fw-bold" id="calc_revenue">¥0</div></div>
+                            <div class="col-3"><div class="text-muted small">原価</div><div class="fw-bold" id="calc_cost">¥0</div></div>
+                            <div class="col-3"><div class="text-muted small">粗利</div><div class="fw-bold" id="calc_profit">¥0</div></div>
+                            <div class="col-3"><div class="text-muted small">粗利率</div><div class="fw-bold" id="calc_margin">0.0%</div></div>
                         </div>
                     </div>
                     <div class="col-12">
@@ -541,7 +572,51 @@ $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= 'var pageYear = ' . (int)$dispYear . '; var pageMonth = ' . (int)$dispMonth . ';';
 $inlineJs .= <<<'JS'
 
-// イベント案件フォーム: 常勤と同じ計算方式（稼働日数は売上に含めない）
+// select選択 → テキスト入力に転記
+function caseApplySel(sel, inpId) {
+    if (sel.value) document.getElementById(inpId).value = sel.value;
+}
+
+// フィルター非同期更新
+function fetchCases() {
+    var form = document.getElementById('salesFilterForm');
+    var params = new URLSearchParams(new FormData(form));
+    params.set('ajax', '1');
+    params.delete('page');
+    fetch(window.location.pathname + '?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var e = function(id) { return document.getElementById(id); };
+            if (e('kpi_revenue')) e('kpi_revenue').textContent = data.kpi.revenue;
+            if (e('kpi_profit'))  e('kpi_profit').textContent  = data.kpi.profit;
+            if (e('kpi_count'))   e('kpi_count').textContent   = data.kpi.count;
+            if (e('kpi_margin'))  e('kpi_margin').textContent  = data.kpi.margin;
+            var tbody = document.querySelector('.sales-table tbody');
+            if (tbody) tbody.innerHTML = data.tbody;
+            var tfoot = document.querySelector('.sales-table tfoot');
+            if (tfoot) tfoot.innerHTML = data.tfoot;
+            var pgWrap = document.getElementById('paginationWrapper');
+            if (pgWrap) pgWrap.innerHTML = data.pagination;
+        });
+}
+(function() {
+    var form = document.getElementById('salesFilterForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) { e.preventDefault(); fetchCases(); });
+    form.querySelectorAll('select').forEach(function(sel) {
+        sel.addEventListener('change', fetchCases);
+    });
+    var searchInp = form.querySelector('input[name="search"]');
+    if (searchInp) {
+        var _st;
+        searchInp.addEventListener('input', function() {
+            clearTimeout(_st);
+            _st = setTimeout(fetchCases, 400);
+        });
+    }
+})();
+
+// イベント案件フォーム
 window.salesCalcAmounts = function() {
     var priceIn  = parseFloat(document.getElementById('unit_price_in')?.value  || 0);
     var priceOut = parseFloat(document.getElementById('unit_price_out')?.value || 0);
@@ -575,7 +650,7 @@ function confirmDelete(id) {
     document.body.appendChild(f); f.submit();
 }
 
-// KPI・合計行の再集計
+// KPI・合計行の再集計（稼働数更新後のローカル更新用）
 function refreshKpi() {
     var totalRev = 0, totalProfit = 0;
     document.querySelectorAll('tbody tr[id^="row_"]').forEach(function(row) {
@@ -649,6 +724,7 @@ function toggleAllianceGroup() {
     var ag = document.getElementById('alliance_group');
     if (ag) ag.style.display = wt === 'アライアンス' ? 'block' : 'none';
 }
+
 // 予定案件選択時の自動入力
 function applyPlan(planId) {
     var sel = document.getElementById('f_plan_select');
@@ -659,7 +735,7 @@ function applyPlan(planId) {
     var store  = opt.dataset.store  || '';
     var date   = opt.dataset.date   || '';
     if (client) { document.getElementById('f_client_name_input').value = client; document.getElementById('f_client_name_hidden').value = client; document.getElementById('f_client_id').value = ''; }
-    if (store)  document.getElementById('f_store_name').value = store;
+    if (store)  { document.getElementById('store_name_sel').value = store; document.getElementById('f_store_name').value = store; }
     if (date)   document.getElementById('f_start_date').value = date.substring(0,7);
 }
 
@@ -681,7 +757,11 @@ function resetCaseForm() {
     document.getElementById('worker_type').value = '正社員';
     document.getElementById('f_alliance_id').value = '';
     document.getElementById('f_worker_name').value = '';
+    var csel = document.getElementById('carrier_sel'); if (csel) csel.value = '';
     document.getElementById('f_carrier').value = '';
+    var tnsel = document.getElementById('trade_name_sel'); if (tnsel) tnsel.value = '';
+    document.getElementById('f_trade_name').value = '';
+    var snsel = document.getElementById('store_name_sel'); if (snsel) snsel.value = '';
     document.getElementById('f_store_name').value = '';
     document.getElementById('unit_price_in').value = 0;
     document.getElementById('unit_price_out').value = 0;
@@ -707,7 +787,11 @@ function editCase(c) {
     document.getElementById('worker_type').value = c.worker_type || '正社員';
     document.getElementById('f_alliance_id').value = c.alliance_id || '';
     document.getElementById('f_worker_name').value = c.worker_name || '';
+    var csel = document.getElementById('carrier_sel'); if (csel) csel.value = c.carrier || '';
     document.getElementById('f_carrier').value = c.carrier || '';
+    var tnsel = document.getElementById('trade_name_sel'); if (tnsel) tnsel.value = c.trade_name || '';
+    document.getElementById('f_trade_name').value = c.trade_name || '';
+    var snsel = document.getElementById('store_name_sel'); if (snsel) snsel.value = c.store_name || '';
     document.getElementById('f_store_name').value = c.store_name || '';
     document.getElementById('unit_price_in').value = c.unit_price_in || 0;
     document.getElementById('unit_price_out').value = c.unit_price_out || 0;

@@ -173,7 +173,7 @@ function createSalesCase(int $companyId, array $data): int {
     ];
 
     // 拡張カラム: $data に存在する場合のみ追加（マイグレーション前後どちらでも動作）
-    foreach (['case_name', 'carrier', 'recruitment_count', 'new_transactions', 'negotiations_count', 'contracts_count'] as $col) {
+    foreach (['case_name', 'carrier', 'trade_name', 'recruitment_count', 'new_transactions', 'negotiations_count', 'contracts_count'] as $col) {
         if (array_key_exists($col, $data)) {
             $fields[$col] = ($data[$col] !== '' && $data[$col] !== null) ? $data[$col] : null;
         }
@@ -223,7 +223,7 @@ function updateSalesCase(int $id, int $companyId, array $data): void {
     ];
 
     // 拡張カラム: $data に存在する場合のみ更新
-    foreach (['case_name', 'carrier', 'recruitment_count', 'new_transactions', 'negotiations_count', 'contracts_count'] as $col) {
+    foreach (['case_name', 'carrier', 'trade_name', 'recruitment_count', 'new_transactions', 'negotiations_count', 'contracts_count'] as $col) {
         if (array_key_exists($col, $data)) {
             $fields[$col] = ($data[$col] !== '' && $data[$col] !== null) ? $data[$col] : null;
         }

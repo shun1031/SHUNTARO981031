@@ -133,6 +133,9 @@ $migrations = [
     "CREATE TABLE IF NOT EXISTS sga_expenses (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, target_year INT NOT NULL, target_month INT NOT NULL, category VARCHAR(100) NOT NULL, content VARCHAR(255) NOT NULL DEFAULT '', amount BIGINT NOT NULL DEFAULT 0, note VARCHAR(255) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_sga_company_month (company_id, target_year, target_month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     // ---- sga_expenses: content カラム追加（既存テーブル用） ----
     "ALTER TABLE sga_expenses ADD COLUMN content VARCHAR(255) NOT NULL DEFAULT '' AFTER category",
+
+    // ---- sales_cases: 屋号カラム追加 ----
+    "ALTER TABLE sales_cases ADD COLUMN trade_name VARCHAR(100) DEFAULT NULL AFTER carrier",
 ];
 
 $ok = 0;

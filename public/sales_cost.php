@@ -125,6 +125,10 @@ require_once __DIR__ . '/../includes/header.php';
             <div>
                 <h1><i class="bi bi-building me-2"></i>原価管理</h1>
                 <p>アライアンス会社ごとの原価を常勤・イベント案件ごとに集計・確認できます。</p>
+                <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded" style="background:#fef3c7;border:1px solid #fde68a;font-size:.75rem;color:#92400e">
+                    <i class="bi bi-info-circle"></i>
+                    <span>この画面は <strong>スタッフ区分＝アライアンス</strong> の案件のみ集計しています。正社員・個人外注等の原価はダッシュボードの「売上−粗利」で確認できます。</span>
+                </div>
             </div>
             <div class="d-flex gap-2 align-items-center flex-wrap">
                 <!-- 年月フィルター -->

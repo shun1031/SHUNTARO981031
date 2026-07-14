@@ -70,6 +70,11 @@ $prevEnd   = date('Y-m-t', strtotime($prevStart));
 $weekEnd   = date('Y-m-d');
 $weekStart = date('Y-m-d', strtotime('-6 days'));
 
+// goal_type/goal_value カラムが未存在の場合に自動追加（初回アクセス対応）
+foreach (['goal_type VARCHAR(10) DEFAULT NULL', 'goal_value INT DEFAULT NULL'] as $_colDef) {
+    try { $db->exec("ALTER TABLE sales_daily_reports ADD COLUMN {$_colDef}"); } catch (PDOException $e) {}
+}
+
 $kpiMonth = fetchKpi($db, $cid, $employee, $monthStart, $monthEnd);
 $kpiPrev  = fetchKpi($db, $cid, $employee, $prevStart,  $prevEnd);
 $kpiWeek  = fetchKpi($db, $cid, $employee, $weekStart,  $weekEnd);

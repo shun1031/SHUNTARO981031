@@ -139,8 +139,8 @@ require_once __DIR__ . '/../includes/header.php';
         </button>
     </div>
 
-    <!-- ② KPIカード -->
-    <div class="row g-3 mb-4" id="drKpiRow">
+    <!-- ② KPIカード（イベント系） -->
+    <div class="row g-2 mb-3" id="drKpiRow">
         <?php
         $kpiDefs = [
             ['key'=>'catch_count',        'label'=>'キャッチ数', 'icon'=>'bi-megaphone',    'color'=>'#2563eb'],
@@ -151,16 +151,15 @@ require_once __DIR__ . '/../includes/header.php';
         ];
         foreach ($kpiDefs as $kd): ?>
         <div class="col-6 col-md">
-            <div class="card h-100 kpi-card" data-key="<?= $kd['key'] ?>" style="border-top:3px solid <?= $kd['color'] ?>">
+            <div class="card h-100 kpi-card shadow-sm" data-key="<?= $kd['key'] ?>" style="border-top:3px solid <?= $kd['color'] ?>;border-radius:.75rem">
                 <div class="card-body p-3">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <i class="bi <?= $kd['icon'] ?> fs-5" style="color:<?= $kd['color'] ?>"></i>
-                        <span class="fw-bold small" style="color:<?= $kd['color'] ?>"><?= $kd['label'] ?></span>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="bi <?= $kd['icon'] ?>" style="color:<?= $kd['color'] ?>;font-size:1.1rem"></i>
+                        <span class="fw-semibold" style="color:<?= $kd['color'] ?>;font-size:.78rem"><?= $kd['label'] ?></span>
                     </div>
-                    <div class="kpi-month-label text-muted" style="font-size:.68rem">月合計</div>
-                    <div class="kpi-month-val fw-bold" style="font-size:1.8rem;color:<?= $kd['color'] ?>">- <small style="font-size:.8rem">件</small></div>
-                    <div class="kpi-prev text-muted" style="font-size:.7rem">前月比 読込中...</div>
-                    <div class="kpi-week" style="display:none;margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;font-size:.72rem;color:#6b7280">
+                    <div class="kpi-month-val fw-bold" style="font-size:1.6rem;color:<?= $kd['color'] ?>;line-height:1.1">- <small style="font-size:.75rem">件</small></div>
+                    <div class="kpi-prev text-muted" style="font-size:.68rem;margin-top:2px">前月比 読込中...</div>
+                    <div class="kpi-week" style="display:none;margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;font-size:.68rem;color:#6b7280">
                         直近1週間: <span class="kpi-week-val fw-bold">-</span> 件
                     </div>
                 </div>
@@ -169,7 +168,53 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
     </div>
 
-    <!-- ③ 日報一覧 -->
+    <!-- ③ キャリア別KPIカード -->
+    <?php
+    $carrierColors = [
+        'SB,YM'    => ['color'=>'#2563eb','bg'=>'#eff6ff','label'=>'SB / Y!mobile'],
+        'au,UQ'    => ['color'=>'#d97706','bg'=>'#fffbeb','label'=>'au / UQ'],
+        'ドコモ'   => ['color'=>'#dc2626','bg'=>'#fef2f2','label'=>'ドコモ'],
+        '楽天'     => ['color'=>'#be123c','bg'=>'#fff1f2','label'=>'楽天'],
+        'コミュファ'=> ['color'=>'#059669','bg'=>'#f0fdf4','label'=>'コミュファ'],
+        'CATV'     => ['color'=>'#0891b2','bg'=>'#ecfeff','label'=>'CATV'],
+    ];
+    ?>
+    <div class="row g-2 mb-3" id="drCarrierKpiRow">
+        <?php foreach ($carrierColors as $cKey => $cDef): ?>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm carrier-kpi-card" data-carrier="<?= h($cKey) ?>" style="border-radius:.75rem;border-left:4px solid <?= $cDef['color'] ?>;background:<?= $cDef['bg'] ?>">
+                <div class="card-body p-2">
+                    <div class="fw-semibold mb-1" style="font-size:.72rem;color:<?= $cDef['color'] ?>"><?= h($cDef['label']) ?></div>
+                    <div class="d-flex gap-2 mb-1">
+                        <div class="flex-fill text-center" style="background:rgba(255,255,255,.7);border-radius:.4rem;padding:3px 2px">
+                            <div style="font-size:.58rem;color:#6b7280;line-height:1.2">全体</div>
+                            <div class="carrier-kpi-total fw-bold" style="font-size:1.1rem;color:<?= $cDef['color'] ?>;line-height:1.1">-</div>
+                        </div>
+                        <div class="flex-fill text-center" style="background:rgba(255,255,255,.7);border-radius:.4rem;padding:3px 2px">
+                            <div style="font-size:.58rem;color:#6b7280;line-height:1.2">個人</div>
+                            <div class="carrier-kpi-personal fw-bold" style="font-size:1.1rem;color:<?= $cDef['color'] ?>;line-height:1.1">-</div>
+                        </div>
+                    </div>
+                    <div class="carrier-kpi-rate text-center" style="font-size:.65rem;color:#6b7280;display:none">
+                        達成率 <span class="fw-bold carrier-kpi-rate-val" style="color:<?= $cDef['color'] ?>">-%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- ④ 年間推移グラフ -->
+    <div class="card mb-3 shadow-sm" style="border-radius:.75rem">
+        <div class="card-header fw-semibold" style="font-size:.85rem;border-radius:.75rem .75rem 0 0">
+            <i class="bi bi-graph-up me-1"></i>年間推移 <span class="text-muted fw-normal" style="font-size:.75rem"><?= $year ?>年 月別</span>
+        </div>
+        <div class="card-body p-3" style="height:220px">
+            <canvas id="drTrendChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ⑤ 日報一覧 -->
     <div class="card mb-3">
         <div class="card-header fw-bold"><i class="bi bi-list-ul me-1"></i>日報一覧
             <span class="ms-2 text-muted fw-normal" style="font-size:.78rem">個人獲得内訳 / 全体獲得内訳</span>
@@ -304,6 +349,29 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
                                 <div id="perAcqFields"><p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p></div>
                                 <input type="hidden" name="personal_acquisition_detail" id="perAcqJson">
+                            </div>
+                            <!-- 目標設定 -->
+                            <div class="border rounded p-2 mt-2" style="background:#f0fdf4">
+                                <div class="fw-bold mb-2" style="color:#166534;font-size:.82rem"><i class="bi bi-bullseye me-1"></i>目標設定（任意）</div>
+                                <div class="d-flex gap-3 align-items-center flex-wrap">
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check form-check-inline mb-0">
+                                            <input class="form-check-input" type="radio" name="goal_type" id="goalTypeCount" value="件数">
+                                            <label class="form-check-label" for="goalTypeCount" style="font-size:.82rem">件数</label>
+                                        </div>
+                                        <div class="form-check form-check-inline mb-0">
+                                            <input class="form-check-input" type="radio" name="goal_type" id="goalTypePts" value="ポイント">
+                                            <label class="form-check-label" for="goalTypePts" style="font-size:.82rem">ポイント</label>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <label style="font-size:.82rem;white-space:nowrap;color:#166534;font-weight:600">目標値</label>
+                                        <input type="number" name="goal_value" id="drGoalValue" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px">
+                                    </div>
+                                    <div id="drAchievementPreview" style="font-size:.78rem;color:#166534;display:none">
+                                        達成率目安: <strong id="drAchievementRate">-%</strong>
+                                    </div>
+                                </div>
                             </div>
                             <!-- 削除された項目用 hidden（保存エラー防止） -->
                             <input type="hidden" name="fixed_check_detail" id="fixChkJson" value="">
@@ -470,8 +538,30 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drLocationError').style.display = 'none';
         document.getElementById('evtAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
         document.getElementById('perAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
+        document.getElementById('drAchievementPreview').style.display = 'none';
         updateDrForm();
     });
+
+    // 目標達成率プレビュー（成約数 ÷ 目標値）
+    function updateAchievementPreview() {
+        var goalType = document.querySelector('input[name="goal_type"]:checked');
+        var goalVal  = parseInt(document.getElementById('drGoalValue').value || '0');
+        var contracts = parseInt(document.getElementById('evtContracts') ? document.getElementById('evtContracts').value || '0' : '0');
+        var previewEl = document.getElementById('drAchievementPreview');
+        var rateEl    = document.getElementById('drAchievementRate');
+        if (goalType && goalType.value === '件数' && goalVal > 0 && contracts >= 0) {
+            var rate = Math.round(contracts / goalVal * 100);
+            rateEl.textContent = rate + '%';
+            previewEl.style.display = 'inline';
+        } else {
+            previewEl.style.display = 'none';
+        }
+    }
+    document.getElementById('drGoalValue').addEventListener('input', updateAchievementPreview);
+    document.querySelectorAll('input[name="goal_type"]').forEach(function(r){
+        r.addEventListener('change', updateAchievementPreview);
+    });
+    document.getElementById('evtContracts').addEventListener('input', updateAchievementPreview);
 })();
 </script>
 
@@ -483,13 +573,15 @@ require_once __DIR__ . '/../includes/header.php';
     var drApiBase  = <?= json_encode($drApiBase) ?>;
     var drCsrf     = <?= json_encode(getCsrfToken()) ?>;
     var KPI_KEYS   = ['catch_count','event_seated','event_proposals','event_negotiations','event_contracts'];
-    var KPI_LABELS = ['キャッチ数','着座数','提案数','昇段数','成約数'];
+    var drTrendChart = null;
 
     function drLoad() {
         var url = drApiBase + '?employee=' + encodeURIComponent(drEmp) + '&year=' + drYear + '&month=' + drMonth;
         document.getElementById('drListWrap').innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
         fetch(url).then(function(r){return r.json();}).then(function(d){
             drRenderKpi(d);
+            drRenderCarrierKpi(d);
+            drRenderChart(d);
             drRenderList(d);
             document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
             document.getElementById('drSubtitle').textContent   = drYear + '年' + drMonth + '月';
@@ -498,7 +590,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     function drRenderKpi(d) {
         var month = d.kpi_month, prev = d.kpi_prev, week = d.kpi_week;
-        KPI_KEYS.forEach(function(k, i) {
+        KPI_KEYS.forEach(function(k) {
             var card = document.querySelector('.kpi-card[data-key="' + k + '"]');
             if (!card) return;
             var mVal = parseInt(month[k]||0);
@@ -506,7 +598,7 @@ require_once __DIR__ . '/../includes/header.php';
             var wVal = parseInt(week[k]||0);
             var diff = mVal - pVal;
             var pct  = pVal > 0 ? ((diff/pVal)*100).toFixed(1) : '-';
-            card.querySelector('.kpi-month-val').innerHTML = mVal + ' <small style="font-size:.8rem">件</small>';
+            card.querySelector('.kpi-month-val').innerHTML = mVal + ' <small style="font-size:.75rem">件</small>';
             var prevEl = card.querySelector('.kpi-prev');
             var sign = diff >= 0 ? '+' : '';
             var color = diff >= 0 ? '#059669' : '#ef4444';
@@ -517,6 +609,100 @@ require_once __DIR__ . '/../includes/header.php';
         });
     }
 
+    function drRenderCarrierKpi(d) {
+        var ckpi = d.carrier_kpi || {};
+        document.querySelectorAll('.carrier-kpi-card').forEach(function(card) {
+            var carrier = card.dataset.carrier;
+            var kpi = ckpi[carrier];
+            if (!kpi) {
+                card.querySelector('.carrier-kpi-total').textContent = '0';
+                card.querySelector('.carrier-kpi-personal').textContent = '0';
+                card.querySelector('.carrier-kpi-rate').style.display = 'none';
+                return;
+            }
+            card.querySelector('.carrier-kpi-total').textContent = kpi.total || 0;
+            card.querySelector('.carrier-kpi-personal').textContent = kpi.personal || 0;
+            var rateEl = card.querySelector('.carrier-kpi-rate');
+            if (kpi.achievement_rate !== null && kpi.achievement_rate !== undefined) {
+                card.querySelector('.carrier-kpi-rate-val').textContent = kpi.achievement_rate + '%';
+                rateEl.style.display = 'block';
+            } else {
+                rateEl.style.display = 'none';
+            }
+        });
+    }
+
+    function drRenderChart(d) {
+        var trend = d.annual_trend || [];
+        var labels = trend.map(function(t){ return t.month + '月'; });
+        var personalData = trend.map(function(t){ return t.personal; });
+        var rateData     = trend.map(function(t){ return t.achievement_rate; });
+        var hasRate = rateData.some(function(v){ return v !== null; });
+
+        var ctx = document.getElementById('drTrendChart');
+        if (!ctx) return;
+        if (drTrendChart) { drTrendChart.destroy(); drTrendChart = null; }
+
+        var datasets = [
+            {
+                label: '個人獲得数（件）',
+                data: personalData,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37,99,235,.1)',
+                fill: true,
+                tension: .35,
+                yAxisID: 'y',
+                pointBackgroundColor: '#2563eb',
+                pointRadius: 4,
+            }
+        ];
+        if (hasRate) {
+            datasets.push({
+                label: '目標達成率（%）',
+                data: rateData,
+                borderColor: '#d97706',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: .35,
+                yAxisID: 'y2',
+                borderDash: [4,3],
+                pointBackgroundColor: '#d97706',
+                pointRadius: 4,
+            });
+        }
+
+        drTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+                },
+                scales: {
+                    x: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 } } },
+                    y: {
+                        type: 'linear', position: 'left',
+                        title: { display: true, text: '件数', font: { size: 10 }, color: '#2563eb' },
+                        ticks: { font: { size: 10 }, precision: 0 },
+                        grid: { color: 'rgba(0,0,0,.05)' },
+                        beginAtZero: true,
+                    },
+                    y2: {
+                        type: 'linear', position: 'right', display: hasRate,
+                        title: { display: true, text: '達成率(%)', font: { size: 10 }, color: '#d97706' },
+                        ticks: { font: { size: 10 }, callback: function(v){ return v + '%'; } },
+                        grid: { drawOnChartArea: false },
+                        beginAtZero: true,
+                        max: 200,
+                    },
+                },
+            },
+        });
+    }
+
     function drRenderList(d) {
         var reports = d.reports || [];
         var wrap = document.getElementById('drListWrap');
@@ -524,7 +710,6 @@ require_once __DIR__ . '/../includes/header.php';
             wrap.innerHTML = '<div class="text-center text-muted py-4">日報データがありません</div>';
             return;
         }
-        // キャリア別にグループ化してテーブル作成
         var html = '';
         var byCarrier = {};
         reports.forEach(function(r){ (byCarrier[r.carrier||''] = byCarrier[r.carrier||''] || []).push(r); });
@@ -535,26 +720,32 @@ require_once __DIR__ . '/../includes/header.php';
             html += '<div class="table-responsive mb-3"><table class="table table-sm table-hover mb-0" style="font-size:.72rem">';
             html += '<thead class="table-light"><tr>';
             html += '<th>日付</th><th>社員名</th><th>稼働店舗</th><th>キャリア</th>';
-            html += '<th class="text-center">キャッチ</th><th class="text-center">着席</th><th class="text-center">提案</th><th class="text-center">成約</th>';
+            html += '<th class="text-center">キャッチ</th><th class="text-center">着席</th><th class="text-center">提案</th>';
+            html += '<th class="text-center">成約<br><span style="font-size:.6rem;color:#6b7280">達成率</span></th>';
             items.forEach(function(lbl) {
-                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">' + lbl + '</th>';
+                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">' + esc(lbl) + '<br><span style="font-size:.55rem;color:#9ca3af">個/全</span></th>';
             });
             html += '<th>操作</th></tr></thead><tbody>';
             rows.forEach(function(r) {
                 html += '<tr>';
-                html += '<td>' + r.work_date + '</td>';
+                html += '<td style="white-space:nowrap">' + r.work_date + '</td>';
                 html += '<td>' + esc(r.employee) + '</td>';
                 html += '<td>' + esc(r.location) + '</td>';
                 html += '<td>' + esc(r.carrier) + '</td>';
                 html += '<td class="text-center">' + (r.catch||0) + '</td>';
                 html += '<td class="text-center">' + (r.seated||0) + '</td>';
                 html += '<td class="text-center">' + (r.proposals||0) + '</td>';
-                html += '<td class="text-center">' + (r.contracts||0) + '</td>';
+                var rateHtml = '';
+                if (r.achievement_rate !== null && r.achievement_rate !== undefined) {
+                    var rc = r.achievement_rate >= 100 ? '#059669' : (r.achievement_rate >= 70 ? '#d97706' : '#dc2626');
+                    rateHtml = '<div style="font-size:.62rem;color:'+rc+';font-weight:600">'+r.achievement_rate+'%</div>';
+                }
+                html += '<td class="text-center"><div>' + (r.contracts||0) + '</div>' + rateHtml + '</td>';
                 items.forEach(function(lbl) {
                     var a = (r.acq||{})[lbl];
                     var per = a ? (a.person||0) : 0;
                     var tot = a ? (a.total||0) : 0;
-                    html += '<td class="text-center">' + per + ' / ' + tot + '</td>';
+                    html += '<td class="text-center"><div style="font-size:.7rem">' + per + '</div><div style="font-size:.6rem;color:#9ca3af">' + tot + '</div></td>';
                 });
                 html += '<td><form method="post" style="display:inline" onsubmit="return confirm(\'削除しますか？\')">';
                 html += '<input type="hidden" name="csrf" value="' + drCsrf + '">';

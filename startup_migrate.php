@@ -137,6 +137,10 @@ $migrations = [
     // ---- sales_cases: 屋号カラム追加 ----
     "ALTER TABLE sales_cases ADD COLUMN trade_name VARCHAR(100) DEFAULT NULL AFTER carrier",
 
+    // ---- sales_daily_reports: 目標設定カラム ----
+    "ALTER TABLE sales_daily_reports ADD COLUMN goal_type VARCHAR(10) DEFAULT NULL",
+    "ALTER TABLE sales_daily_reports ADD COLUMN goal_value INT DEFAULT NULL",
+
     // ---- invoice_checks: 請求書チェック管理テーブル ----
     "CREATE TABLE IF NOT EXISTS invoice_checks (id INT PRIMARY KEY AUTO_INCREMENT, bms_company_id INT NOT NULL, company_type VARCHAR(30) NOT NULL, ref_id INT NOT NULL DEFAULT 0, ref_name VARCHAR(100) NOT NULL DEFAULT '', check_year SMALLINT NOT NULL, check_month TINYINT NOT NULL, check_create TINYINT(1) NOT NULL DEFAULT 0, check_staff1 TINYINT(1) NOT NULL DEFAULT 0, check_staff2 TINYINT(1) NOT NULL DEFAULT 0, final_check TINYINT(1) NOT NULL DEFAULT 0, updated_by VARCHAR(100) DEFAULT NULL, updated_at DATETIME DEFAULT NULL, UNIQUE KEY uq_ic (bms_company_id, company_type, ref_id, ref_name, check_year, check_month), INDEX idx_ic_company (bms_company_id, company_type, check_year, check_month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];

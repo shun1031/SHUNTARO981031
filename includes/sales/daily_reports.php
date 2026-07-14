@@ -94,6 +94,8 @@ function getDailyReportExistingColumns(PDO $db): array {
         'shop_acquisition_detail'     => "TEXT DEFAULT NULL",
         'shop_fixed_check_detail'     => "TEXT DEFAULT NULL",
         'shop_comment'                => "TEXT DEFAULT NULL",
+        'goal_type'                   => "VARCHAR(10) DEFAULT NULL",
+        'goal_value'                  => "INT DEFAULT NULL",
     ];
 
     // 現在のカラム一覧を取得
@@ -239,6 +241,9 @@ function saveDailyReport(int $companyId, array $data): int {
         'shop_acquisition_detail'   => $data['shop_acquisition_detail'] ?? null,
         'shop_fixed_check_detail'   => $data['shop_fixed_check_detail'] ?? null,
         'shop_comment'              => $data['shop_comment'] ?? null,
+        // 目標
+        'goal_type'                 => $data['goal_type'] ?? null,
+        'goal_value'                => $ni('goal_value'),
         // その他
         'note' => $data['note'] ?? null,
         'submitted_at' => date('Y-m-d H:i:s'),

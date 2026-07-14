@@ -78,7 +78,8 @@ $kpiWeek  = fetchKpi($db, $cid, $employee, $weekStart,  $weekEnd);
 $listSql = "SELECT id, work_date, employee_name, location, carrier,
     catch_count, event_seated, event_proposals, event_negotiations, event_contracts,
     event_acquisition_detail, personal_acquisition_detail,
-    shop_acquisition_detail, shop_fixed_check_detail, work_type
+    shop_acquisition_detail, shop_fixed_check_detail, work_type,
+    goal_type, goal_value
     FROM sales_daily_reports
     WHERE company_id=? AND work_date BETWEEN ? AND ?";
 $listParams = [$cid, $monthStart, $monthEnd];
@@ -98,7 +99,6 @@ foreach ($rawReports as $r) {
     $shopJson = $r['shop_acquisition_detail'] ?? '';
     $shopPerJson = $r['shop_fixed_check_detail'] ?? '';
 
-    // 全体・個人の acquisition を取得
     $acqData = [];
     foreach ($items as $label) {
         $total  = getJsonVal($evtJson  ?: $shopJson, $label);
@@ -106,19 +106,78 @@ foreach ($rawReports as $r) {
         $acqData[$label] = ['person' => $person, 'total' => $total];
     }
 
+    // 達成率計算
+    $goalType  = $r['goal_type'] ?? null;
+    $goalValue = (int)($r['goal_value'] ?? 0);
+    $contracts = (int)($r['event_contracts'] ?? 0);
+    $achieveRate = null;
+    if ($goalType === '件数' && $goalValue > 0) {
+        $achieveRate = round($contracts / $goalValue * 100, 1);
+    }
+
     $reports[] = [
-        'id'          => $r['id'],
-        'work_date'   => $r['work_date'],
-        'employee'    => $r['employee_name'],
-        'location'    => $r['location'] ?? '',
-        'carrier'     => $carrier,
-        'carrier_items'=> $items,
-        'catch'       => (int)($r['catch_count'] ?? 0),
-        'seated'      => (int)($r['event_seated'] ?? 0),
-        'proposals'   => (int)($r['event_proposals'] ?? 0),
-        'negotiations'=> (int)($r['event_negotiations'] ?? 0),
-        'contracts'   => (int)($r['event_contracts'] ?? 0),
-        'acq'         => $acqData,
+        'id'              => $r['id'],
+        'work_date'       => $r['work_date'],
+        'employee'        => $r['employee_name'],
+        'location'        => $r['location'] ?? '',
+        'carrier'         => $carrier,
+        'carrier_items'   => $items,
+        'catch'           => (int)($r['catch_count'] ?? 0),
+        'seated'          => (int)($r['event_seated'] ?? 0),
+        'proposals'       => (int)($r['event_proposals'] ?? 0),
+        'negotiations'    => (int)($r['event_negotiations'] ?? 0),
+        'contracts'       => $contracts,
+        'acq'             => $acqData,
+        'goal_type'       => $goalType,
+        'goal_value'      => $goalValue,
+        'achievement_rate'=> $achieveRate,
+    ];
+}
+
+// ─── キャリア別KPI集計（当月） ────────────────────────────────────────
+$carrierKpi = [];
+foreach ($rawReports as $r) {
+    $c = $r['carrier'] ?? '';
+    if (!isset($CARRIER_ITEMS[$c])) continue;
+    if (!isset($carrierKpi[$c])) {
+        $carrierKpi[$c] = ['total' => 0, 'personal' => 0, 'contracts' => 0, 'goal' => 0, 'reports' => 0];
+    }
+    $carrierKpi[$c]['reports']++;
+    $carrierKpi[$c]['contracts'] += (int)($r['event_contracts'] ?? 0);
+    if (($r['goal_type'] ?? '') === '件数' && ($r['goal_value'] ?? 0) > 0) {
+        $carrierKpi[$c]['goal'] += (int)$r['goal_value'];
+    }
+    $evtData = json_decode($r['event_acquisition_detail'] ?? '{}', true) ?: [];
+    $perData = json_decode($r['personal_acquisition_detail'] ?? '{}', true) ?: [];
+    foreach ($CARRIER_ITEMS[$c] as $label) {
+        $carrierKpi[$c]['total']    += (int)($evtData[$label] ?? 0);
+        $carrierKpi[$c]['personal'] += (int)($perData[$label] ?? 0);
+    }
+}
+foreach ($carrierKpi as $c => &$kpi) {
+    $kpi['achievement_rate'] = ($kpi['goal'] > 0) ? round($kpi['contracts'] / $kpi['goal'] * 100, 1) : null;
+}
+unset($kpi);
+
+// ─── 年間推移（現在の年、月別） ────────────────────────────────────────
+$annualTrend = [];
+for ($m = 1; $m <= 12; $m++) {
+    $ms = sprintf('%04d-%02d-01', $year, $m);
+    $me = date('Y-m-t', strtotime($ms));
+    $tSql = "SELECT COALESCE(SUM(event_contracts),0) AS contracts,
+                    COALESCE(SUM(CASE WHEN goal_type='件数' AND goal_value > 0 THEN goal_value ELSE 0 END),0) AS goal_cnt
+             FROM sales_daily_reports WHERE company_id=? AND work_date BETWEEN ? AND ?";
+    $tp = [$cid, $ms, $me];
+    if ($employee) { $tSql .= " AND employee_name=?"; $tp[] = $employee; }
+    $tStmt = $db->prepare($tSql);
+    $tStmt->execute($tp);
+    $row = $tStmt->fetch(PDO::FETCH_ASSOC);
+    $contracts = (int)($row['contracts'] ?? 0);
+    $goalCnt   = (int)($row['goal_cnt'] ?? 0);
+    $annualTrend[] = [
+        'month'            => $m,
+        'personal'         => $contracts,
+        'achievement_rate' => $goalCnt > 0 ? round($contracts / $goalCnt * 100, 1) : null,
     ];
 }
 
@@ -130,13 +189,15 @@ $employees = $empStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // ─── レスポンス ───────────────────────────────────────────────────────
 echo json_encode([
-    'kpi_month' => $kpiMonth,
-    'kpi_prev'  => $kpiPrev,
-    'kpi_week'  => $kpiWeek,
-    'reports'   => $reports,
-    'employees' => $employees,
-    'employee'  => $employee,
-    'year'      => $year,
-    'month'     => $month,
-    'carrier_items' => $CARRIER_ITEMS,
+    'kpi_month'    => $kpiMonth,
+    'kpi_prev'     => $kpiPrev,
+    'kpi_week'     => $kpiWeek,
+    'reports'      => $reports,
+    'employees'    => $employees,
+    'employee'     => $employee,
+    'year'         => $year,
+    'month'        => $month,
+    'carrier_items'=> $CARRIER_ITEMS,
+    'carrier_kpi'  => $carrierKpi,
+    'annual_trend' => $annualTrend,
 ], JSON_UNESCAPED_UNICODE);

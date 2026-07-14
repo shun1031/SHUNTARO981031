@@ -139,30 +139,58 @@ foreach ($rawReports as $r) {
     ];
 }
 
-// ─── キャリア別KPI集計（当月） ────────────────────────────────────────
-$carrierKpi = [];
+// ─── 全社員レポート（全体集計用） ────────────────────────────────────
+$allListSql = "SELECT carrier, event_acquisition_detail, personal_acquisition_detail,
+    catch_count, event_seated, event_proposals, event_negotiations, event_contracts,
+    goal_type, goal_value
+    FROM sales_daily_reports WHERE company_id=? AND work_date BETWEEN ? AND ?";
+$allListStmt = $db->prepare($allListSql);
+$allListStmt->execute([$cid, $monthStart, $monthEnd]);
+$allRawReports = $allListStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ─── 全社員KPI（全体） ────────────────────────────────────────────────
+$kpiAll = fetchKpi($db, $cid, '', $monthStart, $monthEnd);
+
+// ─── 目標集計 ─────────────────────────────────────────────────────────
+$goalTotal    = 0;
+$goalPersonal = 0;
+foreach ($allRawReports as $r) {
+    if (($r['goal_type'] ?? '') === '件数' && ($r['goal_value'] ?? 0) > 0) {
+        $goalTotal += (int)$r['goal_value'];
+    }
+}
+foreach ($rawReports as $r) {
+    if (($r['goal_type'] ?? '') === '件数' && ($r['goal_value'] ?? 0) > 0) {
+        $goalPersonal += (int)$r['goal_value'];
+    }
+}
+
+// ─── キャリア別アイテムKPI集計 ────────────────────────────────────────
+// 全体 = 全社員の event_acquisition_detail / 個人 = 絞込後の personal_acquisition_detail
+$carrierItemKpi = [];
+foreach ($CARRIER_ITEMS as $carrier => $items) {
+    foreach ($items as $label) {
+        $carrierItemKpi[$carrier][$label] = ['total' => 0, 'personal' => 0];
+    }
+}
+// 全体: 全社員の event_acquisition_detail を集計
+foreach ($allRawReports as $r) {
+    $c = $r['carrier'] ?? '';
+    if (!isset($CARRIER_ITEMS[$c])) continue;
+    $evtData = json_decode($r['event_acquisition_detail'] ?? '{}', true) ?: [];
+    foreach ($CARRIER_ITEMS[$c] as $label) {
+        $carrierItemKpi[$c][$label]['total'] += (int)($evtData[$label] ?? 0);
+    }
+}
+// 個人: 絞込後（社員選択）の personal_acquisition_detail を集計
 foreach ($rawReports as $r) {
     $c = $r['carrier'] ?? '';
     if (!isset($CARRIER_ITEMS[$c])) continue;
-    if (!isset($carrierKpi[$c])) {
-        $carrierKpi[$c] = ['total' => 0, 'personal' => 0, 'contracts' => 0, 'goal' => 0, 'reports' => 0];
-    }
-    $carrierKpi[$c]['reports']++;
-    $carrierKpi[$c]['contracts'] += (int)($r['event_contracts'] ?? 0);
-    if (($r['goal_type'] ?? '') === '件数' && ($r['goal_value'] ?? 0) > 0) {
-        $carrierKpi[$c]['goal'] += (int)$r['goal_value'];
-    }
-    $evtData = json_decode($r['event_acquisition_detail'] ?? '{}', true) ?: [];
     $perData = json_decode($r['personal_acquisition_detail'] ?? '{}', true) ?: [];
     foreach ($CARRIER_ITEMS[$c] as $label) {
-        $carrierKpi[$c]['total']    += (int)($evtData[$label] ?? 0);
-        $carrierKpi[$c]['personal'] += (int)($perData[$label] ?? 0);
+        $carrierItemKpi[$c][$label]['personal'] += (int)($perData[$label] ?? 0);
     }
 }
-foreach ($carrierKpi as $c => &$kpi) {
-    $kpi['achievement_rate'] = ($kpi['goal'] > 0) ? round($kpi['contracts'] / $kpi['goal'] * 100, 1) : null;
-}
-unset($kpi);
 
 // ─── 年間推移（現在の年、月別） ────────────────────────────────────────
 $annualTrend = [];
@@ -194,15 +222,18 @@ $employees = $empStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // ─── レスポンス ───────────────────────────────────────────────────────
 echo json_encode([
-    'kpi_month'    => $kpiMonth,
-    'kpi_prev'     => $kpiPrev,
-    'kpi_week'     => $kpiWeek,
-    'reports'      => $reports,
-    'employees'    => $employees,
-    'employee'     => $employee,
-    'year'         => $year,
-    'month'        => $month,
-    'carrier_items'=> $CARRIER_ITEMS,
-    'carrier_kpi'  => $carrierKpi,
-    'annual_trend' => $annualTrend,
+    'kpi_month'       => $kpiMonth,
+    'kpi_all'         => $kpiAll,
+    'kpi_prev'        => $kpiPrev,
+    'kpi_week'        => $kpiWeek,
+    'reports'         => $reports,
+    'employees'       => $employees,
+    'employee'        => $employee,
+    'year'            => $year,
+    'month'           => $month,
+    'carrier_items'   => $CARRIER_ITEMS,
+    'carrier_item_kpi'=> $carrierItemKpi,
+    'goal_total'      => $goalTotal,
+    'goal_personal'   => $goalPersonal,
+    'annual_trend'    => $annualTrend,
 ], JSON_UNESCAPED_UNICODE);

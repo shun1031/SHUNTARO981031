@@ -139,28 +139,39 @@ require_once __DIR__ . '/../includes/header.php';
         </button>
     </div>
 
-    <!-- ② KPIカード（イベント系） -->
+    <!-- ② KPIサマリーカード（全体/個人/達成率） -->
     <div class="row g-2 mb-3" id="drKpiRow">
         <?php
         $kpiDefs = [
-            ['key'=>'catch_count',        'label'=>'キャッチ数', 'icon'=>'bi-megaphone',    'color'=>'#2563eb'],
-            ['key'=>'event_seated',       'label'=>'着座数',     'icon'=>'bi-person-check', 'color'=>'#059669'],
-            ['key'=>'event_proposals',    'label'=>'提案数',     'icon'=>'bi-clipboard-check','color'=>'#d97706'],
-            ['key'=>'event_negotiations', 'label'=>'昇段数',     'icon'=>'bi-graph-up-arrow','color'=>'#7c3aed'],
-            ['key'=>'event_contracts',    'label'=>'成約数',     'icon'=>'bi-handshake',    'color'=>'#dc2626'],
+            ['key'=>'catch_count',     'label'=>'キャッチ数', 'icon'=>'bi-megaphone',      'color'=>'#2563eb'],
+            ['key'=>'event_seated',    'label'=>'着座数',     'icon'=>'bi-person-check',   'color'=>'#059669'],
+            ['key'=>'event_proposals', 'label'=>'提案数',     'icon'=>'bi-clipboard-check','color'=>'#d97706'],
+            ['key'=>'event_contracts', 'label'=>'成約数',     'icon'=>'bi-handshake',      'color'=>'#dc2626'],
+            ['key'=>'goal',            'label'=>'目標',       'icon'=>'bi-bullseye',       'color'=>'#7c3aed'],
         ];
         foreach ($kpiDefs as $kd): ?>
         <div class="col-6 col-md">
             <div class="card h-100 kpi-card shadow-sm" data-key="<?= $kd['key'] ?>" style="border-top:3px solid <?= $kd['color'] ?>;border-radius:.75rem">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <i class="bi <?= $kd['icon'] ?>" style="color:<?= $kd['color'] ?>;font-size:1.1rem"></i>
+                <div class="card-body p-2">
+                    <div class="d-flex align-items-center gap-1 mb-2">
+                        <i class="bi <?= $kd['icon'] ?>" style="color:<?= $kd['color'] ?>;font-size:1rem"></i>
                         <span class="fw-semibold" style="color:<?= $kd['color'] ?>;font-size:.78rem"><?= $kd['label'] ?></span>
                     </div>
-                    <div class="kpi-month-val fw-bold" style="font-size:1.6rem;color:<?= $kd['color'] ?>;line-height:1.1">- <small style="font-size:.75rem">件</small></div>
-                    <div class="kpi-prev text-muted" style="font-size:.68rem;margin-top:2px">前月比 読込中...</div>
-                    <div class="kpi-week" style="display:none;margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;font-size:.68rem;color:#6b7280">
-                        直近1週間: <span class="kpi-week-val fw-bold">-</span> 件
+                    <div class="d-flex gap-1 mb-1">
+                        <div class="flex-fill text-center" style="background:#f9fafb;border-radius:.4rem;padding:3px 2px">
+                            <div style="font-size:.58rem;color:#9ca3af;line-height:1.4">全体</div>
+                            <div class="kpi-total-val fw-bold" style="font-size:1.2rem;color:<?= $kd['color'] ?>;line-height:1.1">-</div>
+                            <div style="font-size:.55rem;color:#9ca3af">件</div>
+                        </div>
+                        <div class="flex-fill text-center" style="background:#f9fafb;border-radius:.4rem;padding:3px 2px">
+                            <div style="font-size:.58rem;color:#9ca3af;line-height:1.4">個人</div>
+                            <div class="kpi-personal-val fw-bold" style="font-size:1.2rem;color:<?= $kd['color'] ?>;line-height:1.1">-</div>
+                            <div style="font-size:.55rem;color:#9ca3af">件</div>
+                        </div>
+                    </div>
+                    <div class="kpi-rate-val text-center" style="font-size:.68rem;color:#6b7280">達成率 <span class="fw-bold">-%</span></div>
+                    <div class="kpi-week" style="display:none;margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;font-size:.65rem;color:#6b7280">
+                        1週間: <span class="kpi-week-val fw-bold">-</span>件
                     </div>
                 </div>
             </div>
@@ -168,40 +179,28 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
     </div>
 
-    <!-- ③ キャリア別KPIカード -->
-    <?php
-    $carrierColors = [
-        'SB,YM'    => ['color'=>'#2563eb','bg'=>'#eff6ff','label'=>'SB / Y!mobile'],
-        'au,UQ'    => ['color'=>'#d97706','bg'=>'#fffbeb','label'=>'au / UQ'],
-        'ドコモ'   => ['color'=>'#dc2626','bg'=>'#fef2f2','label'=>'ドコモ'],
-        '楽天'     => ['color'=>'#be123c','bg'=>'#fff1f2','label'=>'楽天'],
-        'コミュファ'=> ['color'=>'#059669','bg'=>'#f0fdf4','label'=>'コミュファ'],
-        'CATV'     => ['color'=>'#0891b2','bg'=>'#ecfeff','label'=>'CATV'],
-    ];
-    ?>
-    <div class="row g-2 mb-3" id="drCarrierKpiRow">
-        <?php foreach ($carrierColors as $cKey => $cDef): ?>
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm carrier-kpi-card" data-carrier="<?= h($cKey) ?>" style="border-radius:.75rem;border-left:4px solid <?= $cDef['color'] ?>;background:<?= $cDef['bg'] ?>">
-                <div class="card-body p-2">
-                    <div class="fw-semibold mb-1" style="font-size:.72rem;color:<?= $cDef['color'] ?>"><?= h($cDef['label']) ?></div>
-                    <div class="d-flex gap-2 mb-1">
-                        <div class="flex-fill text-center" style="background:rgba(255,255,255,.7);border-radius:.4rem;padding:3px 2px">
-                            <div style="font-size:.58rem;color:#6b7280;line-height:1.2">全体</div>
-                            <div class="carrier-kpi-total fw-bold" style="font-size:1.1rem;color:<?= $cDef['color'] ?>;line-height:1.1">-</div>
-                        </div>
-                        <div class="flex-fill text-center" style="background:rgba(255,255,255,.7);border-radius:.4rem;padding:3px 2px">
-                            <div style="font-size:.58rem;color:#6b7280;line-height:1.2">個人</div>
-                            <div class="carrier-kpi-personal fw-bold" style="font-size:1.1rem;color:<?= $cDef['color'] ?>;line-height:1.1">-</div>
-                        </div>
-                    </div>
-                    <div class="carrier-kpi-rate text-center" style="font-size:.65rem;color:#6b7280;display:none">
-                        達成率 <span class="fw-bold carrier-kpi-rate-val" style="color:<?= $cDef['color'] ?>">-%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- ③ キャリア選択タブ + アイテム別KPIカード -->
+    <div class="d-flex gap-2 flex-wrap align-items-center mb-2">
+        <span class="text-muted small fw-semibold" style="white-space:nowrap">キャリア:</span>
+        <?php
+        $carrierTabDefs = [
+            ['key'=>'SB,YM',     'label'=>'SB / Y!mobile', 'color'=>'#2563eb'],
+            ['key'=>'au,UQ',     'label'=>'au / UQ',        'color'=>'#d97706'],
+            ['key'=>'ドコモ',    'label'=>'ドコモ',         'color'=>'#dc2626'],
+            ['key'=>'楽天',      'label'=>'楽天',            'color'=>'#be123c'],
+            ['key'=>'コミュファ','label'=>'コミュファ',     'color'=>'#059669'],
+            ['key'=>'CATV',      'label'=>'CATV',            'color'=>'#0891b2'],
+        ];
+        foreach ($carrierTabDefs as $i => $ct): ?>
+        <button type="button" class="btn btn-sm dr-carrier-tab<?= $i === 0 ? ' dr-carrier-tab-active' : '' ?>"
+                data-carrier="<?= h($ct['key']) ?>" data-color="<?= $ct['color'] ?>"
+                style="border:1.5px solid <?= $ct['color'] ?>;color:<?= $i === 0 ? '#fff' : $ct['color'] ?>;background:<?= $i === 0 ? $ct['color'] : 'transparent' ?>;border-radius:20px;font-size:.75rem;padding:2px 10px;transition:all .15s">
+            <?= h($ct['label']) ?>
+        </button>
         <?php endforeach; ?>
+    </div>
+    <div class="row g-2 mb-3" id="drItemKpiRow">
+        <div class="col-12 text-center text-muted small py-2"><i class="bi bi-arrow-repeat"></i> 読込中...</div>
     </div>
 
     <!-- ④ 年間推移グラフ -->
@@ -572,15 +571,22 @@ require_once __DIR__ . '/../includes/header.php';
     var drWeekMode = false;
     var drApiBase  = <?= json_encode($drApiBase) ?>;
     var drCsrf     = <?= json_encode(getCsrfToken()) ?>;
-    var KPI_KEYS   = ['catch_count','event_seated','event_proposals','event_negotiations','event_contracts'];
     var drTrendChart = null;
+    var drLastData   = null;
+    var drSelectedCarrier = 'SB,YM';
+
+    var CARRIER_COLORS = {
+        'SB,YM':'#2563eb','au,UQ':'#d97706','ドコモ':'#dc2626',
+        '楽天':'#be123c','コミュファ':'#059669','CATV':'#0891b2'
+    };
 
     function drLoad() {
         var url = drApiBase + '?employee=' + encodeURIComponent(drEmp) + '&year=' + drYear + '&month=' + drMonth;
         document.getElementById('drListWrap').innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
         fetch(url).then(function(r){return r.json();}).then(function(d){
+            drLastData = d;
             drRenderKpi(d);
-            drRenderCarrierKpi(d);
+            drRenderItemKpi(d, drSelectedCarrier);
             drRenderChart(d);
             drRenderList(d);
             document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
@@ -589,47 +595,83 @@ require_once __DIR__ . '/../includes/header.php';
     }
 
     function drRenderKpi(d) {
-        var month = d.kpi_month, prev = d.kpi_prev, week = d.kpi_week;
-        KPI_KEYS.forEach(function(k) {
-            var card = document.querySelector('.kpi-card[data-key="' + k + '"]');
+        var kpiAll   = d.kpi_all   || {};
+        var kpiMonth = d.kpi_month || {};
+        var week     = d.kpi_week  || {};
+        var goalTotal    = d.goal_total    || 0;
+        var goalPersonal = d.goal_personal || 0;
+
+        var SUMMARY = [
+            {key:'catch_count',     color:'#2563eb'},
+            {key:'event_seated',    color:'#059669'},
+            {key:'event_proposals', color:'#d97706'},
+            {key:'event_contracts', color:'#dc2626'},
+            {key:'goal',            color:'#7c3aed'},
+        ];
+        SUMMARY.forEach(function(def) {
+            var card = document.querySelector('.kpi-card[data-key="' + def.key + '"]');
             if (!card) return;
-            var mVal = parseInt(month[k]||0);
-            var pVal = parseInt(prev[k]||0);
-            var wVal = parseInt(week[k]||0);
-            var diff = mVal - pVal;
-            var pct  = pVal > 0 ? ((diff/pVal)*100).toFixed(1) : '-';
-            card.querySelector('.kpi-month-val').innerHTML = mVal + ' <small style="font-size:.75rem">件</small>';
-            var prevEl = card.querySelector('.kpi-prev');
-            var sign = diff >= 0 ? '+' : '';
-            var color = diff >= 0 ? '#059669' : '#ef4444';
-            prevEl.innerHTML = '前月比 <span style="color:'+color+'">'+sign+diff+'件 ('+sign+pct+'%)</span>';
+            var total, personal;
+            if (def.key === 'goal') {
+                total    = goalTotal;
+                personal = goalPersonal;
+            } else {
+                total    = parseInt(kpiAll[def.key]   || 0);
+                personal = parseInt(kpiMonth[def.key] || 0);
+            }
+            var rate = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
+            var wVal = def.key === 'goal' ? '-' : parseInt(week[def.key] || 0);
+
+            card.querySelector('.kpi-total-val').textContent    = total;
+            card.querySelector('.kpi-personal-val').textContent = personal;
+            var rateColor = (rate === '-') ? '#6b7280'
+                : (parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 50 ? def.color : '#ef4444'));
+            card.querySelector('.kpi-rate-val').innerHTML =
+                '達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span>';
             var wkEl = card.querySelector('.kpi-week-val');
             if (wkEl) wkEl.textContent = wVal;
             card.querySelector('.kpi-week').style.display = drWeekMode ? 'block' : 'none';
         });
     }
 
-    function drRenderCarrierKpi(d) {
-        var ckpi = d.carrier_kpi || {};
-        document.querySelectorAll('.carrier-kpi-card').forEach(function(card) {
-            var carrier = card.dataset.carrier;
-            var kpi = ckpi[carrier];
-            if (!kpi) {
-                card.querySelector('.carrier-kpi-total').textContent = '0';
-                card.querySelector('.carrier-kpi-personal').textContent = '0';
-                card.querySelector('.carrier-kpi-rate').style.display = 'none';
-                return;
-            }
-            card.querySelector('.carrier-kpi-total').textContent = kpi.total || 0;
-            card.querySelector('.carrier-kpi-personal').textContent = kpi.personal || 0;
-            var rateEl = card.querySelector('.carrier-kpi-rate');
-            if (kpi.achievement_rate !== null && kpi.achievement_rate !== undefined) {
-                card.querySelector('.carrier-kpi-rate-val').textContent = kpi.achievement_rate + '%';
-                rateEl.style.display = 'block';
-            } else {
-                rateEl.style.display = 'none';
-            }
+    function drRenderItemKpi(d, carrier) {
+        var itemKpi = (d.carrier_item_kpi || {})[carrier] || {};
+        var items   = (d.carrier_items    || {})[carrier] || [];
+        var color   = CARRIER_COLORS[carrier] || '#6b7280';
+        var wrap    = document.getElementById('drItemKpiRow');
+        if (!wrap) return;
+        if (!items.length) {
+            wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>';
+            return;
+        }
+        var html = '';
+        items.forEach(function(label) {
+            var kpi     = itemKpi[label] || {total:0, personal:0};
+            var total   = kpi.total   || 0;
+            var personal = kpi.personal || 0;
+            var rate    = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
+            var rateColor = (rate === '-') ? '#9ca3af'
+                : (parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 50 ? color : '#ef4444'));
+            html += '<div class="col-6 col-md-4 col-lg-2">';
+            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
+            html += '<div class="card-body p-2">';
+            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
+            html += '<div class="d-flex gap-1 mb-1">';
+            html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
+            html += '<div style="font-size:.56rem;color:#9ca3af">全体</div>';
+            html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + total + '</div>';
+            html += '<div style="font-size:.52rem;color:#9ca3af">件</div>';
+            html += '</div>';
+            html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
+            html += '<div style="font-size:.56rem;color:#9ca3af">個人</div>';
+            html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + personal + '</div>';
+            html += '<div style="font-size:.52rem;color:#9ca3af">件</div>';
+            html += '</div>';
+            html += '</div>';
+            html += '<div class="text-center" style="font-size:.65rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate!=='-'?'%':'') + '</span></div>';
+            html += '</div></div></div>';
         });
+        wrap.innerHTML = html;
     }
 
     function drRenderChart(d) {
@@ -777,6 +819,25 @@ require_once __DIR__ . '/../includes/header.php';
             el.style.display = drWeekMode ? 'block' : 'none';
         });
     };
+
+    // キャリアタブ切替
+    document.querySelectorAll('.dr-carrier-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            drSelectedCarrier = this.dataset.carrier;
+            var color = this.dataset.color;
+            // タブの見た目更新
+            document.querySelectorAll('.dr-carrier-tab').forEach(function(b) {
+                var c = b.dataset.color;
+                b.style.background = 'transparent';
+                b.style.color = c;
+                b.classList.remove('dr-carrier-tab-active');
+            });
+            this.style.background = color;
+            this.style.color = '#fff';
+            this.classList.add('dr-carrier-tab-active');
+            if (drLastData) drRenderItemKpi(drLastData, drSelectedCarrier);
+        });
+    });
 
     var empSel = document.getElementById('drEmpSelect');
     if (empSel) {

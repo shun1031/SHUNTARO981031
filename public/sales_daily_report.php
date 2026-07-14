@@ -179,25 +179,10 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
     </div>
 
-    <!-- ③ キャリア選択タブ + アイテム別KPIカード -->
-    <div class="d-flex gap-2 flex-wrap align-items-center mb-2">
-        <span class="text-muted small fw-semibold" style="white-space:nowrap">キャリア:</span>
-        <?php
-        $carrierTabDefs = [
-            ['key'=>'SB,YM',     'label'=>'SB / Y!mobile', 'color'=>'#2563eb'],
-            ['key'=>'au,UQ',     'label'=>'au / UQ',        'color'=>'#d97706'],
-            ['key'=>'ドコモ',    'label'=>'ドコモ',         'color'=>'#dc2626'],
-            ['key'=>'楽天',      'label'=>'楽天',            'color'=>'#be123c'],
-            ['key'=>'コミュファ','label'=>'コミュファ',     'color'=>'#059669'],
-            ['key'=>'CATV',      'label'=>'CATV',            'color'=>'#0891b2'],
-        ];
-        foreach ($carrierTabDefs as $i => $ct): ?>
-        <button type="button" class="btn btn-sm dr-carrier-tab<?= $i === 0 ? ' dr-carrier-tab-active' : '' ?>"
-                data-carrier="<?= h($ct['key']) ?>" data-color="<?= $ct['color'] ?>"
-                style="border:1.5px solid <?= $ct['color'] ?>;color:<?= $i === 0 ? '#fff' : $ct['color'] ?>;background:<?= $i === 0 ? $ct['color'] : 'transparent' ?>;border-radius:20px;font-size:.75rem;padding:2px 10px;transition:all .15s">
-            <?= h($ct['label']) ?>
-        </button>
-        <?php endforeach; ?>
+    <!-- ③ キャリア別アイテムKPIカード（自動検出） -->
+    <div class="d-flex align-items-center gap-2 mb-2" id="drItemKpiHeader" style="display:none!important">
+        <span class="text-muted small fw-semibold">商材別実績</span>
+        <span id="drDetectedCarrierBadge" class="badge" style="font-size:.72rem"></span>
     </div>
     <div class="row g-2 mb-3" id="drItemKpiRow">
         <div class="col-12 text-center text-muted small py-2"><i class="bi bi-arrow-repeat"></i> 読込中...</div>
@@ -573,11 +558,14 @@ require_once __DIR__ . '/../includes/header.php';
     var drCsrf     = <?= json_encode(getCsrfToken()) ?>;
     var drTrendChart = null;
     var drLastData   = null;
-    var drSelectedCarrier = 'SB,YM';
 
     var CARRIER_COLORS = {
         'SB,YM':'#2563eb','au,UQ':'#d97706','ドコモ':'#dc2626',
         '楽天':'#be123c','コミュファ':'#059669','CATV':'#0891b2'
+    };
+    var CARRIER_LABELS = {
+        'SB,YM':'SB / Y!mobile','au,UQ':'au / UQ','ドコモ':'ドコモ',
+        '楽天':'楽天','コミュファ':'コミュファ','CATV':'CATV'
     };
 
     function drLoad() {
@@ -586,7 +574,6 @@ require_once __DIR__ . '/../includes/header.php';
         fetch(url).then(function(r){return r.json();}).then(function(d){
             drLastData = d;
             drRenderKpi(d);
-            drRenderItemKpi(d, drSelectedCarrier);
             drRenderChart(d);
             drRenderList(d);
             document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
@@ -632,6 +619,31 @@ require_once __DIR__ . '/../includes/header.php';
             if (wkEl) wkEl.textContent = wVal;
             card.querySelector('.kpi-week').style.display = drWeekMode ? 'block' : 'none';
         });
+
+        // レポートデータからキャリアを自動検出（最多出現キャリア）
+        var carrierCount = {};
+        (d.reports || []).forEach(function(r) {
+            if (r.carrier) carrierCount[r.carrier] = (carrierCount[r.carrier] || 0) + 1;
+        });
+        var autoCarrier = null;
+        var maxCnt = 0;
+        Object.keys(carrierCount).forEach(function(c) {
+            if (carrierCount[c] > maxCnt) { maxCnt = carrierCount[c]; autoCarrier = c; }
+        });
+        if (!autoCarrier) {
+            // レポートなし → キャリアアイテムKPIを非表示
+            document.getElementById('drItemKpiRow').innerHTML =
+                '<div class="col-12 text-muted small text-center py-2">日報データがありません</div>';
+        } else {
+            var badge = document.getElementById('drDetectedCarrierBadge');
+            if (badge) {
+                badge.textContent = CARRIER_LABELS[autoCarrier] || autoCarrier;
+                badge.style.background = CARRIER_COLORS[autoCarrier] || '#6b7280';
+                badge.style.color = '#fff';
+                document.getElementById('drItemKpiHeader').style.display = 'flex';
+            }
+            drRenderItemKpi(d, autoCarrier);
+        }
     }
 
     function drRenderItemKpi(d, carrier) {
@@ -819,25 +831,6 @@ require_once __DIR__ . '/../includes/header.php';
             el.style.display = drWeekMode ? 'block' : 'none';
         });
     };
-
-    // キャリアタブ切替
-    document.querySelectorAll('.dr-carrier-tab').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            drSelectedCarrier = this.dataset.carrier;
-            var color = this.dataset.color;
-            // タブの見た目更新
-            document.querySelectorAll('.dr-carrier-tab').forEach(function(b) {
-                var c = b.dataset.color;
-                b.style.background = 'transparent';
-                b.style.color = c;
-                b.classList.remove('dr-carrier-tab-active');
-            });
-            this.style.background = color;
-            this.style.color = '#fff';
-            this.classList.add('dr-carrier-tab-active');
-            if (drLastData) drRenderItemKpi(drLastData, drSelectedCarrier);
-        });
-    });
 
     var empSel = document.getElementById('drEmpSelect');
     if (empSel) {

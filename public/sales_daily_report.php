@@ -139,37 +139,28 @@ require_once __DIR__ . '/../includes/header.php';
         </button>
     </div>
 
-    <!-- ② KPIサマリーカード（全体/個人/達成率） -->
+    <!-- ② KPIサマリーカード（個人実績のみ） -->
     <div class="row g-2 mb-3" id="drKpiRow">
         <?php
         $kpiDefs = [
-            ['key'=>'catch_count',     'label'=>'キャッチ数', 'icon'=>'bi-megaphone',      'color'=>'#2563eb'],
-            ['key'=>'event_seated',    'label'=>'着座数',     'icon'=>'bi-person-check',   'color'=>'#059669'],
-            ['key'=>'event_proposals', 'label'=>'提案数',     'icon'=>'bi-clipboard-check','color'=>'#d97706'],
-            ['key'=>'event_contracts', 'label'=>'成約数',     'icon'=>'bi-handshake',      'color'=>'#dc2626'],
-            ['key'=>'goal',            'label'=>'目標',       'icon'=>'bi-bullseye',       'color'=>'#7c3aed'],
+            ['key'=>'catch_count',        'label'=>'キャッチ数', 'shop_label'=>'来店組数', 'icon'=>'bi-megaphone',       'color'=>'#2563eb'],
+            ['key'=>'event_seated',       'label'=>'着座数',     'shop_label'=>'接客組数', 'icon'=>'bi-person-check',    'color'=>'#059669'],
+            ['key'=>'event_proposals',    'label'=>'提案数',     'shop_label'=>'提案数',   'icon'=>'bi-clipboard-check', 'color'=>'#d97706'],
+            ['key'=>'event_negotiations', 'label'=>'商談数',     'shop_label'=>'商談数',   'icon'=>'bi-chat-square-dots','color'=>'#7c3aed'],
+            ['key'=>'event_contracts',    'label'=>'成約数',     'shop_label'=>'成約数',   'icon'=>'bi-handshake',       'color'=>'#dc2626'],
+            ['key'=>'goal',               'label'=>'目標',       'shop_label'=>'目標',     'icon'=>'bi-bullseye',        'color'=>'#0891b2'],
         ];
         foreach ($kpiDefs as $kd): ?>
-        <div class="col-6 col-md">
-            <div class="card h-100 kpi-card shadow-sm" data-key="<?= $kd['key'] ?>" style="border-top:3px solid <?= $kd['color'] ?>;border-radius:.75rem">
-                <div class="card-body p-2">
-                    <div class="d-flex align-items-center gap-1 mb-2">
-                        <i class="bi <?= $kd['icon'] ?>" style="color:<?= $kd['color'] ?>;font-size:1rem"></i>
-                        <span class="fw-semibold" style="color:<?= $kd['color'] ?>;font-size:.78rem"><?= $kd['label'] ?></span>
+        <div class="col-6 col-md-2">
+            <div class="card h-100 kpi-card shadow-sm" data-key="<?= $kd['key'] ?>" data-shop-label="<?= $kd['shop_label'] ?>" style="border-top:3px solid <?= $kd['color'] ?>;border-radius:.75rem">
+                <div class="card-body p-2 text-center">
+                    <div class="d-flex align-items-center gap-1 mb-1 justify-content-center">
+                        <i class="bi <?= $kd['icon'] ?>" style="color:<?= $kd['color'] ?>;font-size:.9rem"></i>
+                        <span class="kpi-label fw-semibold" style="color:<?= $kd['color'] ?>;font-size:.72rem"><?= $kd['label'] ?></span>
                     </div>
-                    <div class="d-flex gap-1 mb-1">
-                        <div class="flex-fill text-center" style="background:#f9fafb;border-radius:.4rem;padding:3px 2px">
-                            <div style="font-size:.58rem;color:#9ca3af;line-height:1.4">全体</div>
-                            <div class="kpi-total-val fw-bold" style="font-size:1.2rem;color:<?= $kd['color'] ?>;line-height:1.1">-</div>
-                            <div style="font-size:.55rem;color:#9ca3af">件</div>
-                        </div>
-                        <div class="flex-fill text-center" style="background:#f9fafb;border-radius:.4rem;padding:3px 2px">
-                            <div style="font-size:.58rem;color:#9ca3af;line-height:1.4">個人</div>
-                            <div class="kpi-personal-val fw-bold" style="font-size:1.2rem;color:<?= $kd['color'] ?>;line-height:1.1">-</div>
-                            <div style="font-size:.55rem;color:#9ca3af">件</div>
-                        </div>
-                    </div>
-                    <div class="kpi-rate-val text-center" style="font-size:.68rem;color:#6b7280">達成率 <span class="fw-bold">-%</span></div>
+                    <div class="kpi-personal-val fw-bold" style="font-size:1.7rem;color:<?= $kd['color'] ?>;line-height:1.1">-</div>
+                    <div style="font-size:.58rem;color:#9ca3af;margin-bottom:2px">件</div>
+                    <div class="kpi-rate-val" style="font-size:.65rem;color:#6b7280;display:none">達成率 <span class="fw-bold">-%</span></div>
                     <div class="kpi-week" style="display:none;margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;font-size:.65rem;color:#6b7280">
                         1週間: <span class="kpi-week-val fw-bold">-</span>件
                     </div>
@@ -180,7 +171,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <!-- ③ キャリア別アイテムKPIカード（自動検出） -->
-    <div class="d-flex align-items-center gap-2 mb-2" id="drItemKpiHeader" style="display:none!important">
+    <div class="d-flex align-items-center gap-2 mb-2" id="drItemKpiHeader" style="display:none">
         <span class="text-muted small fw-semibold">商材別実績</span>
         <span id="drDetectedCarrierBadge" class="badge" style="font-size:.72rem"></span>
     </div>
@@ -198,7 +189,18 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- ⑤ 日報一覧 -->
+    <!-- ⑤ 目標達成率ランキング（自社外注） -->
+    <div class="card mb-3 shadow-sm" style="border-radius:.75rem" id="drRankingCard">
+        <div class="card-header d-flex justify-content-between align-items-center" style="font-size:.85rem;border-radius:.75rem .75rem 0 0;padding:.5rem .75rem">
+            <span><i class="bi bi-trophy me-1 text-warning"></i><strong>目標達成率ランキング</strong> <span class="text-muted fw-normal ms-1" style="font-size:.75rem">自社外注</span></span>
+            <button id="drRankingToggle" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="drToggleRanking()" style="font-size:.72rem;display:none">△ 全て表示</button>
+        </div>
+        <div class="card-body p-0" id="drRankingWrap">
+            <div class="text-center py-3 text-muted small"><i class="bi bi-arrow-repeat"></i> 読込中...</div>
+        </div>
+    </div>
+
+    <!-- ⑥ 日報一覧 -->
     <div class="card mb-3">
         <div class="card-header fw-bold"><i class="bi bi-list-ul me-1"></i>日報一覧
             <span class="ms-2 text-muted fw-normal" style="font-size:.78rem">個人獲得内訳 / 全体獲得内訳</span>
@@ -374,6 +376,21 @@ require_once __DIR__ . '/../includes/header.php';
                     <button type="submit" class="btn btn-primary btn-sm" id="drSubmitBtn" disabled>保存</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- 商材別年間推移モーダル -->
+<div class="modal fade" id="itemTrendModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-graph-up me-1"></i><span id="itemTrendModalTitle">年間推移</span></h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="height:260px">
+                <canvas id="itemTrendChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -556,8 +573,13 @@ require_once __DIR__ . '/../includes/header.php';
     var drWeekMode = false;
     var drApiBase  = <?= json_encode($drApiBase) ?>;
     var drCsrf     = <?= json_encode(getCsrfToken()) ?>;
-    var drTrendChart = null;
-    var drLastData   = null;
+    var drTrendChart    = null;
+    var drItemChart     = null;
+    var drLastData      = null;
+    var drLastCarrier   = null;
+    var drLastItemLabel = null;
+    var drLastItemTrend = null;
+    var drRankingExpanded = false;
 
     var CARRIER_COLORS = {
         'SB,YM':'#2563eb','au,UQ':'#d97706','ドコモ':'#dc2626',
@@ -568,6 +590,15 @@ require_once __DIR__ . '/../includes/header.php';
         '楽天':'楽天','コミュファ':'コミュファ','CATV':'CATV'
     };
 
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function hexToRgb(hex) {
+        var r = parseInt((hex||'#000000').slice(1,3),16);
+        var g = parseInt((hex||'#000000').slice(3,5),16);
+        var b = parseInt((hex||'#000000').slice(5,7),16);
+        return r+','+g+','+b;
+    }
+
     function drLoad() {
         var url = drApiBase + '?employee=' + encodeURIComponent(drEmp) + '&year=' + drYear + '&month=' + drMonth;
         document.getElementById('drListWrap').innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
@@ -575,82 +606,103 @@ require_once __DIR__ . '/../includes/header.php';
             drLastData = d;
             drRenderKpi(d);
             drRenderChart(d);
+            drRenderRanking(d);
             drRenderList(d);
             document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
             document.getElementById('drSubtitle').textContent   = drYear + '年' + drMonth + '月';
         }).catch(function(e){ console.error(e); });
     }
 
+    // ① KPIカード: 個人実績のみ表示 / ② 稼働区分でラベル切替
     function drRenderKpi(d) {
-        var kpiAll   = d.kpi_all   || {};
-        var kpiMonth = d.kpi_month || {};
-        var week     = d.kpi_week  || {};
-        var goalTotal    = d.goal_total    || 0;
+        var kpiMonth     = d.kpi_month || {};
+        var week         = d.kpi_week  || {};
         var goalPersonal = d.goal_personal || 0;
+        var contracts    = parseInt(kpiMonth['event_contracts'] || 0);
+        var achieveRate  = goalPersonal > 0 ? (contracts / goalPersonal * 100).toFixed(1) : null;
+
+        // 稼働区分を自動検出（最多出現 work_type）
+        var wtCount = {};
+        (d.reports || []).forEach(function(r) {
+            if (r.work_type) wtCount[r.work_type] = (wtCount[r.work_type] || 0) + 1;
+        });
+        var autoWt = null, maxWt = 0;
+        Object.keys(wtCount).forEach(function(w) { if (wtCount[w] > maxWt) { maxWt = wtCount[w]; autoWt = w; } });
+        var isShop = (autoWt === 'ショップ');
 
         var SUMMARY = [
-            {key:'catch_count',     color:'#2563eb'},
-            {key:'event_seated',    color:'#059669'},
-            {key:'event_proposals', color:'#d97706'},
-            {key:'event_contracts', color:'#dc2626'},
-            {key:'goal',            color:'#7c3aed'},
+            {key:'catch_count',        color:'#2563eb', showRate:false},
+            {key:'event_seated',       color:'#059669', showRate:false},
+            {key:'event_proposals',    color:'#d97706', showRate:false},
+            {key:'event_negotiations', color:'#7c3aed', showRate:false},
+            {key:'event_contracts',    color:'#dc2626', showRate:true,  rateVal:achieveRate},
+            {key:'goal',               color:'#0891b2', showRate:achieveRate!==null, rateVal:achieveRate},
         ];
         SUMMARY.forEach(function(def) {
             var card = document.querySelector('.kpi-card[data-key="' + def.key + '"]');
             if (!card) return;
-            var total, personal;
-            if (def.key === 'goal') {
-                total    = goalTotal;
-                personal = goalPersonal;
-            } else {
-                total    = parseInt(kpiAll[def.key]   || 0);
-                personal = parseInt(kpiMonth[def.key] || 0);
-            }
-            var rate = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
-            var wVal = def.key === 'goal' ? '-' : parseInt(week[def.key] || 0);
 
-            card.querySelector('.kpi-total-val').textContent    = total;
-            card.querySelector('.kpi-personal-val').textContent = personal;
-            var rateColor = (rate === '-') ? '#6b7280'
-                : (parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 50 ? def.color : '#ef4444'));
-            card.querySelector('.kpi-rate-val').innerHTML =
-                '達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span>';
+            // ② ラベル切替
+            var labelEl = card.querySelector('.kpi-label');
+            if (labelEl && isShop) {
+                var shopLabel = card.dataset.shopLabel;
+                if (shopLabel) labelEl.textContent = shopLabel;
+            }
+
+            var val = def.key === 'goal' ? goalPersonal : parseInt(kpiMonth[def.key] || 0);
+            var wVal = def.key === 'goal' ? goalPersonal : parseInt(week[def.key] || 0);
+
+            card.querySelector('.kpi-personal-val').textContent = val;
+
+            var rateEl = card.querySelector('.kpi-rate-val');
+            if (rateEl) {
+                if (def.showRate && def.rateVal !== null) {
+                    var rv = parseFloat(def.rateVal);
+                    var rc = rv >= 100 ? '#059669' : (rv >= 70 ? '#d97706' : '#ef4444');
+                    rateEl.innerHTML = '達成率 <span style="font-weight:700;color:'+rc+'">'+def.rateVal+'%</span>';
+                    rateEl.style.display = '';
+                } else {
+                    rateEl.style.display = 'none';
+                }
+            }
             var wkEl = card.querySelector('.kpi-week-val');
             if (wkEl) wkEl.textContent = wVal;
             card.querySelector('.kpi-week').style.display = drWeekMode ? 'block' : 'none';
         });
 
-        // レポートデータからキャリアを自動検出（最多出現キャリア）
-        var carrierCount = {};
-        (d.reports || []).forEach(function(r) {
-            if (r.carrier) carrierCount[r.carrier] = (carrierCount[r.carrier] || 0) + 1;
-        });
-        var autoCarrier = null;
-        var maxCnt = 0;
-        Object.keys(carrierCount).forEach(function(c) {
-            if (carrierCount[c] > maxCnt) { maxCnt = carrierCount[c]; autoCarrier = c; }
-        });
+        // キャリア自動検出（アイテムKPI）
+        var autoCarrier = d.auto_carrier || null;
+        // フォールバック: reports から集計
         if (!autoCarrier) {
-            // レポートなし → キャリアアイテムKPIを非表示
+            var cCount = {};
+            (d.reports || []).forEach(function(r){ if (r.carrier) cCount[r.carrier] = (cCount[r.carrier]||0)+1; });
+            var maxC = 0;
+            Object.keys(cCount).forEach(function(c){ if (cCount[c] > maxC){ maxC = cCount[c]; autoCarrier = c; } });
+        }
+        drLastCarrier = autoCarrier;
+
+        if (!autoCarrier) {
             document.getElementById('drItemKpiRow').innerHTML =
                 '<div class="col-12 text-muted small text-center py-2">日報データがありません</div>';
+            document.getElementById('drItemKpiHeader').style.display = 'none';
         } else {
             var badge = document.getElementById('drDetectedCarrierBadge');
             if (badge) {
                 badge.textContent = CARRIER_LABELS[autoCarrier] || autoCarrier;
                 badge.style.background = CARRIER_COLORS[autoCarrier] || '#6b7280';
                 badge.style.color = '#fff';
-                document.getElementById('drItemKpiHeader').style.display = 'flex';
             }
+            document.getElementById('drItemKpiHeader').style.display = 'flex';
             drRenderItemKpi(d, autoCarrier);
         }
     }
 
+    // ③ アイテムKPIカード描画（クリックで年間推移モーダル）
     function drRenderItemKpi(d, carrier) {
-        var itemKpi = (d.carrier_item_kpi || {})[carrier] || {};
-        var items   = (d.carrier_items    || {})[carrier] || [];
-        var color   = CARRIER_COLORS[carrier] || '#6b7280';
-        var wrap    = document.getElementById('drItemKpiRow');
+        var itemKpi  = (d.carrier_item_kpi || {})[carrier] || {};
+        var items    = (d.carrier_items    || {})[carrier] || [];
+        var color    = CARRIER_COLORS[carrier] || '#6b7280';
+        var wrap     = document.getElementById('drItemKpiRow');
         if (!wrap) return;
         if (!items.length) {
             wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>';
@@ -658,104 +710,178 @@ require_once __DIR__ . '/../includes/header.php';
         }
         var html = '';
         items.forEach(function(label) {
-            var kpi     = itemKpi[label] || {total:0, personal:0};
-            var total   = kpi.total   || 0;
+            var kpi      = itemKpi[label] || {total:0, personal:0};
+            var total    = kpi.total    || 0;
             var personal = kpi.personal || 0;
-            var rate    = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
+            var rate     = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
             var rateColor = (rate === '-') ? '#9ca3af'
                 : (parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 50 ? color : '#ef4444'));
-            html += '<div class="col-6 col-md-4 col-lg-2">';
-            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
+            // data-item-label: クリックで年間推移
+            html += '<div class="col-6 col-md-4 col-lg-2" data-item-label="' + esc(label) + '" style="cursor:pointer">';
+            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid '+color+'">';
             html += '<div class="card-body p-2">';
-            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
+            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:'+color+'">'+esc(label)+'</div>';
             html += '<div class="d-flex gap-1 mb-1">';
             html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
             html += '<div style="font-size:.56rem;color:#9ca3af">全体</div>';
-            html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + total + '</div>';
-            html += '<div style="font-size:.52rem;color:#9ca3af">件</div>';
-            html += '</div>';
+            html += '<div style="font-size:1rem;font-weight:700;color:'+color+';line-height:1.1">'+total+'</div>';
+            html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div>';
             html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
             html += '<div style="font-size:.56rem;color:#9ca3af">個人</div>';
-            html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + personal + '</div>';
-            html += '<div style="font-size:.52rem;color:#9ca3af">件</div>';
-            html += '</div>';
-            html += '</div>';
-            html += '<div class="text-center" style="font-size:.65rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate!=='-'?'%':'') + '</span></div>';
+            html += '<div style="font-size:1rem;font-weight:700;color:'+color+';line-height:1.1">'+personal+'</div>';
+            html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div></div>';
+            html += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:'+rateColor+'">'+rate+(rate!=='-'?'%':'')+'</span></div>';
+            html += '<div style="font-size:.55rem;color:#aaa;text-align:center;margin-top:2px"><i class="bi bi-graph-up"></i> タップで推移</div>';
             html += '</div></div></div>';
         });
         wrap.innerHTML = html;
     }
 
-    function drRenderChart(d) {
-        var trend = d.annual_trend || [];
-        var labels = trend.map(function(t){ return t.month + '月'; });
-        var personalData = trend.map(function(t){ return t.personal; });
-        var rateData     = trend.map(function(t){ return t.achievement_rate; });
-        var hasRate = rateData.some(function(v){ return v !== null; });
+    // ④ アイテムKPIクリック → 年間推移モーダル表示
+    document.getElementById('drItemKpiRow').addEventListener('click', function(e) {
+        var col = e.target.closest('[data-item-label]');
+        if (!col || !drLastData) return;
+        var label = col.dataset.itemLabel;
+        var trend = (drLastData.item_annual_trend || {})[label] || [];
+        drLastItemLabel = label;
+        drLastItemTrend = trend;
+        document.getElementById('itemTrendModalTitle').textContent = label + '  個人獲得 年間推移 ('+drYear+'年)';
+        var modal = new bootstrap.Modal(document.getElementById('itemTrendModal'));
+        modal.show();
+    });
 
-        var ctx = document.getElementById('drTrendChart');
-        if (!ctx) return;
-        if (drTrendChart) { drTrendChart.destroy(); drTrendChart = null; }
-
-        var datasets = [
-            {
-                label: '個人獲得数（件）',
-                data: personalData,
-                borderColor: '#2563eb',
-                backgroundColor: 'rgba(37,99,235,.1)',
+    document.getElementById('itemTrendModal').addEventListener('shown.bs.modal', function() {
+        if (drItemChart) { drItemChart.destroy(); drItemChart = null; }
+        var ctx = document.getElementById('itemTrendChart');
+        if (!ctx || !drLastItemTrend) return;
+        var color  = CARRIER_COLORS[drLastCarrier] || '#2563eb';
+        var labels = drLastItemTrend.map(function(t){ return t.month+'月'; });
+        var values = drLastItemTrend.map(function(t){ return t.value; });
+        drItemChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: [{
+                label: drLastItemLabel + ' 個人獲得数（件）',
+                data: values,
+                borderColor: color,
+                backgroundColor: 'rgba('+hexToRgb(color)+',.1)',
                 fill: true,
                 tension: .35,
-                yAxisID: 'y',
-                pointBackgroundColor: '#2563eb',
+                pointBackgroundColor: color,
                 pointRadius: 4,
-            }
-        ];
-        if (hasRate) {
-            datasets.push({
-                label: '目標達成率（%）',
-                data: rateData,
-                borderColor: '#d97706',
-                backgroundColor: 'transparent',
-                fill: false,
-                tension: .35,
-                yAxisID: 'y2',
-                borderDash: [4,3],
-                pointBackgroundColor: '#d97706',
-                pointRadius: 4,
-            });
-        }
-
-        drTrendChart = new Chart(ctx, {
-            type: 'line',
-            data: { labels: labels, datasets: datasets },
+            }]},
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
-                },
+                plugins: { legend: { position: 'top', labels: { font:{size:11}, boxWidth:14 } } },
                 scales: {
-                    x: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 } } },
-                    y: {
-                        type: 'linear', position: 'left',
-                        title: { display: true, text: '件数', font: { size: 10 }, color: '#2563eb' },
-                        ticks: { font: { size: 10 }, precision: 0 },
-                        grid: { color: 'rgba(0,0,0,.05)' },
-                        beginAtZero: true,
-                    },
-                    y2: {
-                        type: 'linear', position: 'right', display: hasRate,
-                        title: { display: true, text: '達成率(%)', font: { size: 10 }, color: '#d97706' },
-                        ticks: { font: { size: 10 }, callback: function(v){ return v + '%'; } },
-                        grid: { drawOnChartArea: false },
-                        beginAtZero: true,
-                        max: 200,
-                    },
+                    x: { grid:{color:'rgba(0,0,0,.05)'}, ticks:{font:{size:10}} },
+                    y: { beginAtZero:true, ticks:{font:{size:10},precision:0}, grid:{color:'rgba(0,0,0,.05)'},
+                         title:{display:true,text:'件数',font:{size:10}} },
+                },
+            },
+        });
+    });
+
+    document.getElementById('itemTrendModal').addEventListener('hidden.bs.modal', function() {
+        if (drItemChart) { drItemChart.destroy(); drItemChart = null; }
+    });
+
+    function drRenderChart(d) {
+        var trend = d.annual_trend || [];
+        var labels = trend.map(function(t){ return t.month+'月'; });
+        var personalData = trend.map(function(t){ return t.personal; });
+        var rateData     = trend.map(function(t){ return t.achievement_rate; });
+        var hasRate = rateData.some(function(v){ return v !== null; });
+        var ctx = document.getElementById('drTrendChart');
+        if (!ctx) return;
+        if (drTrendChart) { drTrendChart.destroy(); drTrendChart = null; }
+        var datasets = [{
+            label:'個人獲得数（件）', data:personalData,
+            borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.1)',
+            fill:true, tension:.35, yAxisID:'y',
+            pointBackgroundColor:'#2563eb', pointRadius:4,
+        }];
+        if (hasRate) {
+            datasets.push({
+                label:'目標達成率（%）', data:rateData,
+                borderColor:'#d97706', backgroundColor:'transparent',
+                fill:false, tension:.35, yAxisID:'y2', borderDash:[4,3],
+                pointBackgroundColor:'#d97706', pointRadius:4,
+            });
+        }
+        drTrendChart = new Chart(ctx, {
+            type:'line', data:{labels:labels, datasets:datasets},
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                interaction:{mode:'index', intersect:false},
+                plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}}},
+                scales:{
+                    x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
+                    y:{type:'linear',position:'left',
+                       title:{display:true,text:'件数',font:{size:10},color:'#2563eb'},
+                       ticks:{font:{size:10},precision:0},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true},
+                    y2:{type:'linear',position:'right',display:hasRate,
+                        title:{display:true,text:'達成率(%)',font:{size:10},color:'#d97706'},
+                        ticks:{font:{size:10},callback:function(v){return v+'%';}},
+                        grid:{drawOnChartArea:false},beginAtZero:true,max:200},
                 },
             },
         });
     }
+
+    // ⑤ ランキング描画
+    function drRenderRanking(d) {
+        var ranking = d.ranking || [];
+        var wrap    = document.getElementById('drRankingWrap');
+        var toggle  = document.getElementById('drRankingToggle');
+        if (!wrap) return;
+        if (!ranking.length) {
+            wrap.innerHTML = '<div class="text-center py-3 text-muted small">データなし<br><span style="font-size:.7rem">（自社外注社員かつ目標設定済み日報が必要です）</span></div>';
+            if (toggle) toggle.style.display = 'none';
+            return;
+        }
+        var BADGES = ['🥇','🥈','🥉'];
+        var html = '';
+        ranking.forEach(function(r, i) {
+            var badge    = i < 3 ? BADGES[i] : ('#' + r.rank);
+            var isEmoji  = i < 3;
+            var rateStr  = r.achievement_rate !== null ? r.achievement_rate + '%' : '-';
+            var rateColor = r.achievement_rate === null ? '#6b7280'
+                : (r.achievement_rate >= 100 ? '#059669' : (r.achievement_rate >= 70 ? '#d97706' : '#ef4444'));
+            var prevStr  = r.prev_rank ? '前月' + r.prev_rank + '位' : '初登場';
+            var extra    = i >= 3 ? ' dr-ranking-extra' : '';
+            var estyle   = i >= 3 ? ' style="display:none"' : '';
+            html += '<div class="d-flex align-items-center p-2 border-bottom' + extra + '"' + estyle + '>';
+            html += '<div class="text-center" style="min-width:36px;font-size:' + (isEmoji ? '1.3' : '.8') + 'rem">' + badge + '</div>';
+            html += '<div class="flex-fill ms-2">';
+            html += '<div class="fw-semibold" style="font-size:.82rem;line-height:1.3">' + esc(r.location) + '</div>';
+            html += '<div class="text-muted" style="font-size:.75rem">' + esc(r.employee_name) + '</div>';
+            html += '</div>';
+            html += '<div class="text-center" style="min-width:68px">';
+            html += '<div class="fw-bold" style="font-size:1rem;color:' + rateColor + '">' + rateStr + '</div>';
+            html += '<div style="font-size:.58rem;color:#9ca3af">達成率</div>';
+            html += '</div>';
+            html += '<div class="text-center ms-2" style="min-width:54px">';
+            html += '<div style="font-size:.65rem;color:#6b7280">' + esc(prevStr) + '</div>';
+            html += '</div></div>';
+        });
+        wrap.innerHTML = html;
+        drRankingExpanded = false;
+        if (toggle) {
+            toggle.style.display = ranking.length > 3 ? '' : 'none';
+            toggle.textContent = '△ 全て表示';
+        }
+    }
+
+    window.drToggleRanking = function() {
+        drRankingExpanded = !drRankingExpanded;
+        document.querySelectorAll('.dr-ranking-extra').forEach(function(el) {
+            el.style.display = drRankingExpanded ? 'flex' : 'none';
+        });
+        var btn = document.getElementById('drRankingToggle');
+        if (btn) btn.textContent = drRankingExpanded ? '▽ TOP3に戻す' : '△ 全て表示';
+    };
 
     function drRenderList(d) {
         var reports = d.reports || [];
@@ -767,44 +893,44 @@ require_once __DIR__ . '/../includes/header.php';
         var html = '';
         var byCarrier = {};
         reports.forEach(function(r){ (byCarrier[r.carrier||''] = byCarrier[r.carrier||''] || []).push(r); });
-
         Object.keys(byCarrier).forEach(function(carrier) {
-            var rows = byCarrier[carrier];
+            var rows  = byCarrier[carrier];
             var items = (d.carrier_items||{})[carrier] || [];
+            var isShopRow = rows.length && (rows[0].work_type === 'ショップ');
             html += '<div class="table-responsive mb-3"><table class="table table-sm table-hover mb-0" style="font-size:.72rem">';
             html += '<thead class="table-light"><tr>';
             html += '<th>日付</th><th>社員名</th><th>稼働店舗</th><th>キャリア</th>';
-            html += '<th class="text-center">キャッチ</th><th class="text-center">着席</th><th class="text-center">提案</th>';
+            html += '<th class="text-center">'+(isShopRow?'来店':'キャッチ')+'</th>';
+            html += '<th class="text-center">'+(isShopRow?'接客':'着席')+'</th>';
+            html += '<th class="text-center">提案</th>';
             html += '<th class="text-center">成約<br><span style="font-size:.6rem;color:#6b7280">達成率</span></th>';
             items.forEach(function(lbl) {
-                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">' + esc(lbl) + '<br><span style="font-size:.55rem;color:#9ca3af">個/全</span></th>';
+                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">'+esc(lbl)+'<br><span style="font-size:.55rem;color:#9ca3af">個/全</span></th>';
             });
             html += '<th>操作</th></tr></thead><tbody>';
             rows.forEach(function(r) {
                 html += '<tr>';
-                html += '<td style="white-space:nowrap">' + r.work_date + '</td>';
-                html += '<td>' + esc(r.employee) + '</td>';
-                html += '<td>' + esc(r.location) + '</td>';
-                html += '<td>' + esc(r.carrier) + '</td>';
-                html += '<td class="text-center">' + (r.catch||0) + '</td>';
-                html += '<td class="text-center">' + (r.seated||0) + '</td>';
-                html += '<td class="text-center">' + (r.proposals||0) + '</td>';
+                html += '<td style="white-space:nowrap">'+r.work_date+'</td>';
+                html += '<td>'+esc(r.employee)+'</td>';
+                html += '<td>'+esc(r.location)+'</td>';
+                html += '<td>'+esc(r.carrier)+'</td>';
+                html += '<td class="text-center">'+(r.catch||0)+'</td>';
+                html += '<td class="text-center">'+(r.seated||0)+'</td>';
+                html += '<td class="text-center">'+(r.proposals||0)+'</td>';
                 var rateHtml = '';
                 if (r.achievement_rate !== null && r.achievement_rate !== undefined) {
                     var rc = r.achievement_rate >= 100 ? '#059669' : (r.achievement_rate >= 70 ? '#d97706' : '#dc2626');
                     rateHtml = '<div style="font-size:.62rem;color:'+rc+';font-weight:600">'+r.achievement_rate+'%</div>';
                 }
-                html += '<td class="text-center"><div>' + (r.contracts||0) + '</div>' + rateHtml + '</td>';
+                html += '<td class="text-center"><div>'+(r.contracts||0)+'</div>'+rateHtml+'</td>';
                 items.forEach(function(lbl) {
                     var a = (r.acq||{})[lbl];
-                    var per = a ? (a.person||0) : 0;
-                    var tot = a ? (a.total||0) : 0;
-                    html += '<td class="text-center"><div style="font-size:.7rem">' + per + '</div><div style="font-size:.6rem;color:#9ca3af">' + tot + '</div></td>';
+                    html += '<td class="text-center"><div style="font-size:.7rem">'+(a?a.person:0)+'</div><div style="font-size:.6rem;color:#9ca3af">'+(a?a.total:0)+'</div></td>';
                 });
                 html += '<td><form method="post" style="display:inline" onsubmit="return confirm(\'削除しますか？\')">';
-                html += '<input type="hidden" name="csrf" value="' + drCsrf + '">';
+                html += '<input type="hidden" name="csrf" value="'+drCsrf+'">';
                 html += '<input type="hidden" name="action" value="delete">';
-                html += '<input type="hidden" name="id" value="' + r.id + '">';
+                html += '<input type="hidden" name="id" value="'+r.id+'">';
                 html += '<button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.6rem"><i class="bi bi-trash"></i></button>';
                 html += '</form></td></tr>';
             });
@@ -812,8 +938,6 @@ require_once __DIR__ . '/../includes/header.php';
         });
         wrap.innerHTML = html;
     }
-
-    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
     window.drChangeMonth = function(delta) {
         drMonth += delta;
@@ -834,13 +958,9 @@ require_once __DIR__ . '/../includes/header.php';
 
     var empSel = document.getElementById('drEmpSelect');
     if (empSel) {
-        empSel.addEventListener('change', function() {
-            drEmp = this.value;
-            drLoad();
-        });
+        empSel.addEventListener('change', function() { drEmp = this.value; drLoad(); });
     }
 
-    // 初回ロード
     drLoad();
 })();
 </script>

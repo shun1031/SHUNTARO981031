@@ -126,6 +126,7 @@ foreach ($rawReports as $r) {
         'employee'        => $r['employee_name'],
         'location'        => $r['location'] ?? '',
         'carrier'         => $carrier,
+        'work_type'       => $r['work_type'] ?? '',
         'carrier_items'   => $items,
         'catch'           => (int)($r['catch_count'] ?? 0),
         'seated'          => (int)($r['event_seated'] ?? 0),
@@ -192,6 +193,106 @@ foreach ($rawReports as $r) {
     }
 }
 
+// ─── キャリア自動検出（サーバー側） ────────────────────────────────────
+$carrierFreq = [];
+foreach ($rawReports as $r) {
+    $c = $r['carrier'] ?? '';
+    if ($c) $carrierFreq[$c] = ($carrierFreq[$c] ?? 0) + 1;
+}
+arsort($carrierFreq);
+$autoCarrier = $carrierFreq ? (string)key($carrierFreq) : null;
+
+// ─── 商材別年間推移（自動検出キャリア、選択社員の個人獲得） ───────────────
+$itemAnnualTrend = [];
+if ($employee && $autoCarrier && isset($CARRIER_ITEMS[$autoCarrier])) {
+    $yearStart = sprintf('%04d-01-01', $year);
+    $yearEnd   = sprintf('%04d-12-31', $year);
+    $iaSql = "SELECT MONTH(work_date) AS m, personal_acquisition_detail
+              FROM sales_daily_reports
+              WHERE company_id=? AND employee_name=? AND carrier=? AND work_date BETWEEN ? AND ?";
+    $iaStmt = $db->prepare($iaSql);
+    $iaStmt->execute([$cid, $employee, $autoCarrier, $yearStart, $yearEnd]);
+    $iaRows = $iaStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($CARRIER_ITEMS[$autoCarrier] as $itemLabel) {
+        $monthData = [];
+        for ($m = 1; $m <= 12; $m++) { $monthData[$m] = 0; }
+        foreach ($iaRows as $ir) {
+            $im = (int)$ir['m'];
+            $perD = json_decode($ir['personal_acquisition_detail'] ?? '{}', true) ?: [];
+            $monthData[$im] += (int)($perD[$itemLabel] ?? 0);
+        }
+        $arr = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $arr[] = ['month' => $m, 'value' => $monthData[$m]];
+        }
+        $itemAnnualTrend[$itemLabel] = $arr;
+    }
+}
+
+// ─── 目標達成率ランキング（自社外注のみ） ──────────────────────────────
+$ranking = [];
+try {
+    $rankSql = "
+        SELECT sub.employee_name, sub.location, sub.contracts, sub.goal_cnt
+        FROM (
+            SELECT r.employee_name, MAX(r.location) AS location,
+                   COALESCE(SUM(r.event_contracts), 0) AS contracts,
+                   COALESCE(SUM(CASE WHEN r.goal_type='件数' AND r.goal_value > 0 THEN r.goal_value ELSE 0 END), 0) AS goal_cnt
+            FROM sales_daily_reports r
+            INNER JOIN employees e ON e.company_id = r.company_id AND e.name = r.employee_name
+            WHERE r.company_id = ? AND r.work_date BETWEEN ? AND ?
+              AND e.employment_type = '自社' AND e.employment_subtype = '外注'
+              AND e.is_active = 1
+            GROUP BY r.employee_name
+        ) AS sub
+        ORDER BY (CASE WHEN sub.goal_cnt > 0 THEN sub.contracts / sub.goal_cnt ELSE -1 END) DESC
+    ";
+    $rankStmt = $db->prepare($rankSql);
+    $rankStmt->execute([$cid, $monthStart, $monthEnd]);
+    $rankRows = $rankStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $prevRankSql = "
+        SELECT sub.employee_name
+        FROM (
+            SELECT r.employee_name,
+                   COALESCE(SUM(r.event_contracts), 0) AS contracts,
+                   COALESCE(SUM(CASE WHEN r.goal_type='件数' AND r.goal_value > 0 THEN r.goal_value ELSE 0 END), 0) AS goal_cnt
+            FROM sales_daily_reports r
+            INNER JOIN employees e ON e.company_id = r.company_id AND e.name = r.employee_name
+            WHERE r.company_id = ? AND r.work_date BETWEEN ? AND ?
+              AND e.employment_type = '自社' AND e.employment_subtype = '外注'
+              AND e.is_active = 1
+            GROUP BY r.employee_name
+        ) AS sub
+        ORDER BY (CASE WHEN sub.goal_cnt > 0 THEN sub.contracts / sub.goal_cnt ELSE -1 END) DESC
+    ";
+    $prevRankStmt = $db->prepare($prevRankSql);
+    $prevRankStmt->execute([$cid, $prevStart, $prevEnd]);
+    $prevRankRows = $prevRankStmt->fetchAll(PDO::FETCH_ASSOC);
+    $prevRankMap = [];
+    foreach ($prevRankRows as $pi => $pr) {
+        $prevRankMap[$pr['employee_name']] = $pi + 1;
+    }
+
+    foreach ($rankRows as $ri => $rr) {
+        $rGoal = (int)$rr['goal_cnt'];
+        $rContracts = (int)$rr['contracts'];
+        $rRate = $rGoal > 0 ? round($rContracts / $rGoal * 100, 1) : null;
+        $ranking[] = [
+            'rank'             => $ri + 1,
+            'employee_name'    => $rr['employee_name'],
+            'location'         => $rr['location'] ?? '',
+            'contracts'        => $rContracts,
+            'goal'             => $rGoal,
+            'achievement_rate' => $rRate,
+            'prev_rank'        => $prevRankMap[$rr['employee_name']] ?? null,
+        ];
+    }
+} catch (PDOException $e) {
+    // employees.employment_subtype が未存在でも graceful degrade
+}
+
 // ─── 年間推移（現在の年、月別） ────────────────────────────────────────
 $annualTrend = [];
 for ($m = 1; $m <= 12; $m++) {
@@ -222,18 +323,21 @@ $employees = $empStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // ─── レスポンス ───────────────────────────────────────────────────────
 echo json_encode([
-    'kpi_month'       => $kpiMonth,
-    'kpi_all'         => $kpiAll,
-    'kpi_prev'        => $kpiPrev,
-    'kpi_week'        => $kpiWeek,
-    'reports'         => $reports,
-    'employees'       => $employees,
-    'employee'        => $employee,
-    'year'            => $year,
-    'month'           => $month,
-    'carrier_items'   => $CARRIER_ITEMS,
-    'carrier_item_kpi'=> $carrierItemKpi,
-    'goal_total'      => $goalTotal,
-    'goal_personal'   => $goalPersonal,
-    'annual_trend'    => $annualTrend,
+    'kpi_month'         => $kpiMonth,
+    'kpi_all'           => $kpiAll,
+    'kpi_prev'          => $kpiPrev,
+    'kpi_week'          => $kpiWeek,
+    'reports'           => $reports,
+    'employees'         => $employees,
+    'employee'          => $employee,
+    'year'              => $year,
+    'month'             => $month,
+    'carrier_items'     => $CARRIER_ITEMS,
+    'carrier_item_kpi'  => $carrierItemKpi,
+    'goal_total'        => $goalTotal,
+    'goal_personal'     => $goalPersonal,
+    'annual_trend'      => $annualTrend,
+    'auto_carrier'      => $autoCarrier,
+    'item_annual_trend' => $itemAnnualTrend,
+    'ranking'           => $ranking,
 ], JSON_UNESCAPED_UNICODE);

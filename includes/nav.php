@@ -75,6 +75,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_transport.php', 'bi-car-front', '交通費', $currentPage === 'sales_transport') ?>
         <?= navLink(BASE_PATH . '/public/sales_client_report.php', 'bi-building', '取引先別売上', $currentPage === 'sales_client_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_rep_report.php', 'bi-person-badge', '担当者別売上', $currentPage === 'sales_rep_report') ?>
+        <?= navLink(BASE_PATH . '/public/sales_rep_mom_report.php', 'bi-graph-up-arrow', '担当者別前月比', $currentPage === 'sales_rep_mom_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_carrier_report.php', 'bi-reception-4', 'キャリア別売上', $currentPage === 'sales_carrier_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_cost.php', 'bi-building', '原価管理', in_array($currentPage, ['sales_cost', 'sales_cost_detail'])) ?>
         <?= navLink(BASE_PATH . '/public/invoice_management.php', 'bi-receipt', '請求書管理', $currentPage === 'invoice_management') ?>

@@ -383,6 +383,27 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- 月次予算 直接編集モーダル -->
+<div class="modal fade" id="budgetEditModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" style="font-size:.85rem"><i class="bi bi-pencil-square me-1"></i>月次予算を直接設定</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div id="budgetEditInfo" class="small text-muted mb-3"></div>
+                <div id="budgetEditFields" class="row g-2"></div>
+                <div id="budgetEditAlert" class="mt-2" style="display:none"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-sm btn-primary" id="budgetEditSaveBtn"><i class="bi bi-save me-1"></i>保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 年度平均達成率 月別内訳モーダル -->
 <div class="modal fade" id="fyRateModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
@@ -454,7 +475,8 @@ require_once __DIR__ . '/../includes/header.php';
         inp.type = 'number'; inp.id = id;
         inp.className = 'form-control form-control-sm text-center';
         inp.min = '0'; inp.step = '1'; inp.placeholder = '-';
-        inp.style.cssText = 'width:55px';
+        inp.style.cssText = 'width:68px';
+        inp.addEventListener('focus', function(){ this.select(); });
         col.appendChild(lbl); col.appendChild(inp);
         return col;
     }
@@ -790,10 +812,16 @@ require_once __DIR__ . '/../includes/header.php';
                     rate = (actual / budget * 100).toFixed(1);
                     rateColor = parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 70 ? color : '#ef4444');
                 }
+                var showEditBtn = drFilterType === 'employee' && drFilterValue;
                 primaryHtml += '<div class="col-auto" style="min-width:160px">';
                 primaryHtml += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
                 primaryHtml += '<div class="card-body p-2">';
-                primaryHtml += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
+                primaryHtml += '<div class="d-flex align-items-center justify-content-between mb-1">';
+                primaryHtml += '<div class="fw-semibold" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
+                if (showEditBtn) {
+                    primaryHtml += '<button class="btn btn-link p-0 ms-1" id="budgetEditOpenBtn" title="予算を直接編集" style="font-size:.75rem;color:#9ca3af;line-height:1"><i class="bi bi-pencil"></i></button>';
+                }
+                primaryHtml += '</div>';
                 primaryHtml += '<div class="d-flex gap-1 mb-1">';
                 primaryHtml += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
                 primaryHtml += '<div style="font-size:.56rem;color:#9ca3af">予算</div>';
@@ -864,6 +892,82 @@ require_once __DIR__ . '/../includes/header.php';
         });
         wrap.innerHTML = html;
     }
+
+    // ─── 月次予算 直接編集 ────────────────────────────────────────────────
+    var budgetApiBase = <?= json_encode($drBudgetApiBase) ?>;
+    document.getElementById('drItemKpiRow').addEventListener('click', function(e) {
+        var editBtn = e.target.closest('#budgetEditOpenBtn');
+        if (!editBtn || !drLastData) return;
+        var autoBizType = drLastData.auto_biz_type;
+        var bizConf = (drLastData.biz_config || {})[autoBizType] || null;
+        if (!bizConf || !bizConf.require_budget) return;
+        var items = bizConf.budget_items || bizConf.personal_items || [];
+        var emp   = drFilterValue;
+        var yr    = drYear, mo = drMonth;
+        var info  = document.getElementById('budgetEditInfo');
+        var fields= document.getElementById('budgetEditFields');
+        var alert = document.getElementById('budgetEditAlert');
+        var MNAME = {9:'9月',10:'10月',11:'11月',12:'12月',1:'1月',2:'2月',3:'3月',4:'4月',5:'5月',6:'6月',7:'7月',8:'8月'};
+        info.textContent = emp + '　' + yr + '年' + (MNAME[mo] || mo + '月') + '　予算を設定してください';
+        alert.style.display = 'none';
+        fields.innerHTML = '<div class="text-center text-muted small py-2"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
+        new bootstrap.Modal(document.getElementById('budgetEditModal')).show();
+        // 既存予算を読み込む
+        fetch(budgetApiBase + '?employee=' + encodeURIComponent(emp) + '&year=' + yr + '&month=' + mo)
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                var cur = (res.exists && res.budget) ? res.budget : {};
+                var html = '';
+                items.forEach(function(label, i) {
+                    var val = cur[label] != null ? cur[label] : '';
+                    html += '<div class="col-6 col-md-4">';
+                    html += '<label class="form-label mb-1" style="font-size:.72rem;font-weight:600">' + esc(label) + '</label>';
+                    html += '<input type="number" min="0" class="form-control form-control-sm text-center budget-edit-inp" data-label="' + esc(label) + '" value="' + (val !== '' ? val : '') + '" placeholder="0">';
+                    html += '</div>';
+                });
+                fields.innerHTML = html;
+            })
+            .catch(function(){ fields.innerHTML = '<p class="text-danger small mb-0">読み込みに失敗しました</p>'; });
+    });
+    document.getElementById('budgetEditSaveBtn').addEventListener('click', function() {
+        if (!drLastData) return;
+        var autoBizType = drLastData.auto_biz_type;
+        var bizConf = (drLastData.biz_config || {})[autoBizType] || null;
+        if (!bizConf) return;
+        var emp   = drFilterValue;
+        var yr    = drYear, mo = drMonth;
+        var bData = {};
+        document.querySelectorAll('#budgetEditFields .budget-edit-inp').forEach(function(inp) {
+            bData[inp.dataset.label] = inp.value !== '' ? inp.value : '0';
+        });
+        var alertEl = document.getElementById('budgetEditAlert');
+        var btn = document.getElementById('budgetEditSaveBtn');
+        btn.disabled = true; btn.textContent = '保存中...';
+        alertEl.style.display = 'none';
+        fetch(budgetApiBase, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee: emp, year: yr, month: mo, budget_detail: bData, csrf: drFormCsrf }),
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>保存';
+            if (res.success) {
+                bootstrap.Modal.getInstance(document.getElementById('budgetEditModal')).hide();
+                drLoad();
+            } else {
+                alertEl.className = 'alert alert-danger small py-1 px-2 mt-2';
+                alertEl.textContent = '保存失敗: ' + (res.error || '不明なエラー');
+                alertEl.style.display = '';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>保存';
+            alertEl.className = 'alert alert-danger small py-1 px-2 mt-2';
+            alertEl.textContent = '通信エラーが発生しました';
+            alertEl.style.display = '';
+        });
+    });
 
     // ─── アイテムKPIクリック → 年間推移モーダル ───────────────────────
     // ─── 年度平均達成率カード → 月別内訳モーダル ──────────────────────────

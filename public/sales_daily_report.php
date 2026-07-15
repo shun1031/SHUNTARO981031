@@ -760,24 +760,25 @@ require_once __DIR__ . '/../includes/header.php';
         if (!wrap || !bizConf) { if (wrap) wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>'; return; }
         var items = bizConf.personal_items || [];
         if (!items.length) { wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>'; return; }
-        var requireBudget = bizConf.require_budget;
+        var primaryKpi = bizConf.primary_kpi || null;
         var html = '';
         items.forEach(function(label) {
-            var kpi    = bizKpi[label] || { actual: 0, budget: null };
-            var actual = kpi.actual || 0;
-            var budget = (kpi.budget !== null && kpi.budget !== undefined) ? kpi.budget : null;
+            var kpi      = bizKpi[label] || { actual: 0, budget: null };
+            var actual   = kpi.actual || 0;
+            var isPrimary = label === primaryKpi;
+            var budget   = isPrimary && (kpi.budget !== null && kpi.budget !== undefined) ? kpi.budget : null;
             var hasBudget = budget !== null;
             var rate = '-', rateColor = '#9ca3af';
-            if (requireBudget && hasBudget && budget > 0) {
+            if (isPrimary && hasBudget && budget > 0) {
                 rate = (actual / budget * 100).toFixed(1);
                 rateColor = parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 70 ? color : '#ef4444');
             }
-            html += '<div class="col-6 col-md-4 col-lg-2" data-item-label="' + esc(label) + '" style="cursor:pointer">';
+            html += '<div class="col-6 col-md-4 col-lg-2">';
             html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
             html += '<div class="card-body p-2">';
             html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
             html += '<div class="d-flex gap-1 mb-1">';
-            if (requireBudget) {
+            if (isPrimary) {
                 html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
                 html += '<div style="font-size:.56rem;color:#9ca3af">予算</div>';
                 html += '<div style="font-size:1rem;font-weight:700;color:#6b7280;line-height:1.1">' + (hasBudget ? budget : '-') + '</div>';
@@ -787,10 +788,9 @@ require_once __DIR__ . '/../includes/header.php';
             html += '<div style="font-size:.56rem;color:#9ca3af">実績</div>';
             html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + actual + '</div>';
             html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div></div>';
-            if (requireBudget) {
+            if (isPrimary) {
                 html += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span></div>';
             }
-            html += '<div style="font-size:.55rem;color:#aaa;text-align:center;margin-top:2px"><i class="bi bi-graph-up"></i> タップで推移</div>';
             html += '</div></div></div>';
         });
         wrap.innerHTML = html;

@@ -358,34 +358,57 @@ try {
 } catch (PDOException $e) {}
 
 // ─── 年間推移（月別: 個人獲得実績 + 予算達成率）年度: year Y = Sep(Y-1)〜Aug(Y) ──────
+// 12回ループ×2クエリ(計24) → 2クエリに削減
+$fyStart = sprintf('%04d-09-01', $year - 1);
+$fyEnd   = sprintf('%04d-08-31', $year);
+
+// 1クエリ: 年度全月の実績をまとめて取得
+$tSql = "SELECT YEAR(work_date) AS yr, MONTH(work_date) AS mo,
+    COALESCE(SUM(event_contracts),0) AS contracts,
+    GROUP_CONCAT(personal_acquisition_detail SEPARATOR '|||') AS per_jsons
+FROM sales_daily_reports WHERE company_id=? AND work_date BETWEEN ? AND ?";
+$tp = [$cid, $fyStart, $fyEnd];
+if ($employee) { $tSql .= " AND employee_name=?"; $tp[] = $employee; }
+elseif ($filterType === 'work_type' && $filterValue) {
+    if ($filterValue === '光AD') { $tSql .= " AND work_type IN ('光AD','ショップ')"; }
+    elseif ($filterValue === '業務委託') { $tSql .= " AND work_type IN ('業務委託','ショップ以外')"; }
+} elseif ($filterType === 'carrier' && $filterValue) {
+    $tSql .= " AND carrier=?"; $tp[] = $filterValue;
+}
+$tSql .= " GROUP BY YEAR(work_date), MONTH(work_date)";
+$tStmt = $db->prepare($tSql);
+$tStmt->execute($tp);
+$monthlyActuals = [];
+foreach ($tStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $monthlyActuals[sprintf('%04d-%02d', (int)$row['yr'], (int)$row['mo'])] = $row;
+}
+
+// 1クエリ: 年度全月の予算をまとめて取得（社員フィルター時のみ）
+$budgetByMonth = [];
+if ($employee && $autoBizConf && $autoBizConf['require_budget']) {
+    $bSql = "SELECT year, month, budget_detail FROM store_monthly_budgets
+        WHERE company_id=? AND employee_name=?
+        AND ((year=? AND month>=9) OR (year=? AND month<=8))
+        ORDER BY id ASC";
+    $bStmt = $db->prepare($bSql);
+    $bStmt->execute([$cid, $employee, $year - 1, $year]);
+    foreach ($bStmt->fetchAll(PDO::FETCH_ASSOC) as $bRow) {
+        // id昇順で上書き → 最新行が残る
+        $budgetByMonth[sprintf('%04d-%02d', (int)$bRow['year'], (int)$bRow['month'])] = $bRow['budget_detail'];
+    }
+}
+
+// メモリ上で12ヶ月分を組み立て
 $annualTrend = [];
 $fyRates     = [];
-// 9,10,11,12,1,2,3,4,5,6,7,8 の順でループ
 for ($mi = 0; $mi < 12; $mi++) {
-    $m  = ($mi + 8) % 12 + 1;        // 9→10→…→12→1→…→8
-    $my = ($m >= 9) ? ($year - 1) : $year; // 9〜12は前年
+    $m   = ($mi + 8) % 12 + 1;
+    $my  = ($m >= 9) ? ($year - 1) : $year;
+    $key = sprintf('%04d-%02d', $my, $m);
 
-    $ms = sprintf('%04d-%02d-01', $my, $m);
-    $me = date('Y-m-t', strtotime($ms));
-
-    $tSql = "SELECT
-        COALESCE(SUM(event_contracts),0) AS contracts,
-        GROUP_CONCAT(personal_acquisition_detail SEPARATOR '|||') AS per_jsons
-    FROM sales_daily_reports WHERE company_id=? AND work_date BETWEEN ? AND ?";
-    $tp = [$cid, $ms, $me];
-    if ($employee) { $tSql .= " AND employee_name=?"; $tp[] = $employee; }
-    elseif ($filterType === 'work_type' && $filterValue) {
-        if ($filterValue === '光AD') { $tSql .= " AND work_type IN ('光AD','ショップ')"; }
-        elseif ($filterValue === '業務委託') { $tSql .= " AND work_type IN ('業務委託','ショップ以外')"; }
-    } elseif ($filterType === 'carrier' && $filterValue) {
-        $tSql .= " AND carrier=?"; $tp[] = $filterValue;
-    }
-    $tStmt = $db->prepare($tSql);
-    $tStmt->execute($tp);
-    $tRow = $tStmt->fetch(PDO::FETCH_ASSOC);
+    $tRow      = $monthlyActuals[$key] ?? ['contracts' => 0, 'per_jsons' => ''];
     $contracts = (int)($tRow['contracts'] ?? 0);
 
-    // 予算達成率: 光ADの場合のみ
     $budgetAchRate = null;
     $actualPrimary = 0;
     $budgetPrimary = 0;
@@ -395,16 +418,11 @@ for ($mi = 0; $mi < 12; $mi++) {
             $jd = json_decode($j, true) ?: [];
             $actualPrimary += (int)($jd[$primaryKpi] ?? 0);
         }
-        if ($employee) {
-            $bSt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=? ORDER BY id DESC LIMIT 1");
-            $bSt->execute([$cid, $employee, $my, $m]);
-            $bR = $bSt->fetch(PDO::FETCH_ASSOC);
-            if ($bR) {
-                $bD = json_decode($bR['budget_detail'] ?? '{}', true) ?: [];
-                $budgetPrimary = (int)($bD[$primaryKpi] ?? 0);
-                if ($budgetPrimary > 0) {
-                    $budgetAchRate = round($actualPrimary / $budgetPrimary * 100, 1);
-                }
+        if (isset($budgetByMonth[$key])) {
+            $bD = json_decode($budgetByMonth[$key] ?? '{}', true) ?: [];
+            $budgetPrimary = (int)($bD[$primaryKpi] ?? 0);
+            if ($budgetPrimary > 0) {
+                $budgetAchRate = round($actualPrimary / $budgetPrimary * 100, 1);
             }
         }
     }

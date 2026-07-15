@@ -383,6 +383,21 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- 年度平均達成率 月別内訳モーダル -->
+<div class="modal fade" id="fyRateModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" style="font-size:.85rem"><i class="bi bi-calendar3 me-1"></i>月別達成率</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-2">
+                <div id="fyRateTableWrap"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 商材別年間推移モーダル -->
 <div class="modal fade" id="itemTrendModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -804,14 +819,15 @@ require_once __DIR__ . '/../includes/header.php';
         var fyAvgRate = d.fy_avg_achievement_rate;
         if (fyAvgRate !== null && fyAvgRate !== undefined) {
             var fyRateColor = fyAvgRate >= 100 ? '#059669' : (fyAvgRate >= 70 ? '#d97706' : '#ef4444');
-            primaryHtml += '<div class="col-auto" style="min-width:160px">';
+            primaryHtml += '<div class="col-auto" style="min-width:160px;cursor:pointer" id="fyRateCard">';
             primaryHtml += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
             primaryHtml += '<div class="card-body p-2">';
-            primaryHtml += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">年度平均達成率</div>';
+            primaryHtml += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">年度平均達成率 <i class="bi bi-table" style="font-size:.65rem;opacity:.6"></i></div>';
             primaryHtml += '<div class="text-center" style="background:#f9fafb;border-radius:.3rem;padding:4px 2px;margin-bottom:4px">';
             primaryHtml += '<div style="font-size:.52rem;color:#9ca3af">9〜8月平均</div>';
             primaryHtml += '<div style="font-size:1.3rem;font-weight:700;color:' + fyRateColor + ';line-height:1.2">' + fyAvgRate + '%</div>';
             primaryHtml += '</div>';
+            primaryHtml += '<div style="font-size:.55rem;color:#9ca3af;text-align:center">タップで月別内訳</div>';
             primaryHtml += '</div></div></div>';
         }
         var html = primaryHtml;
@@ -850,6 +866,42 @@ require_once __DIR__ . '/../includes/header.php';
     }
 
     // ─── アイテムKPIクリック → 年間推移モーダル ───────────────────────
+    // ─── 年度平均達成率カード → 月別内訳モーダル ──────────────────────────
+    document.getElementById('drItemKpiRow').addEventListener('click', function(e) {
+        var fyCard = e.target.closest('#fyRateCard');
+        if (fyCard && drLastData) {
+            var trend = drLastData.annual_trend || [];
+            var wrap  = document.getElementById('fyRateTableWrap');
+            if (!wrap) return;
+            var MONTH_NAMES = {9:'9月',10:'10月',11:'11月',12:'12月',1:'1月',2:'2月',3:'3月',4:'4月',5:'5月',6:'6月',7:'7月',8:'8月'};
+            var rows = '';
+            trend.forEach(function(t) {
+                var rate = t.budget_achievement_rate;
+                var hasBudget = t.budget_primary > 0;
+                var rateStr = rate !== null && rate !== undefined ? rate + '%' : '-';
+                var rateColor = rate === null || rate === undefined ? '#9ca3af'
+                    : (rate >= 100 ? '#059669' : (rate >= 70 ? '#d97706' : '#ef4444'));
+                rows += '<tr>';
+                rows += '<td class="text-center fw-semibold" style="font-size:.8rem">' + (MONTH_NAMES[t.month] || t.month + '月') + '</td>';
+                rows += '<td class="text-center" style="font-size:.8rem">' + (hasBudget ? t.budget_primary : '-') + '</td>';
+                rows += '<td class="text-center" style="font-size:.8rem">' + t.actual_primary + '</td>';
+                rows += '<td class="text-center fw-bold" style="font-size:.8rem;color:' + rateColor + '">' + rateStr + '</td>';
+                rows += '</tr>';
+            });
+            wrap.innerHTML = rows
+                ? '<table class="table table-sm table-bordered mb-0" style="font-size:.78rem">'
+                  + '<thead class="table-light"><tr>'
+                  + '<th class="text-center" style="width:52px">月</th>'
+                  + '<th class="text-center">予算</th>'
+                  + '<th class="text-center">実績</th>'
+                  + '<th class="text-center">達成率</th>'
+                  + '</tr></thead><tbody>' + rows + '</tbody></table>'
+                : '<p class="text-muted text-center small mb-0">データなし</p>';
+            new bootstrap.Modal(document.getElementById('fyRateModal')).show();
+            return;
+        }
+    });
+
     document.getElementById('drItemKpiRow').addEventListener('click', function(e) {
         var col = e.target.closest('[data-item-label]');
         if (!col || !drLastData) return;

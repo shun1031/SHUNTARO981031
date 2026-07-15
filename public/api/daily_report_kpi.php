@@ -386,9 +386,10 @@ for ($mi = 0; $mi < 12; $mi++) {
 
     // 予算達成率: 光ADの場合のみ
     $budgetAchRate = null;
+    $actualPrimary = 0;
+    $budgetPrimary = 0;
     if ($autoBizConf && $autoBizConf['require_budget'] && $autoBizConf['primary_kpi']) {
         $primaryKpi = $autoBizConf['primary_kpi'];
-        $actualPrimary = 0;
         foreach (array_filter(explode('|||', $tRow['per_jsons'] ?? '')) as $j) {
             $jd = json_decode($j, true) ?: [];
             $actualPrimary += (int)($jd[$primaryKpi] ?? 0);
@@ -411,6 +412,8 @@ for ($mi = 0; $mi < 12; $mi++) {
     $annualTrend[] = [
         'month'                  => $m,
         'personal'               => $contracts,
+        'actual_primary'         => $actualPrimary,
+        'budget_primary'         => $budgetPrimary,
         'achievement_rate'       => null,
         'budget_achievement_rate'=> $budgetAchRate,
     ];

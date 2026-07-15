@@ -911,6 +911,9 @@ require_once __DIR__ . '/../includes/header.php';
         info.textContent = emp + '　' + yr + '年' + (MNAME[mo] || mo + '月') + '　予算を設定してください';
         alert.style.display = 'none';
         fields.innerHTML = '<div class="text-center text-muted small py-2"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
+        var saveBtn = document.getElementById('budgetEditSaveBtn');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>保存';
         new bootstrap.Modal(document.getElementById('budgetEditModal')).show();
         // 既存予算を読み込む
         fetch(budgetApiBase + '?employee=' + encodeURIComponent(emp) + '&year=' + yr + '&month=' + mo)

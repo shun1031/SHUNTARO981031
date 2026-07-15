@@ -666,7 +666,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <tr>
                                     <th style="min-width:90px"></th>
                                     <?php foreach ($fyMonths as $fm): ?>
-                                    <th class="text-center"><?= $fm['month'] ?>月</th>
+                                    <th class="text-center"><?= $fm['m'] ?>月</th>
                                     <?php endforeach; ?>
                                     <th class="text-center table-secondary">合計</th>
                                 </tr>
@@ -678,14 +678,14 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php
                                     $fyFrameTgtTotal = 0;
                                     foreach ($fyMonths as $fm):
-                                        $ftv = $frameTargetMap[$fm['year']][$fm['month']] ?? 0;
+                                        $ftv = $frameTargetMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFrameTgtTotal += $ftv;
                                     ?>
                                     <td class="text-center p-0">
                                         <input type="number" min="0" class="form-control form-control-sm fy-tgt-input fy-frame-tgt-input text-center"
                                             value="<?= $ftv ?>"
-                                            data-year="<?= $fm['year'] ?>"
-                                            data-month="<?= $fm['month'] ?>"
+                                            data-year="<?= $fm['y'] ?>"
+                                            data-month="<?= $fm['m'] ?>"
                                             style="min-width:52px">
                                     </td>
                                     <?php endforeach; ?>
@@ -697,7 +697,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php
                                     $fyFirstFrameTotal = 0;
                                     foreach ($fyMonths as $fm):
-                                        $ffv = $frameActualMap[$fm['year']][$fm['month']] ?? 0;
+                                        $ffv = $frameActualMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFirstFrameTotal += $ffv;
                                     ?>
                                     <td class="text-center"><?= $ffv ?: '-' ?></td>
@@ -710,7 +710,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php
                                     $fyTotalFrameTotal = 0;
                                     foreach ($fyMonths as $fm):
-                                        $ftotal = $frameTotalMap[$fm['year']][$fm['month']] ?? 0;
+                                        $ftotal = $frameTotalMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyTotalFrameTotal += $ftotal;
                                     ?>
                                     <td class="text-center"><?= $ftotal ?: '-' ?></td>

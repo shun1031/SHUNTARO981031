@@ -115,13 +115,6 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
                 <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0 py-0 px-2" style="font-size:.72rem;line-height:1.8" data-repname="<?= htmlspecialchars($repName, ENT_QUOTES) ?>" onclick="openRepDetail(this.dataset.repname)">詳細</button>
                 <?php endif; ?>
             </div>
-            <div class="d-flex align-items-center gap-3 flex-wrap mt-1">
-                <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>
-                <span class="text-muted small">粗利 <?= number_format($profit) ?></span>
-                <?php if ($profitRate !== null): ?>
-                <span class="text-muted small">粗利率 <?= number_format($profitRate, 1) ?>%</span>
-                <?php endif; ?>
-            </div>
         </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
@@ -130,7 +123,7 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
                     <tr><td style="padding-left:.75rem"><span style="color:#3b82f6;font-size:.8rem">●</span> 常勤売上</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['regular_revenue'] ?? 0) ? number_format($cur['regular_revenue']) : '-' ?></td></tr>
                     <tr><td style="padding-left:.75rem"><span style="color:#8b5cf6;font-size:.8rem">●</span> イベント売上</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['event_revenue'] ?? 0) ? number_format($cur['event_revenue']) : '-' ?></td></tr>
                     <tr><td style="padding-left:.75rem">粗利</td><td class="text-end" style="padding-right:.75rem"><?= $profit ? number_format($profit) : '-' ?></td></tr>
-                    <tr><td style="padding-left:.75rem">案件数</td><td class="text-end" style="padding-right:.75rem"><?= ($cur['case_count'] ?? 0) ?: '-' ?></td></tr>
+                    <tr><td style="padding-left:.75rem">粗利率</td><td class="text-end" style="padding-right:.75rem"><?= $profitRate !== null ? number_format($profitRate, 1).'%' : '-' ?></td></tr>
                     <?php if ($incentive !== null): ?>
                     <tr style="background:#fffbeb">
                         <td style="padding-left:.75rem;color:#d97706;font-weight:500">インセンティブ</td>

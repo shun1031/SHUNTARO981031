@@ -388,8 +388,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <h6 class="modal-title mb-0"><i class="bi bi-graph-up me-1"></i><span id="itemTrendModalTitle">年間推移</span></h6>
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" style="height:260px">
+            <div class="modal-body" style="height:260px;position:relative">
                 <canvas id="itemTrendChart"></canvas>
+                <div id="itemTrendNoData" class="d-none text-center text-muted" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                    <i class="bi bi-bar-chart-line" style="font-size:2.2rem;opacity:.3;margin-bottom:10px"></i>
+                    <div id="itemTrendNoDataMsg" style="font-size:.85rem"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -752,11 +756,37 @@ require_once __DIR__ . '/../includes/header.php';
 
     document.getElementById('itemTrendModal').addEventListener('shown.bs.modal', function() {
         if (drItemChart) { drItemChart.destroy(); drItemChart = null; }
-        var ctx = document.getElementById('itemTrendChart');
-        if (!ctx || !drLastItemTrend) return;
+        var ctx      = document.getElementById('itemTrendChart');
+        var noData   = document.getElementById('itemTrendNoData');
+        var noDataMsg= document.getElementById('itemTrendNoDataMsg');
+        if (!ctx) return;
+
+        var trend = drLastItemTrend || [];
+        var hasPositive = trend.some(function(t){ return t.value > 0; });
+
+        function showNoData(msg) {
+            ctx.style.display = 'none';
+            if (noData)    { noData.classList.remove('d-none'); noData.style.display = 'flex'; }
+            if (noDataMsg) { noDataMsg.textContent = msg; }
+        }
+        function showChart() {
+            ctx.style.display = '';
+            if (noData) { noData.classList.add('d-none'); noData.style.display = 'none'; }
+        }
+
+        if (trend.length === 0) {
+            showNoData('社員を選択するとデータが表示されます');
+            return;
+        }
+        if (!hasPositive) {
+            showNoData(drYear + '年の個人獲得実績はありません');
+            return;
+        }
+        showChart();
+
         var color  = CARRIER_COLORS[drLastCarrier] || '#2563eb';
-        var labels = drLastItemTrend.map(function(t){ return t.month+'月'; });
-        var values = drLastItemTrend.map(function(t){ return t.value; });
+        var labels = trend.map(function(t){ return t.month+'月'; });
+        var values = trend.map(function(t){ return t.value; });
         drItemChart = new Chart(ctx, {
             type: 'line',
             data: { labels: labels, datasets: [{

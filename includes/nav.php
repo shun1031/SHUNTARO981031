@@ -77,7 +77,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_rep_report.php', 'bi-person-badge', '担当者別売上', $currentPage === 'sales_rep_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_rep_mom_report.php', 'bi-graph-up-arrow', '担当者別前月比', $currentPage === 'sales_rep_mom_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_carrier_report.php', 'bi-reception-4', 'キャリア別売上', $currentPage === 'sales_carrier_report') ?>
-        <?= navLink(BASE_PATH . '/public/sales_cost.php', 'bi-building', '原価管理', in_array($currentPage, ['sales_cost', 'sales_cost_detail'])) ?>
+        <?= navLink(BASE_PATH . '/public/sales_cost.php', 'bi-building', 'アライアンス別売上', in_array($currentPage, ['sales_cost', 'sales_cost_detail'])) ?>
         <?= navLink(BASE_PATH . '/public/invoice_management.php', 'bi-receipt', '請求書管理', $currentPage === 'invoice_management') ?>
         <?= navLink(BASE_PATH . '/admin/change_requests.php', 'bi-inbox', '各種申請', $currentDir === 'admin' && $currentPage === 'change_requests', ($n = countPendingChangeRequests(getCompanyId() ?? 0)) ? (string)$n : '') ?>
         <?= navLink(BASE_PATH . '/public/salary.php', 'bi-cash-stack', '給与管理', $currentPage === 'salary') ?>

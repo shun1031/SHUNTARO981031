@@ -6,7 +6,7 @@ requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 
-$pageTitle = '原価管理';
+$pageTitle = 'アライアンス別売上';
 $extraCss  = ['sales.css'];
 $extraJs   = ['sales.js'];
 
@@ -123,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h1><i class="bi bi-building me-2"></i>原価管理</h1>
+                <h1><i class="bi bi-building me-2"></i>アライアンス別売上</h1>
                 <p>アライアンス会社ごとの原価を常勤・イベント案件ごとに集計・確認できます。</p>
                 <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded" style="background:#fef3c7;border:1px solid #fde68a;font-size:.75rem;color:#92400e">
                     <i class="bi bi-info-circle"></i>

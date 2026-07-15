@@ -6,7 +6,7 @@ requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 
-$pageTitle = '原価管理 詳細';
+$pageTitle = 'アライアンス別売上 詳細';
 $extraCss  = ['sales.css'];
 $extraJs   = ['sales.js'];
 
@@ -125,7 +125,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div>
                 <nav aria-label="breadcrumb" style="font-size:.8rem">
                     <ol class="breadcrumb mb-1">
-                        <li class="breadcrumb-item"><a href="<?= BASE_PATH ?>/public/sales_cost.php?year=<?= $year ?>&month=<?= $month ?>">原価管理</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_PATH ?>/public/sales_cost.php?year=<?= $year ?>&month=<?= $month ?>">アライアンス別売上</a></li>
                         <li class="breadcrumb-item active"><?= h($alliance['alliance_name']) ?></li>
                     </ol>
                 </nav>
@@ -264,7 +264,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="text-center mb-4">
         <a href="<?= BASE_PATH ?>/public/sales_cost.php?year=<?= $year ?>&month=<?= $month ?>"
-           class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>原価管理一覧へ戻る</a>
+           class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>アライアンス別売上一覧へ戻る</a>
     </div>
 </div>
 

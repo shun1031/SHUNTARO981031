@@ -364,6 +364,7 @@ $carrierFyRows = $_s->fetchAll();
 // 月別枠数目標（常勤/イベントのみ）
 $frameTargetMap = [];
 $frameActualMap = [];
+$frameTotalMap  = [];
 if ($caseTypeFilter) {
     try {
         $_ftStmt = $_sDb->prepare("SELECT year, month, target_first_frame FROM sales_frame_targets WHERE company_id=? AND case_type=? AND ((year=? AND month>=9) OR (year=? AND month<=8))");
@@ -377,10 +378,9 @@ if ($caseTypeFilter) {
         foreach ($_faStmt->fetchAll() as $_r) {
             $frameActualMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
         }
-        // 合計枠実績（全case_divisionの件数）
+        // 合計枠実績（全件数）
         $_fTotalStmt = $_sDb->prepare("SELECT case_year, case_month, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month");
         $_fTotalStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
-        $frameTotalMap = [];
         foreach ($_fTotalStmt->fetchAll() as $_r) {
             $frameTotalMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
         }

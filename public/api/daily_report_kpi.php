@@ -14,6 +14,7 @@ if (!$cid) { echo json_encode(['error' => 'Unauthorized']); exit; }
 
 $db        = getDB();
 $empFilter = getEmployeeNameFilter();
+session_write_close(); // セッションロック解放（長時間クエリ中に他リクエストをブロックしないため）
 $year      = (int)($_GET['year']  ?? date('Y'));
 $month     = (int)($_GET['month'] ?? date('n'));
 

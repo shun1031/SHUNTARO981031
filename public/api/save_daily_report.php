@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'Metho
 $data   = $_POST;
 $action = $data['action'] ?? 'create';
 $myName = getEmployeeNameFilter();
+session_write_close(); // セッションロック解放
 
 if (!verifyCsrfToken($data['csrf'] ?? '')) { echo json_encode(['error' => 'CSRF']); exit; }
 

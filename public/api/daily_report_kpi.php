@@ -239,7 +239,7 @@ if ($autoBizConf) {
     }
     // 予算取得（社員指定時: その社員の予算、グループ時: 平均）
     if ($employee && $autoBizConf['require_budget']) {
-        $bStmt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=?");
+        $bStmt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=? ORDER BY id DESC LIMIT 1");
         $bStmt->execute([$cid, $employee, $year, $month]);
         $bRow = $bStmt->fetch(PDO::FETCH_ASSOC);
         if ($bRow) {
@@ -391,7 +391,7 @@ for ($m = 1; $m <= 12; $m++) {
         }
         // 予算取得
         if ($employee) {
-            $bSt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=?");
+            $bSt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=? ORDER BY id DESC LIMIT 1");
             $bSt->execute([$cid, $employee, $year, $m]);
             $bR = $bSt->fetch(PDO::FETCH_ASSOC);
             if ($bR) {

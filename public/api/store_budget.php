@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $empFilter = getEmployeeNameFilter();
     if ($empFilter !== null) $emp = $empFilter;
     if (!$emp) { echo json_encode(['exists' => false, 'budget' => null]); exit; }
-    $stmt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=?");
+    $stmt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=? ORDER BY id DESC LIMIT 1");
     $stmt->execute([$cid, $emp, $year, $month]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     echo json_encode([
@@ -46,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$emp) { echo json_encode(['error' => 'employee required']); exit; }
     if (is_array($detail)) $detail = json_encode($detail, JSON_UNESCAPED_UNICODE);
     if (json_decode($detail) === null && json_last_error() !== JSON_ERROR_NONE) { echo json_encode(['error' => 'Invalid JSON']); exit; }
-    $stmt = $db->prepare("INSERT INTO store_monthly_budgets (company_id, employee_name, year, month, budget_detail) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE budget_detail=VALUES(budget_detail), updated_at=NOW()");
-    $stmt->execute([$cid, $emp, $year, $month, $detail]);
+    $db->prepare("DELETE FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=?")->execute([$cid, $emp, $year, $month]);
+    $db->prepare("INSERT INTO store_monthly_budgets (company_id, employee_name, year, month, budget_detail) VALUES (?,?,?,?,?)")->execute([$cid, $emp, $year, $month, $detail]);
     echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
     exit;
 }

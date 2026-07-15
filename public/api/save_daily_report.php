@@ -38,8 +38,8 @@ if ($action === 'create' || $action === 'update') {
         try {
             $db->exec("CREATE TABLE IF NOT EXISTS store_monthly_budgets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_name VARCHAR(100) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, budget_detail TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smb (company_id, employee_name, year, month), INDEX idx_smb_emp (company_id, employee_name, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         } catch (PDOException $e) {}
-        $bStmt = $db->prepare("INSERT INTO store_monthly_budgets (company_id, employee_name, year, month, budget_detail) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE budget_detail=VALUES(budget_detail), updated_at=NOW()");
-        $bStmt->execute([$cid, $postEmpName, $budYear, $budMonth, $budgetDetail]);
+        $db->prepare("DELETE FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=?")->execute([$cid, $postEmpName, $budYear, $budMonth]);
+        $db->prepare("INSERT INTO store_monthly_budgets (company_id, employee_name, year, month, budget_detail) VALUES (?,?,?,?,?)")->execute([$cid, $postEmpName, $budYear, $budMonth, $budgetDetail]);
     }
 
     try {

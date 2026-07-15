@@ -151,6 +151,12 @@ $migrations = [
     // ---- invoice_checks: 請求書チェック管理テーブル ----
     "CREATE TABLE IF NOT EXISTS invoice_checks (id INT PRIMARY KEY AUTO_INCREMENT, bms_company_id INT NOT NULL, company_type VARCHAR(30) NOT NULL, ref_id INT NOT NULL DEFAULT 0, ref_name VARCHAR(100) NOT NULL DEFAULT '', check_year SMALLINT NOT NULL, check_month TINYINT NOT NULL, check_create TINYINT(1) NOT NULL DEFAULT 0, check_staff1 TINYINT(1) NOT NULL DEFAULT 0, check_staff2 TINYINT(1) NOT NULL DEFAULT 0, final_check TINYINT(1) NOT NULL DEFAULT 0, updated_by VARCHAR(100) DEFAULT NULL, updated_at DATETIME DEFAULT NULL, UNIQUE KEY uq_ic (bms_company_id, company_type, ref_id, ref_name, check_year, check_month), INDEX idx_ic_company (bms_company_id, company_type, check_year, check_month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+    // ---- store_monthly_budgets: 重複行を削除（最新のidを残す） ----
+    "DELETE s1 FROM store_monthly_budgets s1 INNER JOIN store_monthly_budgets s2 ON s1.company_id=s2.company_id AND s1.employee_name=s2.employee_name AND s1.year=s2.year AND s1.month=s2.month AND s1.id < s2.id",
+
+    // ---- store_monthly_budgets: UNIQUE KEY が未作成の環境向けに追加 ----
+    "ALTER TABLE store_monthly_budgets ADD UNIQUE KEY uk_smb (company_id, employee_name, year, month)",
+
     // ---- sales_cases: 案件区分（1次/その他） ----
     "ALTER TABLE sales_cases ADD COLUMN case_division VARCHAR(20) DEFAULT NULL",
 

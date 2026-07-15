@@ -664,7 +664,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <table class="table table-sm table-bordered mb-0 fy-monthly-table">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="min-width:90px"></th>
+                                    <th style="min-width:56px;width:56px">項目</th>
                                     <?php foreach ($fyMonths as $fm): ?>
                                     <th class="text-center"><?= $fm['m'] ?>月</th>
                                     <?php endforeach; ?>
@@ -674,19 +674,20 @@ require_once __DIR__ . '/../includes/header.php';
                             <tbody>
                                 <!-- 目標1次枠数（手打ち） -->
                                 <tr>
-                                    <td class="fw-semibold fy-label">目標1次枠数</td>
+                                    <td class="fy-label">目標1次枠数</td>
                                     <?php
                                     $fyFrameTgtTotal = 0;
                                     foreach ($fyMonths as $fm):
                                         $ftv = $frameTargetMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFrameTgtTotal += $ftv;
                                     ?>
-                                    <td class="text-center p-0">
-                                        <input type="number" min="0" class="form-control form-control-sm fy-tgt-input fy-frame-tgt-input text-center"
-                                            value="<?= $ftv ?>"
+                                    <td class="p-0">
+                                        <input type="number" min="0" class="fy-tgt-input fy-frame-tgt-input form-control form-control-sm border-0 text-center px-1"
+                                            style="min-width:52px;background:transparent"
+                                            value="<?= $ftv ?: '' ?>"
                                             data-year="<?= $fm['y'] ?>"
                                             data-month="<?= $fm['m'] ?>"
-                                            style="min-width:52px">
+                                            placeholder="0">
                                     </td>
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold" id="fyFrameTgtTotal"><?= $fyFrameTgtTotal ?></td>

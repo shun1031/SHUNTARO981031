@@ -22,6 +22,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $month = (int)($_GET['month'] ?? date('n'));
     $empFilter = getEmployeeNameFilter();
     if ($empFilter !== null) $emp = $empFilter;
+
+    // デバッグモード: ?debug=1 で全行返す（管理者のみ）
+    if (!empty($_GET['debug']) && !$empFilter) {
+        $dStmt = $db->prepare("SELECT id, employee_name, year, month, budget_detail, created_at FROM store_monthly_budgets WHERE company_id=? ORDER BY id DESC LIMIT 50");
+        $dStmt->execute([$cid]);
+        echo json_encode(['debug_rows' => $dStmt->fetchAll(PDO::FETCH_ASSOC)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
+    }
+
     if (!$emp) { echo json_encode(['exists' => false, 'budget' => null]); exit; }
     $stmt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=? ORDER BY id DESC LIMIT 1");
     $stmt->execute([$cid, $emp, $year, $month]);

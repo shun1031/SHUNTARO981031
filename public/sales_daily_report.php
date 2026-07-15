@@ -206,7 +206,7 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- ④ 年間推移グラフ -->
     <div class="card mb-3 shadow-sm" style="border-radius:.75rem">
         <div class="card-header fw-semibold" style="font-size:.85rem;border-radius:.75rem .75rem 0 0">
-            <i class="bi bi-graph-up me-1"></i>年間推移 <span class="text-muted fw-normal" style="font-size:.75rem"><?= $year ?>年 月別</span>
+            <i class="bi bi-graph-up me-1"></i>年間推移 <span class="text-muted fw-normal" style="font-size:.75rem"><?= ($year-1) ?>-<?= $year ?>年度 月別（9〜8月）</span>
         </div>
         <div class="card-body p-3" style="height:220px">
             <canvas id="drTrendChart"></canvas>
@@ -800,6 +800,20 @@ require_once __DIR__ . '/../includes/header.php';
                 subHtml += '</div></div>';
             }
         });
+        // 年度平均達成率カード（固定合計の右）
+        var fyAvgRate = d.fy_avg_achievement_rate;
+        if (fyAvgRate !== null && fyAvgRate !== undefined) {
+            var fyRateColor = fyAvgRate >= 100 ? '#059669' : (fyAvgRate >= 70 ? '#d97706' : '#ef4444');
+            primaryHtml += '<div class="col-auto" style="min-width:160px">';
+            primaryHtml += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
+            primaryHtml += '<div class="card-body p-2">';
+            primaryHtml += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">年度平均達成率</div>';
+            primaryHtml += '<div class="text-center" style="background:#f9fafb;border-radius:.3rem;padding:4px 2px;margin-bottom:4px">';
+            primaryHtml += '<div style="font-size:.52rem;color:#9ca3af">9〜8月平均</div>';
+            primaryHtml += '<div style="font-size:1.3rem;font-weight:700;color:' + fyRateColor + ';line-height:1.2">' + fyAvgRate + '%</div>';
+            primaryHtml += '</div>';
+            primaryHtml += '</div></div></div>';
+        }
         var html = primaryHtml;
         if (subHtml) {
             html += '<div class="col-12 mt-1"><div class="d-flex gap-1 flex-nowrap overflow-auto pb-1">' + subHtml + '</div></div>';
@@ -902,13 +916,13 @@ require_once __DIR__ . '/../includes/header.php';
         var datasets = [{
             label:'個人獲得数（件）', data: personalData,
             borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.1)',
-            fill:true, tension:.35, yAxisID:'y', pointBackgroundColor:'#2563eb', pointRadius:4,
+            fill:true, tension:0, yAxisID:'y', pointBackgroundColor:'#2563eb', pointRadius:4,
         }];
         if (hasRate) {
             datasets.push({
                 label:'予算達成率（%）', data: rateData,
                 borderColor:'#d97706', backgroundColor:'transparent',
-                fill:false, tension:.35, yAxisID:'y2', borderDash:[4,3],
+                fill:false, tension:0, yAxisID:'y2', borderDash:[4,3],
                 pointBackgroundColor:'#d97706', pointRadius:4,
             });
         }

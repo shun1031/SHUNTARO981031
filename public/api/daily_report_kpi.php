@@ -356,10 +356,15 @@ try {
     }
 } catch (PDOException $e) {}
 
-// ─── 年間推移（月別: 個人獲得実績 + 予算達成率） ──────────────────────────
+// ─── 年間推移（月別: 個人獲得実績 + 予算達成率）年度: year Y = Sep(Y-1)〜Aug(Y) ──────
 $annualTrend = [];
-for ($m = 1; $m <= 12; $m++) {
-    $ms = sprintf('%04d-%02d-01', $year, $m);
+$fyRates     = [];
+// 9,10,11,12,1,2,3,4,5,6,7,8 の順でループ
+for ($mi = 0; $mi < 12; $mi++) {
+    $m  = ($mi + 8) % 12 + 1;        // 9→10→…→12→1→…→8
+    $my = ($m >= 9) ? ($year - 1) : $year; // 9〜12は前年
+
+    $ms = sprintf('%04d-%02d-01', $my, $m);
     $me = date('Y-m-t', strtotime($ms));
 
     $tSql = "SELECT
@@ -376,23 +381,21 @@ for ($m = 1; $m <= 12; $m++) {
     }
     $tStmt = $db->prepare($tSql);
     $tStmt->execute($tp);
-    $row = $tStmt->fetch(PDO::FETCH_ASSOC);
-    $contracts = (int)($row['contracts'] ?? 0);
+    $tRow = $tStmt->fetch(PDO::FETCH_ASSOC);
+    $contracts = (int)($tRow['contracts'] ?? 0);
 
     // 予算達成率: 光ADの場合のみ
     $budgetAchRate = null;
     if ($autoBizConf && $autoBizConf['require_budget'] && $autoBizConf['primary_kpi']) {
         $primaryKpi = $autoBizConf['primary_kpi'];
-        // 実績: personal_acquisition_detailのprimaryKpi合計
         $actualPrimary = 0;
-        foreach (array_filter(explode('|||', $row['per_jsons'] ?? '')) as $j) {
-            $d = json_decode($j, true) ?: [];
-            $actualPrimary += (int)($d[$primaryKpi] ?? 0);
+        foreach (array_filter(explode('|||', $tRow['per_jsons'] ?? '')) as $j) {
+            $jd = json_decode($j, true) ?: [];
+            $actualPrimary += (int)($jd[$primaryKpi] ?? 0);
         }
-        // 予算取得
         if ($employee) {
             $bSt = $db->prepare("SELECT budget_detail FROM store_monthly_budgets WHERE company_id=? AND employee_name=? AND year=? AND month=? ORDER BY id DESC LIMIT 1");
-            $bSt->execute([$cid, $employee, $year, $m]);
+            $bSt->execute([$cid, $employee, $my, $m]);
             $bR = $bSt->fetch(PDO::FETCH_ASSOC);
             if ($bR) {
                 $bD = json_decode($bR['budget_detail'] ?? '{}', true) ?: [];
@@ -403,14 +406,16 @@ for ($m = 1; $m <= 12; $m++) {
             }
         }
     }
+    if ($budgetAchRate !== null) $fyRates[] = $budgetAchRate;
 
     $annualTrend[] = [
         'month'                  => $m,
         'personal'               => $contracts,
-        'achievement_rate'       => null, // 旧フィールド（互換）
+        'achievement_rate'       => null,
         'budget_achievement_rate'=> $budgetAchRate,
     ];
 }
+$fyAvgAchRate = count($fyRates) > 0 ? round(array_sum($fyRates) / count($fyRates), 1) : null;
 
 // ─── グループ平均達成率（業務形態/キャリアフィルター時） ──────────────────
 $groupAvgAchRate = null;
@@ -464,6 +469,7 @@ echo json_encode([
     'carrier_items'          => $CARRIER_ITEMS,
     'carrier_item_kpi'       => $carrierItemKpi,
     'annual_trend'           => $annualTrend,
+    'fy_avg_achievement_rate'=> $fyAvgAchRate,
     'auto_carrier'           => $autoCarrier,
     'item_annual_trend'      => $itemAnnualTrend,
     'ranking'                => $ranking,

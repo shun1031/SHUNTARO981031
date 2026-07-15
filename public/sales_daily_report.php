@@ -717,6 +717,18 @@ require_once __DIR__ . '/../includes/header.php';
         }).catch(function(e){ console.error(e); });
     };
 
+    // KPIカードのみ静かに更新（リスト・チャートはそのまま）
+    function drLoadKpiOnly() {
+        var url = drApiBase + '?filter_type=' + encodeURIComponent(drFilterType)
+            + '&filter_value=' + encodeURIComponent(drFilterValue)
+            + '&year=' + drYear + '&month=' + drMonth;
+        fetch(url).then(function(r){ return r.json(); }).then(function(d){
+            drLastData = d;
+            drRenderKpi(d);
+            drRenderChart(d);
+        }).catch(function(e){ console.error(e); });
+    }
+
     // ─── KPIカード ────────────────────────────────────────────────────
     function drRenderKpi(d) {
         var kpiMonth = d.kpi_month || {};
@@ -957,7 +969,7 @@ require_once __DIR__ . '/../includes/header.php';
             btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>保存';
             if (res.success) {
                 bootstrap.Modal.getInstance(document.getElementById('budgetEditModal')).hide();
-                drLoad();
+                drLoadKpiOnly();
             } else {
                 alertEl.className = 'alert alert-danger small py-1 px-2 mt-2';
                 alertEl.textContent = '保存失敗: ' + (res.error || '不明なエラー');

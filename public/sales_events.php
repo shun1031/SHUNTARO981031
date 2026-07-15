@@ -321,6 +321,7 @@ require_once __DIR__ . '/../includes/header.php';
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     <?php endif; ?>
+    <div id="caseFlashMsg" style="display:none" class="alert alert-dismissible fade show mb-2" role="alert"></div>
 
     <!-- KPIサマリー -->
     <div class="row g-2 mb-3">
@@ -404,11 +405,12 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- 案件入力モーダル -->
 <div class="modal fade" id="caseModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <form method="post" class="modal-content case-form">
+        <form method="post" class="modal-content case-form" id="caseFormEl">
             <input type="hidden" name="csrf" value="<?= $csrf ?>">
             <input type="hidden" name="action" id="form_action" value="create">
             <input type="hidden" name="id" id="form_id" value="">
             <input type="hidden" name="plan_id" id="f_plan_id" value="">
+            <input type="hidden" name="case_type" value="event">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalTitle">イベント案件追加</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -462,6 +464,14 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="col-md-4">
                         <label class="form-label fw-medium">採用者</label>
                         <input type="text" name="recruiter_name" id="f_recruiter_name" class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">区分 <span class="text-danger">*</span></label>
+                        <select name="case_division" id="f_case_division" class="form-select" required>
+                            <option value="">-- 選択してください --</option>
+                            <option value="1次">1次</option>
+                            <option value="その他">その他</option>
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">スタッフ区分</label>
@@ -558,6 +568,7 @@ $_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 
 $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
 $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= 'var pageYear = ' . (int)$dispYear . '; var pageMonth = ' . (int)$dispMonth . ';';
+$inlineJs .= 'var saveCaseApiUrl = ' . json_encode(BASE_PATH . '/public/api/save_case.php') . ';';
 $inlineJs .= <<<'JS'
 
 // フィルター非同期更新
@@ -621,17 +632,55 @@ function adjustDays(id, delta) {
     inp.value = Math.max(0, (parseInt(inp.value) || 0) + delta);
 }
 
-// 削除確認
+// フラッシュメッセージ
+function showCaseFlash(type, msg) {
+    var el = document.getElementById('caseFlashMsg');
+    if (!el) return;
+    el.className = 'alert alert-' + type + ' alert-dismissible fade show mb-2';
+    el.innerHTML = '<i class="bi bi-' + (type === 'success' ? 'check-circle' : 'exclamation-triangle') + ' me-1"></i>' + msg + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    el.style.display = '';
+    if (type === 'success') setTimeout(function() { el.style.display = 'none'; }, 4000);
+}
+
+// 削除確認（AJAX）
 function confirmDelete(id) {
     if (!confirm('この案件を削除しますか？')) return;
-    var f = document.createElement('form');
-    f.method = 'POST';
-    f.action = '?year=' + pageYear + '&month=' + pageMonth;
-    [['csrf', csrfToken], ['action', 'delete'], ['id', id]].forEach(function(p) {
-        var i = document.createElement('input'); i.type = 'hidden'; i.name = p[0]; i.value = p[1]; f.appendChild(i);
-    });
-    document.body.appendChild(f); f.submit();
+    var fd = new FormData();
+    fd.append('csrf', csrfToken); fd.append('action', 'delete'); fd.append('id', id);
+    fetch(saveCaseApiUrl, {method: 'POST', body: fd})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success) { showCaseFlash('success', '案件を削除しました'); fetchCases(); }
+            else showCaseFlash('danger', d.error || '削除に失敗しました');
+        })
+        .catch(function() { showCaseFlash('danger', '通信エラーが発生しました'); });
 }
+
+// フォームAJAX送信
+(function() {
+    var form = document.getElementById('caseFormEl');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var btn = document.getElementById('submitBtn');
+        var origText = btn.textContent;
+        btn.disabled = true; btn.textContent = '保存中...';
+        fetch(saveCaseApiUrl, {method: 'POST', body: new FormData(form)})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                btn.disabled = false; btn.textContent = origText;
+                if (d.success) {
+                    var modal = bootstrap.Modal.getInstance(document.getElementById('caseModal'));
+                    if (modal) modal.hide();
+                    showCaseFlash('success', document.getElementById('form_action').value === 'create' ? '案件を追加しました' : '案件を更新しました');
+                    fetchCases();
+                } else {
+                    showCaseFlash('danger', d.error || '保存に失敗しました');
+                }
+            })
+            .catch(function() { btn.disabled = false; btn.textContent = origText; showCaseFlash('danger', '通信エラーが発生しました'); });
+    });
+})();
 
 // KPI・合計行の再集計（稼働数更新後のローカル更新用）
 function refreshKpi() {
@@ -737,6 +786,7 @@ function resetCaseForm() {
     document.getElementById('f_sales_rep').value = '';
     document.getElementById('f_manager_name').value = '';
     document.getElementById('f_recruiter_name').value = '';
+    document.getElementById('f_case_division').value = '';
     document.getElementById('worker_type').value = '正社員';
     document.getElementById('f_alliance_id').value = '';
     document.getElementById('f_worker_name').value = '';
@@ -764,6 +814,7 @@ function editCase(c) {
     document.getElementById('f_sales_rep').value = c.sales_rep || '';
     document.getElementById('f_manager_name').value = c.manager || '';
     document.getElementById('f_recruiter_name').value = c.recruiter || '';
+    document.getElementById('f_case_division').value = c.case_division || '';
     document.getElementById('worker_type').value = c.worker_type || '正社員';
     document.getElementById('f_alliance_id').value = c.alliance_id || '';
     document.getElementById('f_worker_name').value = c.worker_name || '';

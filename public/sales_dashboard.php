@@ -48,6 +48,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     exit;
 }
 
+// AJAX: 月別枠数目標の保存
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_frame_target') {
+    header('Content-Type: application/json');
+    if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'csrf']); exit; }
+    if (!$caseTypeFilter) { echo json_encode(['ok' => true, 'readonly' => true]); exit; }
+    $ty = (int)($_POST['t_year']  ?? 0);
+    $tm = (int)($_POST['t_month'] ?? 0);
+    $tv = max(0, (int)str_replace([',', '¥', ' ', '　'], '', $_POST['t_value'] ?? '0'));
+    if ($ty && $tm) {
+        $db = getDB();
+        try { $db->exec("CREATE TABLE IF NOT EXISTS sales_frame_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_first_frame INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sft (company_id, case_type, year, month), INDEX idx_sft_company (company_id, case_type, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"); } catch (PDOException $e) {}
+        $db->prepare("INSERT INTO sales_frame_targets (company_id, case_type, year, month, target_first_frame) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE target_first_frame=VALUES(target_first_frame), updated_at=NOW()")->execute([$cid, $caseTypeFilter, $ty, $tm, $tv]);
+    }
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 // ── 年度データ（9月始まり）: year Y = Sep(Y-1)〜Aug(Y) ──
 $fyMonths = [
     ['y' => $year-1, 'm' => 9],  ['y' => $year-1, 'm' => 10],
@@ -344,6 +361,34 @@ $_s = $_sDb->prepare($_carrierFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $carrierFyRows = $_s->fetchAll();
 
+// 月別枠数目標（常勤/イベントのみ）
+$frameTargetMap = [];
+$frameActualMap = [];
+if ($caseTypeFilter) {
+    try {
+        $_ftStmt = $_sDb->prepare("SELECT year, month, target_first_frame FROM sales_frame_targets WHERE company_id=? AND case_type=? AND ((year=? AND month>=9) OR (year=? AND month<=8))");
+        $_ftStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
+        foreach ($_ftStmt->fetchAll() as $_r) {
+            $frameTargetMap[(int)$_r['year']][(int)$_r['month']] = (int)$_r['target_first_frame'];
+        }
+        // 1次枠実績（case_divisionが'1次'の件数）
+        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division='1次' AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month");
+        $_faStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
+        foreach ($_faStmt->fetchAll() as $_r) {
+            $frameActualMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
+        }
+        // 合計枠実績（全case_divisionの件数）
+        $_fTotalStmt = $_sDb->prepare("SELECT case_year, case_month, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month");
+        $_fTotalStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
+        $frameTotalMap = [];
+        foreach ($_fTotalStmt->fetchAll() as $_r) {
+            $frameTotalMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
+        }
+    } catch (PDOException $_e) {
+        $frameTargetMap = []; $frameActualMap = []; $frameTotalMap = [];
+    }
+}
+
 // 年度月別販管費合計（営業利益表示用）
 $_sgaFyStmt = $_sDb->prepare("
     SELECT target_year, target_month, COALESCE(SUM(amount),0) AS sga_total
@@ -605,6 +650,81 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <?php if ($caseTypeFilter): ?>
+    <!-- 月別枠数テーブル（常勤/イベントのみ） -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-grid-3x3-gap me-1" style="color:#8b5cf6"></i>月別枠数</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0 fy-monthly-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="min-width:90px"></th>
+                                    <?php foreach ($fyMonths as $fm): ?>
+                                    <th class="text-center"><?= $fm['month'] ?>月</th>
+                                    <?php endforeach; ?>
+                                    <th class="text-center table-secondary">合計</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 目標1次枠数（手打ち） -->
+                                <tr>
+                                    <td class="fw-semibold fy-label">目標1次枠数</td>
+                                    <?php
+                                    $fyFrameTgtTotal = 0;
+                                    foreach ($fyMonths as $fm):
+                                        $ftv = $frameTargetMap[$fm['year']][$fm['month']] ?? 0;
+                                        $fyFrameTgtTotal += $ftv;
+                                    ?>
+                                    <td class="text-center p-0">
+                                        <input type="number" min="0" class="form-control form-control-sm fy-tgt-input fy-frame-tgt-input text-center"
+                                            value="<?= $ftv ?>"
+                                            data-year="<?= $fm['year'] ?>"
+                                            data-month="<?= $fm['month'] ?>"
+                                            style="min-width:52px">
+                                    </td>
+                                    <?php endforeach; ?>
+                                    <td class="text-center table-secondary fw-semibold" id="fyFrameTgtTotal"><?= $fyFrameTgtTotal ?></td>
+                                </tr>
+                                <!-- 1次枠数（自動集計） -->
+                                <tr>
+                                    <td class="fy-label">1次枠数</td>
+                                    <?php
+                                    $fyFirstFrameTotal = 0;
+                                    foreach ($fyMonths as $fm):
+                                        $ffv = $frameActualMap[$fm['year']][$fm['month']] ?? 0;
+                                        $fyFirstFrameTotal += $ffv;
+                                    ?>
+                                    <td class="text-center"><?= $ffv ?: '-' ?></td>
+                                    <?php endforeach; ?>
+                                    <td class="text-center table-secondary fw-semibold"><?= $fyFirstFrameTotal ?: '-' ?></td>
+                                </tr>
+                                <!-- 合計枠数（自動集計） -->
+                                <tr>
+                                    <td class="fy-label">合計枠数</td>
+                                    <?php
+                                    $fyTotalFrameTotal = 0;
+                                    foreach ($fyMonths as $fm):
+                                        $ftotal = $frameTotalMap[$fm['year']][$fm['month']] ?? 0;
+                                        $fyTotalFrameTotal += $ftotal;
+                                    ?>
+                                    <td class="text-center"><?= $ftotal ?: '-' ?></td>
+                                    <?php endforeach; ?>
+                                    <td class="text-center table-secondary fw-semibold"><?= $fyTotalFrameTotal ?: '-' ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- 集計カード 上段: キャリア別売上（左）+ 営業マン別売上（右） -->
     <div class="row g-4 mb-4">
@@ -1117,6 +1237,40 @@ function setKpiTaxMode(incl) {
     });
 }
 TAXJS;
+
+$inlineJs .= <<<'FRAMEJS'
+// 月別枠数目標: 自動保存
+(function() {
+    const inputs = document.querySelectorAll('.fy-frame-tgt-input');
+    if (!inputs.length) return;
+    const csrf = document.getElementById('fycsrf') ? document.getElementById('fycsrf').value : '';
+    const saveUrl = window.location.pathname;
+    function recalcTgtTotal() {
+        let sum = 0;
+        inputs.forEach(inp => { sum += parseInt(inp.value) || 0; });
+        const el = document.getElementById('fyFrameTgtTotal');
+        if (el) el.textContent = sum || 0;
+    }
+    inputs.forEach(function(inp) {
+        inp.addEventListener('change', function() {
+            const yr = inp.dataset.year;
+            const mo = inp.dataset.month;
+            const val = Math.max(0, parseInt(inp.value) || 0);
+            inp.value = val;
+            recalcTgtTotal();
+            const fd = new FormData();
+            fd.append('action', 'save_frame_target');
+            fd.append('csrf', csrf);
+            fd.append('t_year', yr);
+            fd.append('t_month', mo);
+            fd.append('t_value', val);
+            fetch(saveUrl, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .catch(() => {});
+        });
+    });
+})();
+FRAMEJS;
 
 $inlineJs .= <<<'JSEOF2'
 (function() { return; /* 日報フォーム削除済み */

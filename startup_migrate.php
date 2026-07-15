@@ -150,6 +150,12 @@ $migrations = [
 
     // ---- invoice_checks: 請求書チェック管理テーブル ----
     "CREATE TABLE IF NOT EXISTS invoice_checks (id INT PRIMARY KEY AUTO_INCREMENT, bms_company_id INT NOT NULL, company_type VARCHAR(30) NOT NULL, ref_id INT NOT NULL DEFAULT 0, ref_name VARCHAR(100) NOT NULL DEFAULT '', check_year SMALLINT NOT NULL, check_month TINYINT NOT NULL, check_create TINYINT(1) NOT NULL DEFAULT 0, check_staff1 TINYINT(1) NOT NULL DEFAULT 0, check_staff2 TINYINT(1) NOT NULL DEFAULT 0, final_check TINYINT(1) NOT NULL DEFAULT 0, updated_by VARCHAR(100) DEFAULT NULL, updated_at DATETIME DEFAULT NULL, UNIQUE KEY uq_ic (bms_company_id, company_type, ref_id, ref_name, check_year, check_month), INDEX idx_ic_company (bms_company_id, company_type, check_year, check_month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- sales_cases: 案件区分（1次/その他） ----
+    "ALTER TABLE sales_cases ADD COLUMN case_division VARCHAR(20) DEFAULT NULL",
+
+    // ---- sales_frame_targets: 月別枠数目標テーブル ----
+    "CREATE TABLE IF NOT EXISTS sales_frame_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_first_frame INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sft (company_id, case_type, year, month), INDEX idx_sft_company (company_id, case_type, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 $ok = 0;

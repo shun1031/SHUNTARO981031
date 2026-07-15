@@ -761,38 +761,49 @@ require_once __DIR__ . '/../includes/header.php';
         var items = bizConf.personal_items || [];
         if (!items.length) { wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>'; return; }
         var primaryKpi = bizConf.primary_kpi || null;
-        var html = '';
+        var primaryHtml = '', subHtml = '';
         items.forEach(function(label) {
-            var kpi      = bizKpi[label] || { actual: 0, budget: null };
-            var actual   = kpi.actual || 0;
+            var kpi       = bizKpi[label] || { actual: 0, budget: null };
+            var actual    = kpi.actual || 0;
             var isPrimary = label === primaryKpi;
-            var budget   = isPrimary && (kpi.budget !== null && kpi.budget !== undefined) ? kpi.budget : null;
-            var hasBudget = budget !== null;
-            var rate = '-', rateColor = '#9ca3af';
-            if (isPrimary && hasBudget && budget > 0) {
-                rate = (actual / budget * 100).toFixed(1);
-                rateColor = parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 70 ? color : '#ef4444');
-            }
-            html += '<div class="col-6 col-md-4 col-lg-2">';
-            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
-            html += '<div class="card-body p-2">';
-            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
-            html += '<div class="d-flex gap-1 mb-1">';
+
             if (isPrimary) {
-                html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
-                html += '<div style="font-size:.56rem;color:#9ca3af">予算</div>';
-                html += '<div style="font-size:1rem;font-weight:700;color:#6b7280;line-height:1.1">' + (hasBudget ? budget : '-') + '</div>';
-                html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div>';
+                var budget    = (kpi.budget !== null && kpi.budget !== undefined) ? kpi.budget : null;
+                var hasBudget = budget !== null;
+                var rate = '-', rateColor = '#9ca3af';
+                if (hasBudget && budget > 0) {
+                    rate = (actual / budget * 100).toFixed(1);
+                    rateColor = parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 70 ? color : '#ef4444');
+                }
+                primaryHtml += '<div class="col-auto" style="min-width:160px">';
+                primaryHtml += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
+                primaryHtml += '<div class="card-body p-2">';
+                primaryHtml += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
+                primaryHtml += '<div class="d-flex gap-1 mb-1">';
+                primaryHtml += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
+                primaryHtml += '<div style="font-size:.56rem;color:#9ca3af">予算</div>';
+                primaryHtml += '<div style="font-size:1rem;font-weight:700;color:#6b7280;line-height:1.1">' + (hasBudget ? budget : '-') + '</div>';
+                primaryHtml += '<div style="font-size:.52rem;color:#9ca3af">件</div></div>';
+                primaryHtml += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
+                primaryHtml += '<div style="font-size:.56rem;color:#9ca3af">実績</div>';
+                primaryHtml += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + actual + '</div>';
+                primaryHtml += '<div style="font-size:.52rem;color:#9ca3af">件</div></div></div>';
+                primaryHtml += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span></div>';
+                primaryHtml += '</div></div></div>';
+            } else {
+                subHtml += '<div style="flex:0 0 auto;min-width:72px;max-width:88px">';
+                subHtml += '<div class="card text-center shadow-sm" style="border-radius:.6rem;border-top:2px solid ' + color + ';padding:5px 4px 4px">';
+                subHtml += '<div class="fw-semibold" style="font-size:.65rem;color:' + color + ';margin-bottom:2px">' + esc(label) + '</div>';
+                subHtml += '<div style="font-size:.5rem;color:#9ca3af">実績</div>';
+                subHtml += '<div style="font-size:.92rem;font-weight:700;color:' + color + ';line-height:1.15">' + actual + '</div>';
+                subHtml += '<div style="font-size:.48rem;color:#9ca3af">件</div>';
+                subHtml += '</div></div>';
             }
-            html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
-            html += '<div style="font-size:.56rem;color:#9ca3af">実績</div>';
-            html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + actual + '</div>';
-            html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div></div>';
-            if (isPrimary) {
-                html += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span></div>';
-            }
-            html += '</div></div></div>';
         });
+        var html = primaryHtml;
+        if (subHtml) {
+            html += '<div class="col-12 mt-1"><div class="d-flex gap-1 flex-nowrap overflow-auto pb-1">' + subHtml + '</div></div>';
+        }
         wrap.innerHTML = html;
     }
 

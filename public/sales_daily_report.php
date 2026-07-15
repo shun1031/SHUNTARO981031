@@ -79,7 +79,9 @@ $reports   = getDailyReports($cid, $year, $month, $filterEmp ?: null);
 $employees = getReportEmployees($cid);
 // 社員選択（Ajax 初期値: ログインユーザー or 全員）
 $selectedEmp = $empFilter ?? ($filterEmp ?: '');
-$drApiBase   = BASE_PATH . '/public/api/daily_report_kpi.php';
+$drApiBase     = BASE_PATH . '/public/api/daily_report_kpi.php';
+$drSaveApiBase = BASE_PATH . '/public/api/save_daily_report.php';
+$drBudgetApiBase = BASE_PATH . '/public/api/store_budget.php';
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -119,17 +121,39 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- ① 社員選択 + KPI + 一覧 (Ajax) -->
+    <!-- ① 検索 + KPI + 一覧 (Ajax) -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <?php if (isAdmin()): ?>
-        <div class="d-flex align-items-center gap-2">
-            <label class="fw-semibold small mb-0" style="white-space:nowrap">社員を選択</label>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="btn-group btn-group-sm" role="group" aria-label="検索種別">
+                <button type="button" id="drTabEmp"     class="btn btn-primary"           onclick="drSetFilterTab('employee')">スタッフ名</button>
+                <button type="button" id="drTabBiz"     class="btn btn-outline-secondary" onclick="drSetFilterTab('work_type')">業務形態</button>
+                <button type="button" id="drTabCarrier" class="btn btn-outline-secondary" onclick="drSetFilterTab('carrier')">キャリア</button>
+            </div>
             <select id="drEmpSelect" class="form-select form-select-sm" style="width:200px">
+                <option value="" <?= !$selectedEmp ? 'selected' : '' ?>>全員</option>
                 <?php foreach ($employees as $e): ?>
                 <option value="<?= h($e) ?>" <?= $selectedEmp === $e ? 'selected' : '' ?>><?= h($e) ?></option>
                 <?php endforeach; ?>
-                <?php if (!$selectedEmp): ?><option value="" selected>全員</option><?php endif; ?>
             </select>
+            <select id="drBizSelect" class="form-select form-select-sm" style="width:140px;display:none">
+                <option value="">全て</option>
+                <option value="光AD">光AD</option>
+                <option value="業務委託">業務委託</option>
+            </select>
+            <select id="drCarrierFilterSelect" class="form-select form-select-sm" style="width:180px;display:none">
+                <option value="">全て</option>
+                <option value="SB,YM">SB / Y!mobile</option>
+                <option value="au,UQ">au / UQ</option>
+                <option value="ドコモ">ドコモ</option>
+                <option value="楽天">楽天</option>
+                <option value="コミュファ">コミュファ光</option>
+                <option value="CATV">CATV</option>
+            </select>
+            <div id="drGroupSummary" style="display:none;font-size:.82rem;padding:4px 10px;background:#f0fdf4;border-radius:.4rem;border:1px solid #bbf7d0">
+                <span class="text-muted">平均達成率:</span>
+                <strong id="drGroupAvgRate" style="color:#059669">-%</strong>
+            </div>
         </div>
         <?php else: ?>
         <div></div>
@@ -303,20 +327,20 @@ require_once __DIR__ . '/../includes/header.php';
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">店舗種別 <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">業務形態 <span class="text-danger">*</span></label>
                             <select name="work_type" id="drWorkType" class="form-select form-select-sm" required>
                                 <option value="">選択してください</option>
-                                <option value="ショップ">ショップ</option>
-                                <option value="ショップ以外">ショップ以外</option>
+                                <option value="光AD">光AD</option>
+                                <option value="業務委託">業務委託</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- 統一フォーム（業務形態選択後に表示） -->
+                    <!-- 業務形態選択後に表示 -->
                     <div id="drEventForm" style="display:none">
                         <div class="border rounded p-2" style="background:#fffbeb">
                             <div class="fw-bold mb-2" style="color:#b45309;font-size:.85rem"><i class="bi bi-lightning me-1"></i>日報</div>
-                            <!-- 数値フィールド（コンパクト） -->
+                            <!-- 数値フィールド -->
                             <div class="d-flex gap-2 flex-wrap mb-2">
                                 <div class="text-center"><div id="drLabelCatch" style="font-size:.68rem;font-weight:600;margin-bottom:2px">キャッチ数</div><input type="number" name="catch_count" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                                 <div class="text-center"><div id="drLabelSeated" style="font-size:.68rem;font-weight:600;margin-bottom:2px">着座数</div><input type="number" name="event_seated" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
@@ -324,49 +348,28 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">商談数</div><input type="number" name="event_negotiations" id="evtNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">成約数</div><input type="number" name="event_contracts" id="evtContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                             </div>
-                            <!-- 全体獲得内訳 -->
-                            <div class="border rounded p-2 mb-2 bg-white">
-                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">全体獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
-                                <div id="evtAcqFields"><p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p></div>
-                                <input type="hidden" name="event_acquisition_detail" id="evtAcqJson">
+                            <!-- 店舗予算（光ADのみ） -->
+                            <div id="drBudgetSection" class="border rounded p-2 mb-2" style="background:#eff6ff;display:none">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <div class="fw-bold" style="color:#1d4ed8;font-size:.82rem"><i class="bi bi-bullseye me-1"></i>店舗予算 <span class="badge bg-danger ms-1" style="font-size:.6rem">月初1回</span></div>
+                                    <div id="drBudgetExistsBadge" class="badge bg-success" style="display:none;font-size:.65rem">入力済み（上書き可）</div>
+                                </div>
+                                <div id="drBudgetFields" class="row g-1"></div>
+                                <input type="hidden" name="budget_detail" id="drBudgetJson" value="">
                             </div>
-                            <!-- 個人獲得内訳 -->
+                            <!-- 個人実績 -->
                             <div class="border rounded p-2 bg-white">
-                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人獲得内訳 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
-                                <div id="perAcqFields"><p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p></div>
+                                <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人実績 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
+                                <div id="drPersonalFields"><p class="text-muted small text-center mb-0 py-1">業務形態を選択すると入力欄が表示されます</p></div>
                                 <input type="hidden" name="personal_acquisition_detail" id="perAcqJson">
                             </div>
-                            <!-- 目標設定 -->
-                            <div class="border rounded p-2 mt-2" style="background:#f0fdf4">
-                                <div class="fw-bold mb-2" style="color:#166534;font-size:.82rem"><i class="bi bi-bullseye me-1"></i>目標設定（任意）</div>
-                                <div class="d-flex gap-3 align-items-center flex-wrap">
-                                    <div class="d-flex gap-3">
-                                        <div class="form-check form-check-inline mb-0">
-                                            <input class="form-check-input" type="radio" name="goal_type" id="goalTypeCount" value="件数">
-                                            <label class="form-check-label" for="goalTypeCount" style="font-size:.82rem">件数</label>
-                                        </div>
-                                        <div class="form-check form-check-inline mb-0">
-                                            <input class="form-check-input" type="radio" name="goal_type" id="goalTypePts" value="ポイント">
-                                            <label class="form-check-label" for="goalTypePts" style="font-size:.82rem">ポイント</label>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <label style="font-size:.82rem;white-space:nowrap;color:#166534;font-weight:600">目標値</label>
-                                        <input type="number" name="goal_value" id="drGoalValue" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:70px">
-                                    </div>
-                                    <div id="drAchievementPreview" style="font-size:.78rem;color:#166534;display:none">
-                                        達成率目安: <strong id="drAchievementRate">-%</strong>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- 削除された項目用 hidden（保存エラー防止） -->
-                            <input type="hidden" name="fixed_check_detail" id="fixChkJson" value="">
-                            <input type="hidden" name="fixed_acquisition_detail" id="fixAcqJson" value="">
+                            <!-- 後方互換 hidden -->
+                            <input type="hidden" name="event_acquisition_detail" id="evtAcqJson" value="">
+                            <input type="hidden" name="fixed_check_detail" value="">
+                            <input type="hidden" name="fixed_acquisition_detail" value="">
                             <input type="hidden" name="event_reflection" value="">
                         </div>
                     </div>
-
-                    <!-- ショップフォーム用 hidden（保存エラー防止） -->
                     <input type="hidden" name="shop_acquisition_detail" value="">
                     <input type="hidden" name="shop_fixed_check_detail" value="">
 
@@ -401,16 +404,31 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
 (function() {
-    var CARRIER_ITEMS = {
-        'SB,YM':   ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','Air新規','Airキヘン','SBでんき','PayPayカード'],
-        'au,UQ':   ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','auでんき','au PAYカード'],
-        'ドコモ':  ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','ドコモでんき','dカード'],
-        '楽天':    ['MNP','アップ','ダウン','機変','転用','事変','1G→10G','未利用→1G光','未利用→10G光','電力系→1G','電力系→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G','ホームルーター新規','ホームルーターキヘン','楽天でんき','楽天カード'],
-        'コミュファ':['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','CATV→1G','CATV→10G','その他光→1G','その他光→10G'],
-        'CATV':    ['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','電力系→1G','電力系→10G','その他光→1G','その他光→10G']
+    var BIZ_CONFIG = {
+        '光AD': {
+            requireBudget: true,
+            catchLabel: '来店組数',
+            seatedLabel: '接客組数',
+            budgetItems: ['固定合計','転用','事変','1→10','光新規','Air新規','Air機変','でんき','カード'],
+            personalItems: ['固定合計','転用','事変','1→10','光新規','Air新規','Air機変','でんき','カード'],
+            primaryKpi: '固定合計'
+        },
+        '業務委託': {
+            requireBudget: false,
+            catchLabel: 'キャッチ数',
+            seatedLabel: '着座数',
+            budgetItems: [],
+            personalItems: ['MNP','アップ','ダウン','機変','転用','事変','1→10','光新規','Air新規','Air機変','でんき','カード','セレクション単価'],
+            primaryKpi: null
+        }
     };
+    var BIZ_ALIASES = {'ショップ': '光AD', 'ショップ以外': '業務委託'};
+    var drCurrentBiz = null;
+    var drBudgetApiBase = <?= json_encode($drBudgetApiBase) ?>;
+    var drSaveApiBase   = <?= json_encode($drSaveApiBase) ?>;
+    var drFormCsrf      = <?= json_encode(getCsrfToken()) ?>;
 
-    function makeItemCol(id, label, disabled) {
+    function makeItemCol(id, label) {
         var col = document.createElement('div');
         col.className = 'col-auto';
         var lbl = document.createElement('div');
@@ -422,118 +440,84 @@ require_once __DIR__ . '/../includes/header.php';
         inp.className = 'form-control form-control-sm text-center';
         inp.min = '0'; inp.step = '1'; inp.placeholder = '-';
         inp.style.cssText = 'width:55px';
-        if (disabled) { inp.disabled = true; inp.style.background = '#f3f4f6'; }
         col.appendChild(lbl); col.appendChild(inp);
         return col;
     }
 
-    // ---- イベント: 全体獲得内訳 ----
-    function buildEvtAcq(carrier) {
-        var wrap = document.getElementById('evtAcqFields');
-        wrap.innerHTML = '';
-        var items = CARRIER_ITEMS[carrier];
-        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; buildPerAcq(carrier); return; }
-        var row = document.createElement('div'); row.className = 'row g-1';
-        items.forEach(function(label, i) { row.appendChild(makeItemCol('evtacq_' + i, label, false)); });
-        wrap.appendChild(row);
-        buildPerAcq(carrier);
-    }
-
-    // ---- イベント: 個人獲得内訳 ----
-    function buildPerAcq(carrier) {
-        var wrap = document.getElementById('perAcqFields');
-        wrap.innerHTML = '';
-        var items = CARRIER_ITEMS[carrier];
-        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>'; return; }
-        var row = document.createElement('div'); row.className = 'row g-1';
-        items.forEach(function(label, i) {
-            var ev = document.getElementById('evtacq_' + i);
-            row.appendChild(makeItemCol('peracq_' + i, label, !(ev && ev.value.trim())));
-        });
-        wrap.appendChild(row);
-    }
-
-    document.getElementById('evtAcqFields').addEventListener('input', function(e) {
-        if (!e.target.id || !e.target.id.startsWith('evtacq_')) return;
-        var idx = e.target.id.slice(7);
-        var per = document.getElementById('peracq_' + idx);
-        if (!per) return;
-        if (e.target.value.trim() === '') { per.disabled = true; per.value = ''; per.style.background = '#f3f4f6'; }
-        else { per.disabled = false; per.style.background = ''; }
-    });
-
-    // ---- ショップ: 全体獲得内訳 ----
-    function buildShopAcq(carrier) {
-        var wrap = document.getElementById('shopAcqFields');
-        wrap.innerHTML = '';
-        var items = CARRIER_ITEMS[carrier];
-        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; buildShopPerAcq(carrier); return; }
-        var row = document.createElement('div'); row.className = 'row g-1';
-        items.forEach(function(label, i) { row.appendChild(makeItemCol('shopacq_' + i, label, false)); });
-        wrap.appendChild(row);
-        buildShopPerAcq(carrier);
-    }
-
-    // ---- ショップ: 個人獲得内訳 ----
-    function buildShopPerAcq(carrier) {
-        var wrap = document.getElementById('shopPerAcqFields');
-        wrap.innerHTML = '';
-        var items = CARRIER_ITEMS[carrier];
-        if (!items) { wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>'; return; }
-        var row = document.createElement('div'); row.className = 'row g-1';
-        items.forEach(function(label, i) { row.appendChild(makeItemCol('shopperacq_' + i, label, false)); });
-        wrap.appendChild(row);
-    }
-
-    document.getElementById('drCarrier').addEventListener('change', function() {
-        if (document.getElementById('drEventForm').style.display !== 'none') buildEvtAcq(this.value);
-    });
-
-    function updateFieldLabels(wt) {
-        var isShop = (wt === 'ショップ');
-        document.getElementById('drLabelCatch').textContent  = isShop ? '来店組数' : 'キャッチ数';
-        document.getElementById('drLabelSeated').textContent = isShop ? '接客組数' : '着座数';
-    }
-
-    function updateDrForm() {
-        var wt = document.getElementById('drWorkType').value;
-        var show = !!wt;
-        document.getElementById('drEventForm').style.display = show ? 'block' : 'none';
-        document.getElementById('drSubmitBtn').disabled = !wt;
-        updateFieldLabels(wt);
-        var c = document.getElementById('drCarrier').value;
-        if (show && c) buildEvtAcq(c);
-    }
-    document.getElementById('drLocation').addEventListener('input', updateDrForm);
-    document.getElementById('drWorkType').addEventListener('change', updateDrForm);
-
-    document.getElementById('reportForm').addEventListener('submit', function(e) {
-        // 稼働店舗バリデーション
-        var loc = document.getElementById('drLocation').value.trim();
-        var locError = document.getElementById('drLocationError');
-        if (!loc) {
-            e.preventDefault();
-            locError.style.display = 'block';
-            document.getElementById('drLocation').focus();
+    function buildPersonalFields(items) {
+        var wrap = document.getElementById('drPersonalFields');
+        if (!items || !items.length) {
+            wrap.innerHTML = '<p class="text-muted small text-center mb-0 py-1">業務形態を選択すると入力欄が表示されます</p>';
             return;
         }
-        locError.style.display = 'none';
-        var evForm = document.getElementById('drEventForm');
-        var carrier = document.getElementById('drCarrier').value;
-        var items = CARRIER_ITEMS[carrier] || [];
+        var row = document.createElement('div'); row.className = 'row g-1';
+        items.forEach(function(label, i) { row.appendChild(makeItemCol('perinp_' + i, label)); });
+        wrap.innerHTML = ''; wrap.appendChild(row);
+    }
 
-        function nonZero(v) { return v !== '' && v !== null && parseFloat(v) !== 0; }
+    function buildBudgetFields(items) {
+        var wrap = document.getElementById('drBudgetFields');
+        if (!items || !items.length) { wrap.innerHTML = ''; return; }
+        var row = document.createElement('div'); row.className = 'row g-1';
+        items.forEach(function(label, i) { row.appendChild(makeItemCol('budinp_' + i, label)); });
+        wrap.innerHTML = ''; wrap.appendChild(row);
+    }
 
-        if (evForm.style.display !== 'none') {
-            var evtAcq = {}, perAcq = {};
-            items.forEach(function(label, i) {
-                var ev = document.getElementById('evtacq_' + i); if (ev && nonZero(ev.value)) evtAcq[label] = ev.value;
-                var per = document.getElementById('peracq_' + i); if (per && !per.disabled && nonZero(per.value)) perAcq[label] = per.value;
-            });
-            document.getElementById('evtAcqJson').value = JSON.stringify(evtAcq);
-            document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
+    function checkBudgetExists(emp, year, month) {
+        if (!emp || !drCurrentBiz || !drCurrentBiz.requireBudget) return;
+        fetch(drBudgetApiBase + '?employee=' + encodeURIComponent(emp) + '&year=' + year + '&month=' + month)
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                var badge = document.getElementById('drBudgetExistsBadge');
+                if (res.exists && res.budget && badge) {
+                    badge.style.display = '';
+                    if (drCurrentBiz && drCurrentBiz.budgetItems) {
+                        drCurrentBiz.budgetItems.forEach(function(label, i) {
+                            var inp = document.getElementById('budinp_' + i);
+                            if (inp) inp.value = (res.budget[label] != null ? res.budget[label] : '');
+                        });
+                    }
+                } else if (badge) {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(function() {});
+    }
+
+    function updateBizForm() {
+        var wt = document.getElementById('drWorkType').value;
+        var biz = BIZ_CONFIG[BIZ_ALIASES[wt] || wt] || null;
+        drCurrentBiz = biz;
+        var show = !!biz;
+
+        document.getElementById('drEventForm').style.display = show ? 'block' : 'none';
+        document.getElementById('drSubmitBtn').disabled = !show;
+
+        if (!biz) return;
+
+        document.getElementById('drLabelCatch').textContent  = biz.catchLabel;
+        document.getElementById('drLabelSeated').textContent = biz.seatedLabel;
+
+        var budgetSection = document.getElementById('drBudgetSection');
+        if (biz.requireBudget) {
+            budgetSection.style.display = '';
+            buildBudgetFields(biz.budgetItems);
+            // 社員と稼働日から予算チェック
+            var empInp   = document.querySelector('[name="employee_name"]');
+            var dateInp  = document.querySelector('[name="work_date"]');
+            var emp  = empInp  ? empInp.value.trim()  : '';
+            var wd   = dateInp ? dateInp.value         : '';
+            if (emp && wd) {
+                var yr = parseInt(wd.slice(0,4)), mo = parseInt(wd.slice(5,7));
+                checkBudgetExists(emp, yr, mo);
+            }
+        } else {
+            budgetSection.style.display = 'none';
         }
-    });
+        buildPersonalFields(biz.personalItems);
+    }
+
+    document.getElementById('drWorkType').addEventListener('change', updateBizForm);
 
     document.getElementById('reportModal').addEventListener('show.bs.modal', function() {
         document.getElementById('reportForm').reset();
@@ -541,46 +525,99 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drWorkType').value = '';
         document.getElementById('drCarrier').value  = '';
         document.getElementById('drLocationError').style.display = 'none';
-        document.getElementById('evtAcqFields').innerHTML     = '<p class="text-muted small text-center mb-0 py-1">キャリアを選択すると入力欄が表示されます</p>';
-        document.getElementById('perAcqFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">全体獲得内訳を入力すると活性化されます</p>';
-        document.getElementById('drAchievementPreview').style.display = 'none';
-        updateDrForm();
+        document.getElementById('drPersonalFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">業務形態を選択すると入力欄が表示されます</p>';
+        document.getElementById('drBudgetFields').innerHTML = '';
+        document.getElementById('drBudgetSection').style.display = 'none';
+        document.getElementById('drBudgetExistsBadge').style.display = 'none';
+        drCurrentBiz = null;
+        document.getElementById('drEventForm').style.display = 'none';
+        document.getElementById('drSubmitBtn').disabled = true;
     });
 
-    // 目標達成率プレビュー（成約数 ÷ 目標値）
-    function updateAchievementPreview() {
-        var goalType = document.querySelector('input[name="goal_type"]:checked');
-        var goalVal  = parseInt(document.getElementById('drGoalValue').value || '0');
-        var contracts = parseInt(document.getElementById('evtContracts') ? document.getElementById('evtContracts').value || '0' : '0');
-        var previewEl = document.getElementById('drAchievementPreview');
-        var rateEl    = document.getElementById('drAchievementRate');
-        if (goalType && goalType.value === '件数' && goalVal > 0 && contracts >= 0) {
-            var rate = Math.round(contracts / goalVal * 100);
-            rateEl.textContent = rate + '%';
-            previewEl.style.display = 'inline';
-        } else {
-            previewEl.style.display = 'none';
+    document.getElementById('reportForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var loc = document.getElementById('drLocation').value.trim();
+        var locError = document.getElementById('drLocationError');
+        if (!loc) { locError.style.display = 'block'; document.getElementById('drLocation').focus(); return; }
+        locError.style.display = 'none';
+
+        var biz = drCurrentBiz;
+        // 個人実績 JSON 収集
+        var perAcq = {};
+        if (biz && biz.personalItems) {
+            biz.personalItems.forEach(function(label, i) {
+                var inp = document.getElementById('perinp_' + i);
+                if (inp && inp.value !== '' && parseFloat(inp.value) !== 0) perAcq[label] = inp.value;
+            });
         }
-    }
-    document.getElementById('drGoalValue').addEventListener('input', updateAchievementPreview);
-    document.querySelectorAll('input[name="goal_type"]').forEach(function(r){
-        r.addEventListener('change', updateAchievementPreview);
+        document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
+
+        // 店舗予算 JSON 収集（光ADのみ）
+        var budgetJson = '';
+        if (biz && biz.requireBudget && biz.budgetItems && biz.budgetItems.length) {
+            var bData = {}, hasVal = false;
+            biz.budgetItems.forEach(function(label, i) {
+                var inp = document.getElementById('budinp_' + i);
+                var v = inp ? inp.value : '';
+                bData[label] = v !== '' ? v : '0';
+                if (v !== '' && parseFloat(v) > 0) hasVal = true;
+            });
+            if (hasVal) budgetJson = JSON.stringify(bData);
+        }
+        document.getElementById('drBudgetJson').value = budgetJson;
+        document.getElementById('evtAcqJson').value = '{}';
+
+        var btn = document.getElementById('drSubmitBtn');
+        btn.disabled = true; btn.textContent = '保存中...';
+
+        var fd = new FormData(this);
+        fetch(drSaveApiBase, { method: 'POST', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('reportModal')).hide();
+                    drShowFormAlert('success', '日報を保存しました');
+                    if (typeof drLoad === 'function') drLoad();
+                } else {
+                    drShowFormAlert('danger', '保存失敗: ' + (res.error || '不明なエラー'));
+                    btn.disabled = false; btn.textContent = '保存';
+                }
+            })
+            .catch(function() {
+                drShowFormAlert('danger', '通信エラーが発生しました');
+                btn.disabled = false; btn.textContent = '保存';
+            });
     });
-    document.getElementById('evtContracts').addEventListener('input', updateAchievementPreview);
+
+    window.drShowFormAlert = function(type, msg) {
+        var container = document.querySelector('.container-fluid');
+        var old = document.getElementById('drFlashAlert');
+        if (old) old.remove();
+        var div = document.createElement('div');
+        div.id = 'drFlashAlert';
+        div.className = 'alert alert-' + type + ' alert-dismissible fade show';
+        div.setAttribute('role', 'alert');
+        div.innerHTML = msg + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+        var firstChild = container.children[0];
+        container.insertBefore(div, firstChild ? firstChild.nextSibling : null);
+        setTimeout(function() { if (div.parentNode) div.remove(); }, 4500);
+    };
 })();
 </script>
 
 <script>
 (function(){
-    var drYear = <?= $year ?>, drMonth = <?= $month ?>;
-    var drEmp  = <?= json_encode($selectedEmp) ?>;
-    var drWeekMode = false;
-    var drApiBase  = <?= json_encode($drApiBase) ?>;
-    var drCsrf     = <?= json_encode(getCsrfToken()) ?>;
-    var drTrendChart    = null;
-    var drItemChart     = null;
-    var drLastData      = null;
-    var drLastCarrier   = null;
+    var drYear  = <?= $year ?>, drMonth = <?= $month ?>;
+    var drFilterType  = 'employee';
+    var drFilterValue = <?= json_encode($selectedEmp) ?>;
+    var drWeekMode    = false;
+    var drApiBase     = <?= json_encode($drApiBase) ?>;
+    var drSaveApiBase = <?= json_encode($drSaveApiBase) ?>;
+    var drCsrf        = <?= json_encode(getCsrfToken()) ?>;
+    var drTrendChart  = null;
+    var drItemChart   = null;
+    var drLastData    = null;
+    var drLastCarrier = null;
     var drLastItemLabel = null;
     var drLastItemTrend = null;
     var drRankingExpanded = false;
@@ -593,155 +630,201 @@ require_once __DIR__ . '/../includes/header.php';
         'SB,YM':'SB / Y!mobile','au,UQ':'au / UQ','ドコモ':'ドコモ',
         '楽天':'楽天','コミュファ':'コミュファ','CATV':'CATV'
     };
+    var BIZ_ALIASES = {'ショップ':'光AD','ショップ以外':'業務委託'};
 
+    function normBiz(wt) { return BIZ_ALIASES[wt] || wt; }
     function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
     function hexToRgb(hex) {
-        var r = parseInt((hex||'#000000').slice(1,3),16);
-        var g = parseInt((hex||'#000000').slice(3,5),16);
-        var b = parseInt((hex||'#000000').slice(5,7),16);
+        var r=parseInt((hex||'#000000').slice(1,3),16);
+        var g=parseInt((hex||'#000000').slice(3,5),16);
+        var b=parseInt((hex||'#000000').slice(5,7),16);
         return r+','+g+','+b;
     }
 
-    function drLoad() {
-        var url = drApiBase + '?employee=' + encodeURIComponent(drEmp) + '&year=' + drYear + '&month=' + drMonth;
+    // ─── 検索タブ切替 ─────────────────────────────────────────────────
+    window.drSetFilterTab = function(tab) {
+        drFilterType = tab;
+        var tabs = { employee:'drTabEmp', work_type:'drTabBiz', carrier:'drTabCarrier' };
+        Object.keys(tabs).forEach(function(t) {
+            var btn = document.getElementById(tabs[t]);
+            if (btn) { btn.className = (t === tab) ? 'btn btn-primary' : 'btn btn-outline-secondary'; }
+        });
+        var empSel  = document.getElementById('drEmpSelect');
+        var bizSel  = document.getElementById('drBizSelect');
+        var carrSel = document.getElementById('drCarrierFilterSelect');
+        if (empSel)  empSel.style.display  = (tab === 'employee')   ? '' : 'none';
+        if (bizSel)  bizSel.style.display  = (tab === 'work_type')  ? '' : 'none';
+        if (carrSel) carrSel.style.display = (tab === 'carrier')    ? '' : 'none';
+        if (tab === 'employee')   drFilterValue = (empSel  ? empSel.value  : '');
+        else if (tab === 'work_type') drFilterValue = (bizSel  ? bizSel.value  : '');
+        else                      drFilterValue = (carrSel ? carrSel.value : '');
+        drLoad();
+    };
+
+    // ─── API 呼び出し ─────────────────────────────────────────────────
+    window.drLoad = function() {
+        var url = drApiBase + '?filter_type=' + encodeURIComponent(drFilterType)
+            + '&filter_value=' + encodeURIComponent(drFilterValue)
+            + '&year=' + drYear + '&month=' + drMonth;
         document.getElementById('drListWrap').innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
-        fetch(url).then(function(r){return r.json();}).then(function(d){
+        document.getElementById('drItemKpiRow').innerHTML = '<div class="col-12 text-center text-muted small py-2"><i class="bi bi-arrow-repeat"></i> 読込中...</div>';
+        fetch(url).then(function(r){ return r.json(); }).then(function(d){
             drLastData = d;
             drRenderKpi(d);
             drRenderChart(d);
             drRenderRanking(d);
             drRenderList(d);
+            drRenderGroupSummary(d);
             document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
             document.getElementById('drSubtitle').textContent   = drYear + '年' + drMonth + '月';
         }).catch(function(e){ console.error(e); });
-    }
+    };
 
-    // ① KPIカード: 個人実績のみ表示 / ② 稼働区分でラベル切替
+    // ─── KPIカード ────────────────────────────────────────────────────
     function drRenderKpi(d) {
-        var kpiMonth     = d.kpi_month || {};
-        var week         = d.kpi_week  || {};
-        var goalPersonal = d.goal_personal || 0;
-        var contracts    = parseInt(kpiMonth['event_contracts'] || 0);
-        var achieveRate  = goalPersonal > 0 ? (contracts / goalPersonal * 100).toFixed(1) : null;
+        var kpiMonth = d.kpi_month || {};
+        var week     = d.kpi_week  || {};
 
-        // 稼働区分を自動検出（最多出現 work_type）
-        var wtCount = {};
-        (d.reports || []).forEach(function(r) {
-            if (r.work_type) wtCount[r.work_type] = (wtCount[r.work_type] || 0) + 1;
-        });
-        var autoWt = null, maxWt = 0;
-        Object.keys(wtCount).forEach(function(w) { if (wtCount[w] > maxWt) { maxWt = wtCount[w]; autoWt = w; } });
-        var isShop = (autoWt === 'ショップ');
-
+        // 業務形態ラベル自動切替
+        var autoBiz  = d.auto_biz_type || null;
+        var bizConf  = autoBiz ? (d.biz_config || {})[autoBiz] : null;
+        var isShopBiz = (autoBiz === '光AD');
         var SUMMARY = [
-            {key:'catch_count',        color:'#2563eb', showRate:false},
-            {key:'event_seated',       color:'#059669', showRate:false},
-            {key:'event_proposals',    color:'#d97706', showRate:false},
-            {key:'event_negotiations', color:'#7c3aed', showRate:false},
-            {key:'event_contracts',    color:'#dc2626', showRate:true,  rateVal:achieveRate},
-            {key:'goal',               color:'#0891b2', showRate:achieveRate!==null, rateVal:achieveRate},
+            {key:'catch_count',        color:'#2563eb'},
+            {key:'event_seated',       color:'#059669'},
+            {key:'event_proposals',    color:'#d97706'},
+            {key:'event_negotiations', color:'#7c3aed'},
+            {key:'event_contracts',    color:'#dc2626'},
+            {key:'goal',               color:'#0891b2'},
         ];
         SUMMARY.forEach(function(def) {
             var card = document.querySelector('.kpi-card[data-key="' + def.key + '"]');
             if (!card) return;
-
-            // ② ラベル切替
             var labelEl = card.querySelector('.kpi-label');
-            if (labelEl && isShop) {
-                var shopLabel = card.dataset.shopLabel;
-                if (shopLabel) labelEl.textContent = shopLabel;
+            if (labelEl && bizConf) {
+                if (def.key === 'catch_count') labelEl.textContent = bizConf.catch_label || (isShopBiz ? '来店組数' : 'キャッチ数');
+                else if (def.key === 'event_seated') labelEl.textContent = bizConf.seated_label || (isShopBiz ? '接客組数' : '着座数');
+                else if (labelEl.dataset && def.key !== 'goal') { /* keep default */ }
+            } else if (labelEl && card.dataset.shopLabel && isShopBiz) {
+                labelEl.textContent = card.dataset.shopLabel;
             }
-
-            var val = def.key === 'goal' ? goalPersonal : parseInt(kpiMonth[def.key] || 0);
-            var wVal = def.key === 'goal' ? goalPersonal : parseInt(week[def.key] || 0);
-
+            var val  = parseInt(kpiMonth[def.key] || 0);
+            var wVal = parseInt(week[def.key]     || 0);
+            if (def.key === 'goal') { val = 0; wVal = 0; }
             card.querySelector('.kpi-personal-val').textContent = val;
-
             var rateEl = card.querySelector('.kpi-rate-val');
-            if (rateEl) {
-                if (def.showRate && def.rateVal !== null) {
-                    var rv = parseFloat(def.rateVal);
-                    var rc = rv >= 100 ? '#059669' : (rv >= 70 ? '#d97706' : '#ef4444');
-                    rateEl.innerHTML = '達成率 <span style="font-weight:700;color:'+rc+'">'+def.rateVal+'%</span>';
-                    rateEl.style.display = '';
-                } else {
-                    rateEl.style.display = 'none';
-                }
-            }
+            if (rateEl) rateEl.style.display = 'none';
             var wkEl = card.querySelector('.kpi-week-val');
             if (wkEl) wkEl.textContent = wVal;
             card.querySelector('.kpi-week').style.display = drWeekMode ? 'block' : 'none';
         });
 
-        // キャリア自動検出（アイテムKPI）
-        var autoCarrier = d.auto_carrier || null;
-        // フォールバック: reports から集計
-        if (!autoCarrier) {
-            var cCount = {};
-            (d.reports || []).forEach(function(r){ if (r.carrier) cCount[r.carrier] = (cCount[r.carrier]||0)+1; });
-            var maxC = 0;
-            Object.keys(cCount).forEach(function(c){ if (cCount[c] > maxC){ maxC = cCount[c]; autoCarrier = c; } });
-        }
-        drLastCarrier = autoCarrier;
-
-        if (!autoCarrier) {
-            document.getElementById('drItemKpiRow').innerHTML =
-                '<div class="col-12 text-muted small text-center py-2">日報データがありません</div>';
-            document.getElementById('drItemKpiHeader').style.display = 'none';
+        // 商材別KPI表示
+        var autoBizType = d.auto_biz_type || null;
+        if (!autoBizType) {
+            // 後方互換: キャリアベース
+            drLastCarrier = d.auto_carrier || null;
+            if (!drLastCarrier) {
+                document.getElementById('drItemKpiRow').innerHTML = '<div class="col-12 text-muted small text-center py-2">日報データがありません</div>';
+                document.getElementById('drItemKpiHeader').style.display = 'none';
+            } else {
+                var badge = document.getElementById('drDetectedCarrierBadge');
+                if (badge) {
+                    badge.textContent = CARRIER_LABELS[drLastCarrier] || drLastCarrier;
+                    badge.style.background = CARRIER_COLORS[drLastCarrier] || '#6b7280';
+                    badge.style.color = '#fff';
+                }
+                document.getElementById('drItemKpiHeader').style.display = 'flex';
+                drRenderCarrierItemKpi(d, drLastCarrier);
+            }
         } else {
+            drLastCarrier = d.auto_carrier || null;
             var badge = document.getElementById('drDetectedCarrierBadge');
             if (badge) {
-                badge.textContent = CARRIER_LABELS[autoCarrier] || autoCarrier;
-                badge.style.background = CARRIER_COLORS[autoCarrier] || '#6b7280';
+                badge.textContent = autoBizType;
+                badge.style.background = autoBizType === '光AD' ? '#2563eb' : '#7c3aed';
                 badge.style.color = '#fff';
             }
             document.getElementById('drItemKpiHeader').style.display = 'flex';
-            drRenderItemKpi(d, autoCarrier);
+            drRenderBizItemKpi(d);
         }
     }
 
-    // ③ アイテムKPIカード描画（クリックで年間推移モーダル）
-    function drRenderItemKpi(d, carrier) {
-        var itemKpi  = (d.carrier_item_kpi || {})[carrier] || {};
-        var items    = (d.carrier_items    || {})[carrier] || [];
-        var color    = CARRIER_COLORS[carrier] || '#6b7280';
-        var wrap     = document.getElementById('drItemKpiRow');
-        if (!wrap) return;
-        if (!items.length) {
-            wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>';
-            return;
-        }
+    // ─── 業務形態別アイテムKPI（新） ───────────────────────────────────
+    function drRenderBizItemKpi(d) {
+        var autoBizType = d.auto_biz_type;
+        var bizConf = (d.biz_config || {})[autoBizType] || null;
+        var bizKpi  = d.biz_item_kpi || {};
+        var color   = autoBizType === '光AD' ? '#2563eb' : '#7c3aed';
+        var wrap    = document.getElementById('drItemKpiRow');
+        if (!wrap || !bizConf) { if (wrap) wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>'; return; }
+        var items = bizConf.personal_items || [];
+        if (!items.length) { wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>'; return; }
+        var requireBudget = bizConf.require_budget;
         var html = '';
         items.forEach(function(label) {
-            var kpi      = itemKpi[label] || {total:0, personal:0};
-            var total    = kpi.total    || 0;
-            var personal = kpi.personal || 0;
-            var rate     = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
-            var rateColor = (rate === '-') ? '#9ca3af'
-                : (parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 50 ? color : '#ef4444'));
-            // data-item-label: クリックで年間推移
+            var kpi    = bizKpi[label] || { actual: 0, budget: null };
+            var actual = kpi.actual || 0;
+            var budget = (kpi.budget !== null && kpi.budget !== undefined) ? kpi.budget : null;
+            var hasBudget = budget !== null;
+            var rate = '-', rateColor = '#9ca3af';
+            if (requireBudget && hasBudget && budget > 0) {
+                rate = (actual / budget * 100).toFixed(1);
+                rateColor = parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 70 ? color : '#ef4444');
+            }
             html += '<div class="col-6 col-md-4 col-lg-2" data-item-label="' + esc(label) + '" style="cursor:pointer">';
-            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid '+color+'">';
+            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
             html += '<div class="card-body p-2">';
-            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:'+color+'">'+esc(label)+'</div>';
+            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
             html += '<div class="d-flex gap-1 mb-1">';
+            if (requireBudget) {
+                html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
+                html += '<div style="font-size:.56rem;color:#9ca3af">予算</div>';
+                html += '<div style="font-size:1rem;font-weight:700;color:#6b7280;line-height:1.1">' + (hasBudget ? budget : '-') + '</div>';
+                html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div>';
+            }
             html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
-            html += '<div style="font-size:.56rem;color:#9ca3af">全体</div>';
-            html += '<div style="font-size:1rem;font-weight:700;color:'+color+';line-height:1.1">'+total+'</div>';
-            html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div>';
-            html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px">';
-            html += '<div style="font-size:.56rem;color:#9ca3af">個人</div>';
-            html += '<div style="font-size:1rem;font-weight:700;color:'+color+';line-height:1.1">'+personal+'</div>';
+            html += '<div style="font-size:.56rem;color:#9ca3af">実績</div>';
+            html += '<div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + actual + '</div>';
             html += '<div style="font-size:.52rem;color:#9ca3af">件</div></div></div>';
-            html += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:'+rateColor+'">'+rate+(rate!=='-'?'%':'')+'</span></div>';
+            if (requireBudget) {
+                html += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span></div>';
+            }
             html += '<div style="font-size:.55rem;color:#aaa;text-align:center;margin-top:2px"><i class="bi bi-graph-up"></i> タップで推移</div>';
             html += '</div></div></div>';
         });
         wrap.innerHTML = html;
     }
 
-    // ④ アイテムKPIクリック → 年間推移モーダル表示
+    // ─── キャリア別アイテムKPI（後方互換） ────────────────────────────
+    function drRenderCarrierItemKpi(d, carrier) {
+        var itemKpi = (d.carrier_item_kpi || {})[carrier] || {};
+        var items   = (d.carrier_items    || {})[carrier] || [];
+        var color   = CARRIER_COLORS[carrier] || '#6b7280';
+        var wrap    = document.getElementById('drItemKpiRow');
+        if (!wrap) return;
+        if (!items.length) { wrap.innerHTML = '<div class="col-12 text-muted small text-center py-2">データがありません</div>'; return; }
+        var html = '';
+        items.forEach(function(label) {
+            var kpi = itemKpi[label] || {total:0, personal:0};
+            var total = kpi.total || 0, personal = kpi.personal || 0;
+            var rate = (total > 0) ? (personal / total * 100).toFixed(1) : '-';
+            var rateColor = rate === '-' ? '#9ca3af' : (parseFloat(rate) >= 100 ? '#059669' : (parseFloat(rate) >= 50 ? color : '#ef4444'));
+            html += '<div class="col-6 col-md-4 col-lg-2" data-item-label="' + esc(label) + '" style="cursor:pointer">';
+            html += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
+            html += '<div class="card-body p-2">';
+            html += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">' + esc(label) + '</div>';
+            html += '<div class="d-flex gap-1 mb-1">';
+            html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px"><div style="font-size:.56rem;color:#9ca3af">全体</div><div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + total + '</div><div style="font-size:.52rem;color:#9ca3af">件</div></div>';
+            html += '<div class="flex-fill text-center" style="background:#f9fafb;border-radius:.3rem;padding:2px"><div style="font-size:.56rem;color:#9ca3af">個人</div><div style="font-size:1rem;font-weight:700;color:' + color + ';line-height:1.1">' + personal + '</div><div style="font-size:.52rem;color:#9ca3af">件</div></div></div>';
+            html += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span></div>';
+            html += '<div style="font-size:.55rem;color:#aaa;text-align:center;margin-top:2px"><i class="bi bi-graph-up"></i> タップで推移</div>';
+            html += '</div></div></div>';
+        });
+        wrap.innerHTML = html;
+    }
+
+    // ─── アイテムKPIクリック → 年間推移モーダル ───────────────────────
     document.getElementById('drItemKpiRow').addEventListener('click', function(e) {
         var col = e.target.closest('[data-item-label]');
         if (!col || !drLastData) return;
@@ -749,9 +832,8 @@ require_once __DIR__ . '/../includes/header.php';
         var trend = (drLastData.item_annual_trend || {})[label] || [];
         drLastItemLabel = label;
         drLastItemTrend = trend;
-        document.getElementById('itemTrendModalTitle').textContent = label + '  個人獲得 年間推移 ('+drYear+'年)';
-        var modal = new bootstrap.Modal(document.getElementById('itemTrendModal'));
-        modal.show();
+        document.getElementById('itemTrendModalTitle').textContent = label + '  個人獲得 年間推移 (' + drYear + '年)';
+        new bootstrap.Modal(document.getElementById('itemTrendModal')).show();
     });
 
     document.getElementById('itemTrendModal').addEventListener('shown.bs.modal', function() {
@@ -760,96 +842,74 @@ require_once __DIR__ . '/../includes/header.php';
         var noData   = document.getElementById('itemTrendNoData');
         var noDataMsg= document.getElementById('itemTrendNoDataMsg');
         if (!ctx) return;
-
         var trend = drLastItemTrend || [];
         var hasPositive = trend.some(function(t){ return t.value > 0; });
-
         function showNoData(msg) {
             ctx.style.display = 'none';
             if (noData)    { noData.classList.remove('d-none'); noData.style.display = 'flex'; }
-            if (noDataMsg) { noDataMsg.textContent = msg; }
+            if (noDataMsg) noDataMsg.textContent = msg;
         }
         function showChart() {
             ctx.style.display = '';
             if (noData) { noData.classList.add('d-none'); noData.style.display = 'none'; }
         }
-
-        if (trend.length === 0) {
-            showNoData('社員を選択するとデータが表示されます');
-            return;
-        }
-        if (!hasPositive) {
-            showNoData(drYear + '年の個人獲得実績はありません');
-            return;
-        }
+        if (!trend.length) { showNoData('社員を選択するとデータが表示されます'); return; }
+        if (!hasPositive)  { showNoData(drYear + '年の個人獲得実績はありません'); return; }
         showChart();
-
         var color  = CARRIER_COLORS[drLastCarrier] || '#2563eb';
-        var labels = trend.map(function(t){ return t.month+'月'; });
+        var labels = trend.map(function(t){ return t.month + '月'; });
         var values = trend.map(function(t){ return t.value; });
         drItemChart = new Chart(ctx, {
             type: 'line',
-            data: { labels: labels, datasets: [{
-                label: drLastItemLabel + ' 個人獲得数（件）',
-                data: values,
-                borderColor: color,
-                backgroundColor: 'rgba('+hexToRgb(color)+',.1)',
-                fill: true,
-                tension: .35,
-                pointBackgroundColor: color,
-                pointRadius: 4,
-            }]},
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { position: 'top', labels: { font:{size:11}, boxWidth:14 } } },
-                scales: {
-                    x: { grid:{color:'rgba(0,0,0,.05)'}, ticks:{font:{size:10}} },
-                    y: { beginAtZero:true, ticks:{font:{size:10},precision:0}, grid:{color:'rgba(0,0,0,.05)'},
-                         title:{display:true,text:'件数',font:{size:10}} },
-                },
-            },
+            data: { labels: labels, datasets: [{ label: drLastItemLabel + ' 個人獲得数（件）', data: values,
+                borderColor: color, backgroundColor: 'rgba(' + hexToRgb(color) + ',.1)',
+                fill: true, tension: .35, pointBackgroundColor: color, pointRadius: 4 }] },
+            options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+                plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}}},
+                scales:{ x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
+                    y:{beginAtZero:true,ticks:{font:{size:10},precision:0},grid:{color:'rgba(0,0,0,.05)'},title:{display:true,text:'件数',font:{size:10}}} } }
         });
     });
-
     document.getElementById('itemTrendModal').addEventListener('hidden.bs.modal', function() {
         if (drItemChart) { drItemChart.destroy(); drItemChart = null; }
     });
 
+    // ─── 年間推移グラフ ───────────────────────────────────────────────
     function drRenderChart(d) {
         var trend = d.annual_trend || [];
-        var labels = trend.map(function(t){ return t.month+'月'; });
+        var labels = trend.map(function(t){ return t.month + '月'; });
         var personalData = trend.map(function(t){ return t.personal; });
-        var rateData     = trend.map(function(t){ return t.achievement_rate; });
+        // 予算達成率優先、旧フィールドにフォールバック
+        var rateData = trend.map(function(t){
+            return t.budget_achievement_rate !== undefined && t.budget_achievement_rate !== null
+                ? t.budget_achievement_rate : t.achievement_rate;
+        });
         var hasRate = rateData.some(function(v){ return v !== null; });
         var ctx = document.getElementById('drTrendChart');
         if (!ctx) return;
         if (drTrendChart) { drTrendChart.destroy(); drTrendChart = null; }
         var datasets = [{
-            label:'個人獲得数（件）', data:personalData,
+            label:'個人獲得数（件）', data: personalData,
             borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.1)',
-            fill:true, tension:.35, yAxisID:'y',
-            pointBackgroundColor:'#2563eb', pointRadius:4,
+            fill:true, tension:.35, yAxisID:'y', pointBackgroundColor:'#2563eb', pointRadius:4,
         }];
         if (hasRate) {
             datasets.push({
-                label:'目標達成率（%）', data:rateData,
+                label:'予算達成率（%）', data: rateData,
                 borderColor:'#d97706', backgroundColor:'transparent',
                 fill:false, tension:.35, yAxisID:'y2', borderDash:[4,3],
                 pointBackgroundColor:'#d97706', pointRadius:4,
             });
         }
         drTrendChart = new Chart(ctx, {
-            type:'line', data:{labels:labels, datasets:datasets},
+            type:'line', data:{ labels:labels, datasets:datasets },
             options:{
                 responsive:true, maintainAspectRatio:false,
-                interaction:{mode:'index', intersect:false},
+                interaction:{mode:'index',intersect:false},
                 plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:14}}},
                 scales:{
                     x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
-                    y:{type:'linear',position:'left',
-                       title:{display:true,text:'件数',font:{size:10},color:'#2563eb'},
+                    y:{type:'linear',position:'left',title:{display:true,text:'件数',font:{size:10},color:'#2563eb'},
                        ticks:{font:{size:10},precision:0},grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true},
                     y2:{type:'linear',position:'right',display:hasRate,
                         title:{display:true,text:'達成率(%)',font:{size:10},color:'#d97706'},
@@ -860,7 +920,23 @@ require_once __DIR__ . '/../includes/header.php';
         });
     }
 
-    // ⑤ ランキング描画
+    // ─── グループ平均達成率表示 ────────────────────────────────────────
+    function drRenderGroupSummary(d) {
+        var summaryEl = document.getElementById('drGroupSummary');
+        var rateEl    = document.getElementById('drGroupAvgRate');
+        if (!summaryEl || !rateEl) return;
+        if (drFilterType !== 'employee' && d.group_avg_ach_rate !== null && d.group_avg_ach_rate !== undefined) {
+            var rate = d.group_avg_ach_rate;
+            var color = rate >= 100 ? '#059669' : (rate >= 70 ? '#d97706' : '#ef4444');
+            rateEl.textContent = rate + '%';
+            rateEl.style.color = color;
+            summaryEl.style.display = '';
+        } else {
+            summaryEl.style.display = 'none';
+        }
+    }
+
+    // ─── ランキング ───────────────────────────────────────────────────
     function drRenderRanking(d) {
         var ranking = d.ranking || [];
         var wrap    = document.getElementById('drRankingWrap');
@@ -874,105 +950,108 @@ require_once __DIR__ . '/../includes/header.php';
         var BADGES = ['🥇','🥈','🥉'];
         var html = '';
         ranking.forEach(function(r, i) {
-            var badge    = i < 3 ? BADGES[i] : ('#' + r.rank);
-            var isEmoji  = i < 3;
-            var rateStr  = r.achievement_rate !== null ? r.achievement_rate + '%' : '-';
+            var badge   = i < 3 ? BADGES[i] : ('#' + r.rank);
+            var isEmoji = i < 3;
+            var rateStr = r.achievement_rate !== null ? r.achievement_rate + '%' : '-';
             var rateColor = r.achievement_rate === null ? '#6b7280'
                 : (r.achievement_rate >= 100 ? '#059669' : (r.achievement_rate >= 70 ? '#d97706' : '#ef4444'));
-            var prevStr  = r.prev_rank ? '前月' + r.prev_rank + '位' : '初登場';
-            var extra    = i >= 3 ? ' dr-ranking-extra' : '';
-            var estyle   = i >= 3 ? ' style="display:none"' : '';
+            var prevStr = r.prev_rank ? '前月' + r.prev_rank + '位' : '初登場';
+            var extra = i >= 3 ? ' dr-ranking-extra' : '';
+            var estyle = i >= 3 ? ' style="display:none"' : '';
             html += '<div class="d-flex align-items-center p-2 border-bottom' + extra + '"' + estyle + '>';
             html += '<div class="text-center" style="min-width:36px;font-size:' + (isEmoji ? '1.3' : '.8') + 'rem">' + badge + '</div>';
-            html += '<div class="flex-fill ms-2">';
-            html += '<div class="fw-semibold" style="font-size:.82rem;line-height:1.3">' + esc(r.location) + '</div>';
-            html += '<div class="text-muted" style="font-size:.75rem">' + esc(r.employee_name) + '</div>';
-            html += '</div>';
-            html += '<div class="text-center" style="min-width:68px">';
-            html += '<div class="fw-bold" style="font-size:1rem;color:' + rateColor + '">' + rateStr + '</div>';
-            html += '<div style="font-size:.58rem;color:#9ca3af">達成率</div>';
-            html += '</div>';
-            html += '<div class="text-center ms-2" style="min-width:54px">';
-            html += '<div style="font-size:.65rem;color:#6b7280">' + esc(prevStr) + '</div>';
-            html += '</div></div>';
+            html += '<div class="flex-fill ms-2"><div class="fw-semibold" style="font-size:.82rem;line-height:1.3">' + esc(r.location) + '</div>';
+            html += '<div class="text-muted" style="font-size:.75rem">' + esc(r.employee_name) + '</div></div>';
+            html += '<div class="text-center" style="min-width:68px"><div class="fw-bold" style="font-size:1rem;color:' + rateColor + '">' + rateStr + '</div>';
+            html += '<div style="font-size:.58rem;color:#9ca3af">達成率</div></div>';
+            html += '<div class="text-center ms-2" style="min-width:54px"><div style="font-size:.65rem;color:#6b7280">' + esc(prevStr) + '</div></div></div>';
         });
         wrap.innerHTML = html;
         drRankingExpanded = false;
-        if (toggle) {
-            toggle.style.display = ranking.length > 3 ? '' : 'none';
-            toggle.textContent = '△ 全て表示';
-        }
+        if (toggle) { toggle.style.display = ranking.length > 3 ? '' : 'none'; toggle.textContent = '△ 全て表示'; }
     }
-
     window.drToggleRanking = function() {
         drRankingExpanded = !drRankingExpanded;
-        document.querySelectorAll('.dr-ranking-extra').forEach(function(el) {
-            el.style.display = drRankingExpanded ? 'flex' : 'none';
-        });
+        document.querySelectorAll('.dr-ranking-extra').forEach(function(el){ el.style.display = drRankingExpanded ? 'flex' : 'none'; });
         var btn = document.getElementById('drRankingToggle');
         if (btn) btn.textContent = drRankingExpanded ? '▽ TOP3に戻す' : '△ 全て表示';
     };
 
+    // ─── 日報一覧 ─────────────────────────────────────────────────────
     function drRenderList(d) {
         var reports = d.reports || [];
         var wrap = document.getElementById('drListWrap');
-        if (!reports.length) {
-            wrap.innerHTML = '<div class="text-center text-muted py-4">日報データがありません</div>';
-            return;
-        }
+        if (!reports.length) { wrap.innerHTML = '<div class="text-center text-muted py-4">日報データがありません</div>'; return; }
         var html = '';
-        var byCarrier = {};
-        reports.forEach(function(r){ (byCarrier[r.carrier||''] = byCarrier[r.carrier||''] || []).push(r); });
-        Object.keys(byCarrier).forEach(function(carrier) {
-            var rows  = byCarrier[carrier];
-            var items = (d.carrier_items||{})[carrier] || [];
-            var isShopRow = rows.length && (rows[0].work_type === 'ショップ');
+        var byBiz = {};
+        reports.forEach(function(r) {
+            var key = normBiz(r.work_type || '') || '不明';
+            (byBiz[key] = byBiz[key] || []).push(r);
+        });
+        Object.keys(byBiz).forEach(function(biz) {
+            var rows  = byBiz[biz];
+            var bizConf = (d.biz_config || {})[biz] || null;
+            var items = bizConf ? (bizConf.personal_items || []) : [];
+            // 後方互換: biz_items が空ならキャリア items
+            if (!items.length && rows.length) items = rows[0].biz_items || [];
+            if (!items.length && rows.length) {
+                var carrier = rows[0].carrier || '';
+                items = (d.carrier_items || {})[carrier] || [];
+            }
+            var isShopBiz = (biz === '光AD');
+            var color = isShopBiz ? '#2563eb' : '#7c3aed';
             html += '<div class="table-responsive mb-3"><table class="table table-sm table-hover mb-0" style="font-size:.72rem">';
             html += '<thead class="table-light"><tr>';
-            html += '<th>日付</th><th>社員名</th><th>稼働店舗</th><th>キャリア</th>';
-            html += '<th class="text-center">'+(isShopRow?'来店':'キャッチ')+'</th>';
-            html += '<th class="text-center">'+(isShopRow?'接客':'着席')+'</th>';
+            html += '<th>日付</th><th>社員名</th><th>稼働店舗</th>';
+            html += '<th><span class="badge" style="background:' + color + ';font-size:.65rem">' + esc(biz) + '</span></th>';
+            html += '<th class="text-center">' + (isShopBiz ? '来店' : 'キャッチ') + '</th>';
+            html += '<th class="text-center">' + (isShopBiz ? '接客' : '着座') + '</th>';
             html += '<th class="text-center">提案</th>';
-            html += '<th class="text-center">成約<br><span style="font-size:.6rem;color:#6b7280">達成率</span></th>';
+            html += '<th class="text-center">成約</th>';
             items.forEach(function(lbl) {
-                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">'+esc(lbl)+'<br><span style="font-size:.55rem;color:#9ca3af">個/全</span></th>';
+                html += '<th class="text-center" style="max-width:60px;font-size:.68rem">' + esc(lbl) + '</th>';
             });
             html += '<th>操作</th></tr></thead><tbody>';
             rows.forEach(function(r) {
                 html += '<tr>';
-                html += '<td style="white-space:nowrap">'+r.work_date+'</td>';
-                html += '<td>'+esc(r.employee)+'</td>';
-                html += '<td>'+esc(r.location)+'</td>';
-                html += '<td>'+esc(r.carrier)+'</td>';
-                html += '<td class="text-center">'+(r.catch||0)+'</td>';
-                html += '<td class="text-center">'+(r.seated||0)+'</td>';
-                html += '<td class="text-center">'+(r.proposals||0)+'</td>';
-                var rateHtml = '';
-                if (r.achievement_rate !== null && r.achievement_rate !== undefined) {
-                    var rc = r.achievement_rate >= 100 ? '#059669' : (r.achievement_rate >= 70 ? '#d97706' : '#dc2626');
-                    rateHtml = '<div style="font-size:.62rem;color:'+rc+';font-weight:600">'+r.achievement_rate+'%</div>';
-                }
-                html += '<td class="text-center"><div>'+(r.contracts||0)+'</div>'+rateHtml+'</td>';
+                html += '<td style="white-space:nowrap">' + r.work_date + '</td>';
+                html += '<td>' + esc(r.employee) + '</td>';
+                html += '<td>' + esc(r.location) + '</td>';
+                html += '<td>' + esc(r.carrier || '') + '</td>';
+                html += '<td class="text-center">' + (r.catch || 0) + '</td>';
+                html += '<td class="text-center">' + (r.seated || 0) + '</td>';
+                html += '<td class="text-center">' + (r.proposals || 0) + '</td>';
+                html += '<td class="text-center">' + (r.contracts || 0) + '</td>';
                 items.forEach(function(lbl) {
-                    var a = (r.acq||{})[lbl];
-                    html += '<td class="text-center"><div style="font-size:.7rem">'+(a?a.person:0)+'</div><div style="font-size:.6rem;color:#9ca3af">'+(a?a.total:0)+'</div></td>';
+                    var a = (r.acq || {})[lbl];
+                    html += '<td class="text-center" style="font-size:.7rem">' + (a ? a.person : 0) + '</td>';
                 });
-                html += '<td><form method="post" style="display:inline" onsubmit="return confirm(\'削除しますか？\')">';
-                html += '<input type="hidden" name="csrf" value="'+drCsrf+'">';
-                html += '<input type="hidden" name="action" value="delete">';
-                html += '<input type="hidden" name="id" value="'+r.id+'">';
-                html += '<button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.6rem"><i class="bi bi-trash"></i></button>';
-                html += '</form></td></tr>';
+                html += '<td><button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.6rem" onclick="drDeleteReport(' + r.id + ')"><i class="bi bi-trash"></i></button></td></tr>';
             });
             html += '</tbody></table></div>';
         });
         wrap.innerHTML = html;
     }
 
+    window.drDeleteReport = function(id) {
+        if (!confirm('削除しますか？')) return;
+        var fd = new FormData();
+        fd.append('csrf', drCsrf);
+        fd.append('action', 'delete');
+        fd.append('id', id);
+        fetch(drSaveApiBase, { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res.success) { drShowFormAlert('success', '削除しました'); drLoad(); }
+                else drShowFormAlert('danger', '削除失敗: ' + (res.error || ''));
+            })
+            .catch(function(){ drShowFormAlert('danger', '通信エラー'); });
+    };
+
     window.drChangeMonth = function(delta) {
         drMonth += delta;
-        if (drMonth < 1) { drMonth = 12; drYear--; }
-        if (drMonth > 12) { drMonth = 1; drYear++; }
+        if (drMonth < 1)  { drMonth = 12; drYear--; }
+        if (drMonth > 12) { drMonth = 1;  drYear++; }
         drLoad();
     };
 
@@ -980,16 +1059,17 @@ require_once __DIR__ . '/../includes/header.php';
         drWeekMode = !drWeekMode;
         var btn = document.getElementById('drWeekBtn');
         btn.classList.toggle('btn-outline-secondary', !drWeekMode);
-        btn.classList.toggle('btn-secondary', drWeekMode);
-        document.querySelectorAll('.kpi-week').forEach(function(el){
-            el.style.display = drWeekMode ? 'block' : 'none';
-        });
+        btn.classList.toggle('btn-secondary',         drWeekMode);
+        document.querySelectorAll('.kpi-week').forEach(function(el){ el.style.display = drWeekMode ? 'block' : 'none'; });
     };
 
-    var empSel = document.getElementById('drEmpSelect');
-    if (empSel) {
-        empSel.addEventListener('change', function() { drEmp = this.value; drLoad(); });
-    }
+    // ─── セレクトボックス変更ハンドラ ─────────────────────────────────
+    var empSel  = document.getElementById('drEmpSelect');
+    var bizSel  = document.getElementById('drBizSelect');
+    var carrSel = document.getElementById('drCarrierFilterSelect');
+    if (empSel)  empSel.addEventListener('change',  function(){ drFilterValue = this.value; drLoad(); });
+    if (bizSel)  bizSel.addEventListener('change',  function(){ drFilterValue = this.value; drLoad(); });
+    if (carrSel) carrSel.addEventListener('change', function(){ drFilterValue = this.value; drLoad(); });
 
     drLoad();
 })();

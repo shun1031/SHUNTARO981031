@@ -145,6 +145,9 @@ $migrations = [
     "ALTER TABLE employees ADD COLUMN employment_type VARCHAR(30) DEFAULT NULL",
     "ALTER TABLE employees ADD COLUMN employment_subtype VARCHAR(30) DEFAULT NULL",
 
+    // ---- store_monthly_budgets: 店舗予算（月次）テーブル ----
+    "CREATE TABLE IF NOT EXISTS store_monthly_budgets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_name VARCHAR(100) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, budget_detail TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smb (company_id, employee_name, year, month), INDEX idx_smb_emp (company_id, employee_name, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     // ---- invoice_checks: 請求書チェック管理テーブル ----
     "CREATE TABLE IF NOT EXISTS invoice_checks (id INT PRIMARY KEY AUTO_INCREMENT, bms_company_id INT NOT NULL, company_type VARCHAR(30) NOT NULL, ref_id INT NOT NULL DEFAULT 0, ref_name VARCHAR(100) NOT NULL DEFAULT '', check_year SMALLINT NOT NULL, check_month TINYINT NOT NULL, check_create TINYINT(1) NOT NULL DEFAULT 0, check_staff1 TINYINT(1) NOT NULL DEFAULT 0, check_staff2 TINYINT(1) NOT NULL DEFAULT 0, final_check TINYINT(1) NOT NULL DEFAULT 0, updated_by VARCHAR(100) DEFAULT NULL, updated_at DATETIME DEFAULT NULL, UNIQUE KEY uq_ic (bms_company_id, company_type, ref_id, ref_name, check_year, check_month), INDEX idx_ic_company (bms_company_id, company_type, check_year, check_month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];

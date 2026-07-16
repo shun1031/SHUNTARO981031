@@ -428,7 +428,6 @@ require_once __DIR__ . '/../includes/header.php';
     var BIZ_ALIASES = {'ショップ': '光AD', 'ショップ以外': '業務委託'};
     var drCurrentBiz = null;
     var drSaveApiBase   = <?= json_encode($drSaveApiBase) ?>;
-    var drFormCsrf      = <?= json_encode(getCsrfToken()) ?>;
 
     function makeItemCol(id, label) {
         var col = document.createElement('div');
@@ -866,7 +865,7 @@ require_once __DIR__ . '/../includes/header.php';
                     return fetch(budgetApiBase, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ employee: emp, year: yr, month: mo, budget_detail: bData, csrf: drFormCsrf }),
+                        body: JSON.stringify({ employee: emp, year: yr, month: mo, budget_detail: bData, csrf: drCsrf }),
                     });
                 })
                 .then(function(r){ return r.json(); })

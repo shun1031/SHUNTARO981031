@@ -348,15 +348,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">商談数</div><input type="number" name="event_negotiations" id="evtNegotiations" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                                 <div class="text-center"><div style="font-size:.68rem;font-weight:600;margin-bottom:2px">成約数</div><input type="number" name="event_contracts" id="evtContracts" class="form-control form-control-sm text-center" min="0" placeholder="-" style="width:55px"></div>
                             </div>
-                            <!-- 店舗予算（光ADのみ） -->
-                            <div id="drBudgetSection" class="border rounded p-2 mb-2" style="background:#eff6ff;display:none">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <div class="fw-bold" style="color:#1d4ed8;font-size:.82rem"><i class="bi bi-bullseye me-1"></i>店舗予算 <span class="badge bg-danger ms-1" style="font-size:.6rem">月初1回</span></div>
-                                    <div id="drBudgetExistsBadge" class="badge bg-success" style="display:none;font-size:.65rem">入力済み（上書き可）</div>
-                                </div>
-                                <div id="drBudgetFields" class="row g-1"></div>
-                                <input type="hidden" name="budget_detail" id="drBudgetJson" value="">
-                            </div>
+                            <!-- 店舗予算はKPIダッシュボードの鉛筆アイコンから直接編集する（フォームでは入力しない） -->
                             <!-- 個人実績 -->
                             <div class="border rounded p-2 bg-white">
                                 <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">個人実績 <span class="text-muted fw-normal" style="font-size:.68rem">（0件は空欄）</span></div>
@@ -460,7 +452,6 @@ require_once __DIR__ . '/../includes/header.php';
     };
     var BIZ_ALIASES = {'ショップ': '光AD', 'ショップ以外': '業務委託'};
     var drCurrentBiz = null;
-    var drBudgetApiBase = <?= json_encode($drBudgetApiBase) ?>;
     var drSaveApiBase   = <?= json_encode($drSaveApiBase) ?>;
     var drFormCsrf      = <?= json_encode(getCsrfToken()) ?>;
 
@@ -492,35 +483,6 @@ require_once __DIR__ . '/../includes/header.php';
         wrap.innerHTML = ''; wrap.appendChild(row);
     }
 
-    function buildBudgetFields(items) {
-        var wrap = document.getElementById('drBudgetFields');
-        if (!items || !items.length) { wrap.innerHTML = ''; return; }
-        var row = document.createElement('div'); row.className = 'row g-1';
-        items.forEach(function(label, i) { row.appendChild(makeItemCol('budinp_' + i, label)); });
-        wrap.innerHTML = ''; wrap.appendChild(row);
-    }
-
-    function checkBudgetExists(emp, year, month) {
-        if (!emp || !drCurrentBiz || !drCurrentBiz.requireBudget) return;
-        fetch(drBudgetApiBase + '?employee=' + encodeURIComponent(emp) + '&year=' + year + '&month=' + month)
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                var badge = document.getElementById('drBudgetExistsBadge');
-                if (res.exists && res.budget && badge) {
-                    badge.style.display = '';
-                    if (drCurrentBiz && drCurrentBiz.budgetItems) {
-                        drCurrentBiz.budgetItems.forEach(function(label, i) {
-                            var inp = document.getElementById('budinp_' + i);
-                            if (inp) inp.value = (res.budget[label] != null ? res.budget[label] : '');
-                        });
-                    }
-                } else if (badge) {
-                    badge.style.display = 'none';
-                }
-            })
-            .catch(function() {});
-    }
-
     function updateBizForm() {
         var wt = document.getElementById('drWorkType').value;
         var biz = BIZ_CONFIG[BIZ_ALIASES[wt] || wt] || null;
@@ -535,22 +497,6 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drLabelCatch').textContent  = biz.catchLabel;
         document.getElementById('drLabelSeated').textContent = biz.seatedLabel;
 
-        var budgetSection = document.getElementById('drBudgetSection');
-        if (biz.requireBudget) {
-            budgetSection.style.display = '';
-            buildBudgetFields(biz.budgetItems);
-            // 社員と稼働日から予算チェック
-            var empInp   = document.querySelector('[name="employee_name"]');
-            var dateInp  = document.querySelector('[name="work_date"]');
-            var emp  = empInp  ? empInp.value.trim()  : '';
-            var wd   = dateInp ? dateInp.value         : '';
-            if (emp && wd) {
-                var yr = parseInt(wd.slice(0,4)), mo = parseInt(wd.slice(5,7));
-                checkBudgetExists(emp, yr, mo);
-            }
-        } else {
-            budgetSection.style.display = 'none';
-        }
         buildPersonalFields(biz.personalItems);
     }
 
@@ -563,9 +509,6 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drCarrier').value  = '';
         document.getElementById('drLocationError').style.display = 'none';
         document.getElementById('drPersonalFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">業務形態を選択すると入力欄が表示されます</p>';
-        document.getElementById('drBudgetFields').innerHTML = '';
-        document.getElementById('drBudgetSection').style.display = 'none';
-        document.getElementById('drBudgetExistsBadge').style.display = 'none';
         drCurrentBiz = null;
         document.getElementById('drEventForm').style.display = 'none';
         document.getElementById('drSubmitBtn').disabled = true;
@@ -589,19 +532,6 @@ require_once __DIR__ . '/../includes/header.php';
         }
         document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
 
-        // 店舗予算 JSON 収集（光ADのみ）
-        var budgetJson = '';
-        if (biz && biz.requireBudget && biz.budgetItems && biz.budgetItems.length) {
-            var bData = {}, hasVal = false;
-            biz.budgetItems.forEach(function(label, i) {
-                var inp = document.getElementById('budinp_' + i);
-                var v = inp ? inp.value : '';
-                bData[label] = v !== '' ? v : '0';
-                if (v !== '' && parseFloat(v) > 0) hasVal = true;
-            });
-            if (hasVal) budgetJson = JSON.stringify(bData);
-        }
-        document.getElementById('drBudgetJson').value = budgetJson;
         document.getElementById('evtAcqJson').value = '{}';
 
         var btn = document.getElementById('drSubmitBtn');

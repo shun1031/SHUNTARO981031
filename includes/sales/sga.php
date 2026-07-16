@@ -14,12 +14,18 @@ function getSgaExpenses(int $companyId, int $year, int $month): array {
     return $stmt->fetchAll();
 }
 
+// 販管費合計（区分=販管費のみ。原価は含めない）
 function getSgaExpenseTotal(int $companyId, int $year, int $month): int {
     $db = getDB();
-    $stmt = $db->prepare('SELECT COALESCE(SUM(amount),0) FROM sga_expenses
-        WHERE company_id = ? AND target_year = ? AND target_month = ?');
+    $stmt = $db->prepare("SELECT COALESCE(SUM(amount),0) FROM sga_expenses
+        WHERE company_id = ? AND target_year = ? AND target_month = ? AND expense_type = 'sga'");
     $stmt->execute([$companyId, $year, $month]);
     return (int)$stmt->fetchColumn();
+}
+
+// 区分の正規化（sga=販管費 / cost=原価）
+function sgaNormalizeType(?string $type): string {
+    return $type === 'cost' ? 'cost' : 'sga';
 }
 
 function getSgaExpense(int $id, int $companyId): array|false {
@@ -34,8 +40,8 @@ function createSgaExpense(int $companyId, array $data): int {
     $note    = trim($data['note']    ?? '');
     $content = trim($data['content'] ?? '');
     $stmt = $db->prepare('INSERT INTO sga_expenses
-        (company_id, target_year, target_month, category, content, amount, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?)');
+        (company_id, target_year, target_month, category, content, amount, note, expense_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $companyId,
         (int)$data['target_year'],
@@ -44,6 +50,7 @@ function createSgaExpense(int $companyId, array $data): int {
         $content,
         max(0, (int)($data['amount'] ?? 0)),
         $note !== '' ? $note : null,
+        sgaNormalizeType($data['expense_type'] ?? null),
     ]);
     return (int)$db->lastInsertId();
 }
@@ -53,7 +60,7 @@ function updateSgaExpense(int $id, int $companyId, array $data): void {
     $note    = trim($data['note']    ?? '');
     $content = trim($data['content'] ?? '');
     $stmt = $db->prepare('UPDATE sga_expenses SET
-        target_year = ?, target_month = ?, category = ?, content = ?, amount = ?, note = ?
+        target_year = ?, target_month = ?, category = ?, content = ?, amount = ?, note = ?, expense_type = ?
         WHERE id = ? AND company_id = ?');
     $stmt->execute([
         (int)$data['target_year'],
@@ -62,19 +69,22 @@ function updateSgaExpense(int $id, int $companyId, array $data): void {
         $content,
         max(0, (int)($data['amount'] ?? 0)),
         $note !== '' ? $note : null,
+        sgaNormalizeType($data['expense_type'] ?? null),
         $id, $companyId,
     ]);
 }
 
 function getSgaOptions(int $companyId): array {
     $db = getDB();
-    $fixed = ['家賃','通信費','水道光熱費','役員報酬','保険料','正社員給与','正社員交通費','経費'];
+    $fixed = ['家賃','水道光熱費','役員報酬','法定福利費用','コンサル費用','士業顧問料','正社員交通費','経費','売上原価','法定福利費'];
 
     $stmt = $db->prepare('SELECT DISTINCT category FROM sga_expenses
         WHERE company_id = ? AND category != "" ORDER BY category');
     $stmt->execute([$companyId]);
     $dbCats = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
-    $extras = array_values(array_diff($dbCats, $fixed));
+    // 旧選択肢（名称変更・削除済み）はリストに再表示しない
+    $removed = ['通信費', '保険料', '正社員給与'];
+    $extras = array_values(array_diff($dbCats, $fixed, $removed));
     $categories = array_merge($fixed, $extras);
 
     $stmt2 = $db->prepare('SELECT DISTINCT content FROM sga_expenses

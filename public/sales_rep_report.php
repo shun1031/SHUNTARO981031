@@ -417,8 +417,7 @@ function _drawRepChart(repName, data) {
                     ticks: {
                         callback: function(v) {
                             if (v === 0) return '0';
-                            if (v >= 1000000) return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-                            return Math.round(v / 10000) + '万';
+                            return Math.round(v / 10000).toLocaleString() + '万';
                         }
                     },
                     grid: { color: 'rgba(0,0,0,0.06)' },

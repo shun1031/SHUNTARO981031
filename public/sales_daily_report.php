@@ -845,15 +845,16 @@ require_once __DIR__ . '/../includes/header.php';
         wrap.innerHTML = html;
     }
 
-    // ─── 月次予算 直接編集 ────────────────────────────────────────────────
+    // ─── 月次予算 直接編集（固定合計のみ入力） ────────────────────────────
     var budgetApiBase = <?= json_encode($drBudgetApiBase) ?>;
+    var budgetEditCur = {}; // 既存予算（固定合計以外の値を保存時に引き継ぐ）
     document.getElementById('drItemKpiRow').addEventListener('click', function(e) {
         var editBtn = e.target.closest('#budgetEditOpenBtn');
         if (!editBtn || !drLastData) return;
         var autoBizType = drLastData.auto_biz_type;
         var bizConf = (drLastData.biz_config || {})[autoBizType] || null;
         if (!bizConf || !bizConf.require_budget) return;
-        var items = bizConf.budget_items || bizConf.personal_items || [];
+        var items = bizConf.primary_kpi ? [bizConf.primary_kpi] : (bizConf.budget_items || []).slice(0, 1);
         var emp   = drFilterValue;
         var yr    = drYear, mo = drMonth;
         var info  = document.getElementById('budgetEditInfo');
@@ -872,10 +873,11 @@ require_once __DIR__ . '/../includes/header.php';
             .then(function(r){ return r.json(); })
             .then(function(res) {
                 var cur = (res.exists && res.budget) ? res.budget : {};
+                budgetEditCur = cur;
                 var html = '';
                 items.forEach(function(label, i) {
                     var val = cur[label] != null ? cur[label] : '';
-                    html += '<div class="col-6 col-md-4">';
+                    html += '<div class="col-12 col-md-6 mx-auto">';
                     html += '<label class="form-label mb-1" style="font-size:.72rem;font-weight:600">' + esc(label) + '</label>';
                     html += '<input type="number" min="0" class="form-control form-control-sm text-center budget-edit-inp" data-label="' + esc(label) + '" value="' + (val !== '' ? val : '') + '" placeholder="0">';
                     html += '</div>';
@@ -891,7 +893,9 @@ require_once __DIR__ . '/../includes/header.php';
         if (!bizConf) return;
         var emp   = drFilterValue;
         var yr    = drYear, mo = drMonth;
+        // 既存予算を引き継ぎ、入力欄（固定合計）だけ上書き
         var bData = {};
+        Object.keys(budgetEditCur || {}).forEach(function(k) { bData[k] = budgetEditCur[k]; });
         document.querySelectorAll('#budgetEditFields .budget-edit-inp').forEach(function(inp) {
             bData[inp.dataset.label] = inp.value !== '' ? inp.value : '0';
         });

@@ -157,8 +157,8 @@ $csrf = getCsrfToken();
         }
         body::before {
             content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
-            background: radial-gradient(ellipse at 20% 50%, rgba(5,150,105,.06) 0%, transparent 50%),
-                        radial-gradient(ellipse at 80% 20%, rgba(52,211,153,.04) 0%, transparent 50%);
+            background: radial-gradient(ellipse at 20% 50%, rgba(37,99,235,.06) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 20%, rgba(96,165,250,.04) 0%, transparent 50%);
             z-index: 0;
         }
         .login-wrapper { position: relative; z-index: 1; width: 100%; max-width: 520px; padding: 20px; }
@@ -170,24 +170,24 @@ $csrf = getCsrfToken();
             overflow: hidden;
         }
         .login-card-inner { padding: 2rem 2rem 1.5rem; }
-        .login-top-accent { height: 3px; background: linear-gradient(135deg, #059669, #34d399); }
+        .login-top-accent { height: 3px; background: linear-gradient(135deg, #2563eb, #60a5fa); }
         .form-control { border-radius: 8px; padding: 10px 14px; font-size: .875rem; border: 1px solid #e5e7eb; transition: all .2s ease; }
-        .form-control:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(5,150,105,.08); }
+        .form-control:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
         .form-control.is-invalid { border-color: #ef4444; }
         .input-group-text { border-radius: 8px 0 0 8px; background: #f9fafb; border: 1px solid #e5e7eb; color: #6b7280; font-size: .875rem; }
         .form-label { font-size: .8rem; font-weight: 500; color: #374151; }
         .field-error { font-size: .72rem; color: #dc2626; margin-top: 4px; }
-        .btn-success { background: #059669; border: none; border-radius: 10px; padding: 10px; font-weight: 500; font-size: .9rem; }
-        .btn-success:hover { background: #047857; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(5,150,105,.2); }
+        .btn-success { background: #2563eb; border: none; border-radius: 10px; padding: 10px; font-weight: 500; font-size: .9rem; }
+        .btn-success:hover { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,99,235,.2); }
         .alert { border-radius: 10px; font-size: .8rem; }
-        .login-brand-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #059669, #34d399); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 4px 14px rgba(5,150,105,.2); }
+        .login-brand-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #60a5fa); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 4px 14px rgba(37,99,235,.2); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .login-card { animation: fadeIn .4s ease both; }
         .generated-id-box {
-            background: #ecfdf5; border: 1.5px dashed #059669; border-radius: 12px;
+            background: #eff6ff; border: 1.5px dashed #2563eb; border-radius: 12px;
             padding: 16px; text-align: center; margin-bottom: 1rem;
         }
-        .generated-id-box .id-value { font-size: 1.4rem; font-weight: 700; color: #047857; letter-spacing: .05em; }
+        .generated-id-box .id-value { font-size: 1.4rem; font-weight: 700; color: #1d4ed8; letter-spacing: .05em; }
     </style>
 </head>
 <body>

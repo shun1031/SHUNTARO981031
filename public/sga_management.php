@@ -75,7 +75,7 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- 販管費一覧 -->
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-list-ul me-1" style="color:#f59e0b"></i>販管費一覧</span>
+            <span><i class="bi bi-list-ul me-1" style="color:#f59e0b"></i>支出一覧</span>
         </div>
         <div class="table-responsive">
             <table class="table sales-table mb-0">

@@ -150,10 +150,6 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="コミュファ">コミュファ光</option>
                 <option value="CATV">CATV</option>
             </select>
-            <div id="drGroupSummary" style="display:none;font-size:.82rem;padding:4px 10px;background:#f0fdf4;border-radius:.4rem;border:1px solid #bbf7d0">
-                <span class="text-muted">平均達成率:</span>
-                <strong id="drGroupAvgRate" style="color:#059669">-%</strong>
-            </div>
         </div>
         <?php else: ?>
         <div></div>
@@ -641,7 +637,6 @@ require_once __DIR__ . '/../includes/header.php';
             drRenderChart(d);
             drRenderRanking(d);
             drRenderList(d);
-            drRenderGroupSummary(d);
             document.getElementById('drMonthLabel').textContent = drYear + '年' + drMonth + '月';
             document.getElementById('drSubtitle').textContent   = drYear + '年' + drMonth + '月';
         }).catch(function(e){ console.error(e); });
@@ -785,6 +780,21 @@ require_once __DIR__ . '/../includes/header.php';
                 subHtml += '</div></div>';
             }
         });
+        // グループ平均達成率カード（業務形態/キャリアフィルター時、固定合計の右）
+        var groupAvgRate = d.group_avg_ach_rate;
+        if (drFilterType !== 'employee' && groupAvgRate !== null && groupAvgRate !== undefined) {
+            var gRateColor = groupAvgRate >= 100 ? '#059669' : (groupAvgRate >= 70 ? '#d97706' : '#ef4444');
+            primaryHtml += '<div class="col-auto" style="min-width:160px">';
+            primaryHtml += '<div class="card h-100 shadow-sm" style="border-radius:.75rem;border-top:3px solid ' + color + '">';
+            primaryHtml += '<div class="card-body p-2">';
+            primaryHtml += '<div class="fw-semibold mb-1" style="font-size:.72rem;color:' + color + '">平均達成率</div>';
+            primaryHtml += '<div class="text-center" style="background:#f9fafb;border-radius:.3rem;padding:4px 2px;margin-bottom:4px">';
+            primaryHtml += '<div style="font-size:.52rem;color:#9ca3af">スタッフ平均</div>';
+            primaryHtml += '<div style="font-size:1.3rem;font-weight:700;color:' + gRateColor + ';line-height:1.2">' + groupAvgRate + '%</div>';
+            primaryHtml += '</div>';
+            primaryHtml += '<div style="font-size:.55rem;color:#9ca3af;text-align:center">当月の予算達成率</div>';
+            primaryHtml += '</div></div></div>';
+        }
         // 年度平均達成率カード（固定合計の右）
         var fyAvgRate = d.fy_avg_achievement_rate;
         if (fyAvgRate !== null && fyAvgRate !== undefined) {
@@ -1044,22 +1054,6 @@ require_once __DIR__ . '/../includes/header.php';
                 },
             },
         });
-    }
-
-    // ─── グループ平均達成率表示 ────────────────────────────────────────
-    function drRenderGroupSummary(d) {
-        var summaryEl = document.getElementById('drGroupSummary');
-        var rateEl    = document.getElementById('drGroupAvgRate');
-        if (!summaryEl || !rateEl) return;
-        if (drFilterType !== 'employee' && d.group_avg_ach_rate !== null && d.group_avg_ach_rate !== undefined) {
-            var rate = d.group_avg_ach_rate;
-            var color = rate >= 100 ? '#059669' : (rate >= 70 ? '#d97706' : '#ef4444');
-            rateEl.textContent = rate + '%';
-            rateEl.style.color = color;
-            summaryEl.style.display = '';
-        } else {
-            summaryEl.style.display = 'none';
-        }
     }
 
     // ─── ランキング ───────────────────────────────────────────────────

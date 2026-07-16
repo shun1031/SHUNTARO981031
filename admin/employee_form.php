@@ -589,15 +589,11 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <?php if ($adminUserAccount): ?>
                         <div class="col-md-2 d-flex align-items-end">
-                            <form method="post" class="w-100" onsubmit="return confirm('<?= $adminUserAccount['is_active'] ? '管理者権限を取り消しますか？このユーザーは管理者画面にアクセスできなくなります。' : '管理者権限を再付与しますか？' ?>')">
-                                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
-                                <input type="hidden" name="action" value="toggle_admin_account">
-                                <input type="hidden" name="admin_user_id" value="<?= $adminUserAccount['id'] ?>">
-                                <button type="submit" class="btn btn-sm w-100 <?= $adminUserAccount['is_active'] ? 'btn-outline-danger' : 'btn-outline-success' ?>">
-                                    <i class="bi bi-<?= $adminUserAccount['is_active'] ? 'x-circle' : 'check-circle' ?> me-1"></i>
-                                    <?= $adminUserAccount['is_active'] ? '権限取り消し' : '権限再付与' ?>
-                                </button>
-                            </form>
+                            <!-- フォームの入れ子は不可のため、外部フォーム(adminToggleForm)をform属性で参照 -->
+                            <button type="submit" form="adminToggleForm" class="btn btn-sm w-100 <?= $adminUserAccount['is_active'] ? 'btn-outline-danger' : 'btn-outline-success' ?>">
+                                <i class="bi bi-<?= $adminUserAccount['is_active'] ? 'x-circle' : 'check-circle' ?> me-1"></i>
+                                <?= $adminUserAccount['is_active'] ? '権限取り消し' : '権限再付与' ?>
+                            </button>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -612,6 +608,15 @@ require_once __DIR__ . '/../includes/header.php';
                     <a href="employees.php" class="btn btn-secondary ms-2">キャンセル</a>
                 </div>
             </form>
+
+            <?php if ((isCompanyAdmin() || isSuperAdmin()) && $adminUserAccount): ?>
+            <!-- 管理者権限 有効/無効切り替え（メインフォームの外に配置） -->
+            <form method="post" id="adminToggleForm" onsubmit="return confirm('<?= $adminUserAccount['is_active'] ? '管理者権限を取り消しますか？このユーザーは管理者画面にアクセスできなくなります。' : '管理者権限を再付与しますか？' ?>')">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="action" value="toggle_admin_account">
+                <input type="hidden" name="admin_user_id" value="<?= $adminUserAccount['id'] ?>">
+            </form>
+            <?php endif; ?>
         </div>
     </div>
 

@@ -39,7 +39,7 @@ function generateUniqueUsername(PDO $db): string {
 }
 
 $errors = [];
-$values = ['name' => '', 'name_kana' => '', 'phone' => '', 'birth_date' => '', 'email' => ''];
+$values = ['name' => '', 'name_kana' => '', 'phone' => '', 'birth_date' => '', 'affiliation_company' => '', 'email' => ''];
 
 if (!$successInfo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -51,6 +51,7 @@ if (!$successInfo && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $values['name_kana']  = trim($_POST['name_kana'] ?? '');
         $values['phone']      = trim($_POST['phone'] ?? '');
         $values['birth_date'] = trim($_POST['birth_date'] ?? '');
+        $values['affiliation_company'] = trim($_POST['affiliation_company'] ?? '');
         $values['email']      = trim($_POST['email'] ?? '');
         $password             = $_POST['password'] ?? '';
 
@@ -76,6 +77,11 @@ if (!$successInfo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!checkdate($m, $d, $y)) {
                 $errors['birth_date'] = '生年月日が正しい日付ではありません';
             }
+        }
+
+        // 所属会社: 必須
+        if ($values['affiliation_company'] === '') {
+            $errors['affiliation_company'] = '所属会社を入力してください';
         }
 
         // メールアドレス: 必須 + gmailのみ
@@ -107,8 +113,8 @@ if (!$successInfo && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $birthDateForDb = substr($values['birth_date'], 0, 4) . '-' . substr($values['birth_date'], 4, 2) . '-' . substr($values['birth_date'], 6, 2);
 
-                $stmt = $db->prepare('INSERT INTO employees (company_id, name, name_kana, phone, birth_date, email, is_active) VALUES (?,?,?,?,?,?,1)');
-                $stmt->execute([$company['id'], $values['name'], $values['name_kana'], $values['phone'], $birthDateForDb, $values['email']]);
+                $stmt = $db->prepare('INSERT INTO employees (company_id, name, name_kana, phone, birth_date, affiliation_company, email, is_active) VALUES (?,?,?,?,?,?,?,1)');
+                $stmt->execute([$company['id'], $values['name'], $values['name_kana'], $values['phone'], $birthDateForDb, $values['affiliation_company'], $values['email']]);
                 $employeeId = (int)$db->lastInsertId();
 
                 $username = generateUniqueUsername($db);
@@ -251,6 +257,14 @@ $csrf = getCsrfToken();
                                value="<?= h($values['birth_date']) ?>" inputmode="numeric" maxlength="8" placeholder="例: 19900101" required>
                         <?php if (isset($errors['birth_date'])): ?><div class="field-error"><?= h($errors['birth_date']) ?></div><?php endif; ?>
                     </div>
+                </div>
+
+                <div class="mb-1 mt-2">
+                    <label class="form-label fw-semibold">所属会社</label>
+                    <input type="text" name="affiliation_company" class="form-control <?= isset($errors['affiliation_company']) ? 'is-invalid' : '' ?>"
+                           value="<?= h($values['affiliation_company']) ?>" maxlength="150" required>
+                    <div class="form-text" style="font-size:.75rem"><i class="bi bi-info-circle me-1"></i>正式名称で入力してください。例　株式会社LiberTeen</div>
+                    <?php if (isset($errors['affiliation_company'])): ?><div class="field-error"><?= h($errors['affiliation_company']) ?></div><?php endif; ?>
                 </div>
 
                 <div class="mb-1 mt-2">

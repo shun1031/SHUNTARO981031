@@ -147,6 +147,9 @@ $migrations = [
     "ALTER TABLE employees ADD COLUMN employment_type VARCHAR(30) DEFAULT NULL",
     "ALTER TABLE employees ADD COLUMN employment_subtype VARCHAR(30) DEFAULT NULL",
 
+    // ---- employees: 所属会社カラム ----
+    "ALTER TABLE employees ADD COLUMN affiliation_company VARCHAR(150) DEFAULT NULL COMMENT '所属会社'",
+
     // ---- store_monthly_budgets: 店舗予算（月次）テーブル ----
     "CREATE TABLE IF NOT EXISTS store_monthly_budgets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_name VARCHAR(100) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, budget_detail TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smb (company_id, employee_name, year, month), INDEX idx_smb_emp (company_id, employee_name, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

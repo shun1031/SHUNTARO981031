@@ -91,6 +91,21 @@ $fyRevMap = [];
 foreach ($fyCasesStmt->fetchAll() as $r) {
     $fyRevMap[$r['case_year']][$r['case_month']] = ['rev' => (int)$r['rev'], 'profit' => (int)$r['profit']];
 }
+// 前年同月売上（総合ダッシュボードの月別売上テーブル用: 前年度 Sep(Y-2)〜Aug(Y-1)）
+$fyPrevRevMap = [];
+if (!$caseTypeFilter) {
+    $fyPrevStmt = $fyDb->prepare("
+        SELECT case_year, case_month, COALESCE(SUM(revenue),0) AS rev
+        FROM sales_cases
+        WHERE company_id = ? AND status != '終了'
+          AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+        GROUP BY case_year, case_month
+    ");
+    $fyPrevStmt->execute([$cid, $year-2, $year-1]);
+    foreach ($fyPrevStmt->fetchAll() as $r) {
+        $fyPrevRevMap[$r['case_year']][$r['case_month']] = (int)$r['rev'];
+    }
+}
 // 月別売上・粗利（常勤/イベント別）
 $fyTypeStmt = $fyDb->prepare("
     SELECT case_year, case_month, case_type,
@@ -645,6 +660,36 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end fw-bold table-secondary <?= $fyAch >= 100 ? 'text-success' : ($fyAch >= 80 ? 'text-primary' : ($fyAch >= 50 ? 'text-warning' : ($fyAch > 0 ? 'text-danger' : 'text-muted'))) ?>"><?= $fyAch > 0 ? $fyAch . '%' : '-' ?></td>
                         </tr>
+                        <?php if (!$caseTypeFilter): ?>
+                        <?php
+                        // 前年同月売上・前年同月比（総合ダッシュボードのみ）
+                        $fyTotalPrevRev = 0;
+                        foreach ($fyMonths as $fm) {
+                            $fyTotalPrevRev += $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0;
+                        }
+                        $fyTotalYoy = ($fyTotalPrevRev > 0 && $fyTotalRev > 0) ? round($fyTotalRev / $fyTotalPrevRev * 100, 1) : null;
+                        ?>
+                        <!-- 前年同月売上 -->
+                        <tr>
+                            <td class="fw-semibold fy-label">前年同月売上</td>
+                            <?php foreach ($fyMonths as $i => $fm): $prevRev = $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0; ?>
+                            <td class="text-end <?= $prevRev > 0 ? '' : 'text-muted' ?>"><?= $prevRev > 0 ? number_format($prevRev) : '-' ?></td>
+                            <?php endforeach; ?>
+                            <td class="text-end fw-bold table-secondary"><?= $fyTotalPrevRev > 0 ? number_format($fyTotalPrevRev) : '-' ?></td>
+                        </tr>
+                        <!-- 前年同月比 -->
+                        <tr class="table-light">
+                            <td class="text-muted fy-label">前年同月比</td>
+                            <?php foreach ($fyMonths as $i => $fm):
+                                $d = $fyRowData[$i];
+                                $prevRev = $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0;
+                                $yoy = ($prevRev > 0 && $d['rev'] > 0) ? round($d['rev'] / $prevRev * 100, 1) : null;
+                            ?>
+                            <td class="text-end text-muted"><?= $yoy !== null ? $yoy . '%' : '-' ?></td>
+                            <?php endforeach; ?>
+                            <td class="text-end table-secondary text-muted"><?= $fyTotalYoy !== null ? $fyTotalYoy . '%' : '-' ?></td>
+                        </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>

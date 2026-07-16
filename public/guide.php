@@ -266,7 +266,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <table class="table table-bordered">
                     <thead class="table-dark"><tr><th style="width:50px">順</th><th>作業</th><th>画面</th><th>説明</th></tr></thead>
                     <tbody>
-                        <tr><td class="text-center fw-bold">1</td><td>社員を登録</td><td>管理画面 → 社員管理</td><td>CSVインポートまたは1人ずつ登録</td></tr>
+                        <tr><td class="text-center fw-bold">1</td><td>社員を登録</td><td>社員一覧 → 社員を追加</td><td>新規ユーザー登録または管理者が登録</td></tr>
                         <tr><td class="text-center fw-bold">2</td><td>ログインアカウント作成</td><td>管理画面 → ユーザー管理</td><td>社員にユーザーID/パスワードを発行</td></tr>
                         <tr><td class="text-center fw-bold">3</td><td>チームを作成</td><td>管理画面 → チーム管理</td><td>チームを作りメンバーを割り当て</td></tr>
                         <tr><td class="text-center fw-bold">4</td><td>社員にSF/SPI受検を依頼</td><td>各社員がログイン → 分析</td><td>受検完了でAI分析が自動生成</td></tr>
@@ -285,7 +285,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="row">
                 <div class="col-md-6">
                     <h6>社員管理</h6>
-                    <p>管理画面 → <a href="<?= BASE_PATH ?>/admin/employees.php">社員管理</a></p>
+                    <p><a href="<?= BASE_PATH ?>/public/employees.php">社員一覧</a></p>
                     <ul>
                         <li>社員の追加・編集・削除（非表示/完全削除を選択可）</li>
                         <li>CSVインポートで一括登録</li>

@@ -21,7 +21,7 @@ if (isEmployee()) {
 
 $employee = $id ? getEmployee($id, $cid) : null;
 if ($id && !$employee) {
-    redirect(BASE_PATH . '/admin/employees.php');
+    redirect(BASE_PATH . '/public/employees.php');
 }
 
 $sfData   = $id ? getStrengthsFinder($id) : null;
@@ -357,8 +357,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="container-fluid">
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="index.php">管理</a></li>
-            <li class="breadcrumb-item"><a href="employees.php">社員管理</a></li>
+            <li class="breadcrumb-item"><a href="<?= BASE_PATH ?>/public/employees.php">社員一覧</a></li>
             <li class="breadcrumb-item active"><?= h($pageTitle) ?></li>
         </ol>
     </nav>
@@ -594,7 +593,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save me-1"></i>保存する
                     </button>
-                    <a href="employees.php" class="btn btn-secondary ms-2">キャンセル</a>
+                    <a href="<?= BASE_PATH ?>/public/employees.php" class="btn btn-secondary ms-2">キャンセル</a>
                 </div>
             </form>
 

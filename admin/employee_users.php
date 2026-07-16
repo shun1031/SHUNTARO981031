@@ -212,8 +212,7 @@ require_once __DIR__ . '/../includes/header.php';
     <i class="bi bi-exclamation-triangle me-2"></i><strong>この会社にはまだ社員が登録されていません。</strong><br>
     ユーザーアカウントを作成するには、まず社員を登録してください。
     <div class="mt-2">
-        <a href="employees.php<?= isSuperAdmin() ? '?company_id=' . $cid : '' ?>" class="btn btn-sm btn-warning"><i class="bi bi-person-plus me-1"></i>社員を登録する</a>
-        <a href="employee_form.php" class="btn btn-sm btn-outline-warning ms-2"><i class="bi bi-plus me-1"></i>新規社員登録</a>
+        <a href="employee_form.php" class="btn btn-sm btn-warning"><i class="bi bi-person-plus me-1"></i>新規社員登録</a>
     </div>
 </div>
 <?php endif; ?>

@@ -454,19 +454,19 @@ require_once __DIR__ . '/../includes/header.php';
                     <!-- 雇用形態 -->
                     <div class="col-md-3">
                         <label class="form-label">雇用形態</label>
-                        <select name="employment_type" id="empType" class="form-select" onchange="toggleSubtype()">
+                        <?php
+                        // 旧データ互換: 自社+区分 を新選択肢へ読み替え
+                        if ($empType === '自社') {
+                            $empType = $empSubtype === '外注' ? '自社外注' : ($empSubtype === 'アルバイト' ? 'アルバイト' : '正社員');
+                        }
+                        ?>
+                        <select name="employment_type" id="empType" class="form-select">
                             <option value="">未選択</option>
-                            <option value="自社" <?= $empType === '自社' ? 'selected' : '' ?>>自社</option>
+                            <option value="正社員" <?= $empType === '正社員' ? 'selected' : '' ?>>正社員</option>
+                            <option value="自社外注" <?= $empType === '自社外注' ? 'selected' : '' ?>>自社外注</option>
+                            <option value="個人外注" <?= $empType === '個人外注' ? 'selected' : '' ?>>個人外注</option>
                             <option value="アライアンス" <?= $empType === 'アライアンス' ? 'selected' : '' ?>>アライアンス</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3" id="subtypeGroup" style="display:<?= $empType === '自社' ? 'block' : 'none' ?>">
-                        <label class="form-label">区分</label>
-                        <select name="employment_subtype" id="empSubtype" class="form-select">
-                            <option value="">未選択</option>
-                            <option value="社員" <?= $empSubtype === '社員' ? 'selected' : '' ?>>社員</option>
-                            <option value="外注" <?= $empSubtype === '外注' ? 'selected' : '' ?>>外注</option>
-                            <option value="アルバイト" <?= $empSubtype === 'アルバイト' ? 'selected' : '' ?>>アルバイト</option>
+                            <option value="アルバイト" <?= $empType === 'アルバイト' ? 'selected' : '' ?>>アルバイト</option>
                         </select>
                     </div>
 
@@ -944,15 +944,6 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 $inlineJs = <<<'JS2'
-function toggleSubtype() {
-    var type = document.getElementById('empType').value;
-    var grp  = document.getElementById('subtypeGroup');
-    if (grp) grp.style.display = type === '自社' ? 'block' : 'none';
-    if (type !== '自社') {
-        var sub = document.getElementById('empSubtype');
-        if (sub) sub.value = '';
-    }
-}
 function genPw(fieldId) {
     var c = 'abcdefghijkmnpqrstuvwxyz23456789', p = '';
     for (var i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)];

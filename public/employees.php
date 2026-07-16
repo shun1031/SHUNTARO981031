@@ -51,12 +51,23 @@ $employees = $stmt->fetchAll();
 
 $sfThemes = getStrengthsThemeDefinitions();
 
-// 社員区分の判定（表示フィルタ用。既存データ・機能には影響しない）
+// 社員区分の判定（雇用形態の選択肢と対応。表示フィルタ用）
 function empCategory(array $e): string {
     $t = $e['employment_type'] ?? '';
     $s = $e['employment_subtype'] ?? '';
-    if ($t === 'アライアンス') return 'alliance';
-    if ($s === '外注') return ($t === '自社') ? 'inhouse_out' : 'personal_out';
+    switch ($t) {
+        case '正社員':     return 'seishain';
+        case '自社外注':   return 'inhouse_out';
+        case '個人外注':   return 'personal_out';
+        case 'アライアンス': return 'alliance';
+        case 'アルバイト': return 'part_time';
+    }
+    // 旧データ互換（自社+区分）
+    if ($t === '自社') {
+        if ($s === '外注')       return 'inhouse_out';
+        if ($s === 'アルバイト') return 'part_time';
+        return 'seishain';
+    }
     return 'seishain';
 }
 
@@ -111,7 +122,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <li><button type="button" class="active" data-cat="seishain"><i class="bi bi-person-fill"></i>正社員</button></li>
                 <li><button type="button" data-cat="inhouse_out"><i class="bi bi-building-gear"></i>自社外注</button></li>
                 <li><button type="button" data-cat="personal_out"><i class="bi bi-person-badge"></i>個人外注</button></li>
-                <li><button type="button" data-cat="alliance"><i class="bi bi-people"></i>アライアンスその他</button></li>
+                <li><button type="button" data-cat="alliance"><i class="bi bi-people"></i>アライアンス</button></li>
+                <li><button type="button" data-cat="part_time"><i class="bi bi-clock-history"></i>アルバイト</button></li>
             </ul>
         </div>
     </div>

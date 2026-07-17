@@ -220,12 +220,12 @@ var ES_SECTIONS = [
     { title: '勤怠項目', items: [
         { key:'work_days',               label:'出勤日数',       type:'input', unit:'日',   step:'0.01' },
         { key:'absence_days',            label:'欠勤日数',       type:'input', unit:'日',   step:'0.01' },
-        { key:'paid_overtime_hours',     label:'有給残業時間',   type:'input', unit:'時間', step:'0.01' },
+        { key:'paid_overtime_hours',     label:'普通残業時間',   type:'input', unit:'時間', step:'0.01' },
         { key:'midnight_overtime_hours', label:'深夜残業時間',   type:'input', unit:'時間', step:'0.01' },
         { key:'holiday_work_hours',      label:'休日出勤時間',   type:'input', unit:'時間', step:'0.01' },
         { key:'holiday_midnight_hours',  label:'休日深夜時間',   type:'input', unit:'時間', step:'0.01' },
         { key:'late_early_hours',        label:'遅刻・早退時間', type:'input', unit:'時間', step:'0.01' },
-        { key:'working_days',            label:'勤務日数',       type:'input', unit:'日',   step:'0.01' },
+        { key:'working_days',            label:'勤務時間',       type:'input', unit:'時間', step:'0.01' },
     ]},
     { title: '支給項目', items: [
         { key:'base_pay',                 label:'基本給',             type:'input', unit:'円' },

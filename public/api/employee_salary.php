@@ -197,12 +197,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'ocr') {
 【勤怠】
 "work_days": 出勤日数,
 "absence_days": 欠勤日数,
-"paid_overtime_hours": 有給残業時間（明細の「普通残業時間」）,
+"paid_overtime_hours": 普通残業時間,
 "midnight_overtime_hours": 深夜残業時間,
 "holiday_work_hours": 休日出勤時間,
 "holiday_midnight_hours": 休日深夜時間,
 "late_early_hours": 遅刻早退時間,
-"working_days": 勤務日数（明細の「勤務時間」）,
+"working_days": 勤務時間,
 
 【支給】
 "base_pay": 基本給,

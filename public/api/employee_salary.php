@@ -134,6 +134,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($action === 'data' || $action === '
     exit;
 }
 
+// ─── AI読み取り（給与明細画像 → 各項目を自動抽出） ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'ocr') {
+    if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'CSRF']); exit; }
+    $apiKey = getenv('ANTHROPIC_API_KEY') ?: '';
+    if ($apiKey === '') {
+        echo json_encode(['error' => 'AI読み取りが未設定です。環境変数 ANTHROPIC_API_KEY を設定してください。手入力は可能です。']);
+        exit;
+    }
+    if (empty($_FILES['slip']['tmp_name']) || !is_uploaded_file($_FILES['slip']['tmp_name'])) {
+        echo json_encode(['error' => 'ファイルがありません']); exit;
+    }
+    $mime = mime_content_type($_FILES['slip']['tmp_name']) ?: '';
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
+        echo json_encode(['error' => '画像はJPG/PNG/PDFのみ対応です']); exit;
+    }
+    if ($_FILES['slip']['size'] > 8 * 1024 * 1024) { echo json_encode(['error' => 'ファイルサイズは8MB以内にしてください']); exit; }
+
+    $b64 = base64_encode(file_get_contents($_FILES['slip']['tmp_name']));
+    if ($mime === 'application/pdf') {
+        $fileBlock = ['type' => 'document', 'source' => ['type' => 'base64', 'media_type' => 'application/pdf', 'data' => $b64]];
+    } else {
+        $fileBlock = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $b64]];
+    }
+
+    $prompt = <<<'PROMPT'
+これは日本の給与明細書です。以下の項目を読み取り、JSONのみを出力してください（説明文・コードフェンス不要）。
+金額は整数（円、カンマなし）。明細に存在しない項目は0にしてください。
+
+{
+  "base_pay": 基本給,
+  "position_allowance": 役職手当,
+  "overtime_allowance": 残業手当（時間外手当含む）,
+  "commute_allowance": 通勤手当,
+  "other_allowance": その他手当の合計,
+  "health_insurance": 健康保険,
+  "pension": 厚生年金,
+  "employment_insurance": 雇用保険,
+  "income_tax": 所得税,
+  "resident_tax": 住民税,
+  "other_deduction": その他控除の合計,
+  "employee_name": "氏名（読み取れた場合。なければ空文字）",
+  "pay_year": 支給年（西暦、読み取れなければ0）,
+  "pay_month": 支給月（読み取れなければ0）,
+  "uncertain_fields": ["読み取りに自信がない項目のキー名"]
+}
+PROMPT;
+
+    $payload = json_encode([
+        'model' => 'claude-sonnet-5',
+        'max_tokens' => 1024,
+        'messages' => [[
+            'role' => 'user',
+            'content' => [$fileBlock, ['type' => 'text', 'text' => $prompt]],
+        ]],
+    ], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init('https://api.anthropic.com/v1/messages');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 90,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'x-api-key: ' . $apiKey,
+            'anthropic-version: 2023-06-01',
+        ],
+    ]);
+    $resBody = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($resBody === false) {
+        error_log('[employee_salary ocr] curl error: ' . $curlErr);
+        echo json_encode(['error' => 'AI読み取りの通信に失敗しました']); exit;
+    }
+    $res = json_decode($resBody, true);
+    if ($httpCode !== 200 || empty($res['content'][0]['text'])) {
+        error_log('[employee_salary ocr] API error http=' . $httpCode . ' body=' . substr($resBody, 0, 300));
+        echo json_encode(['error' => 'AI読み取りに失敗しました（' . ($res['error']['message'] ?? 'APIエラー') . '）']); exit;
+    }
+
+    $text = trim($res['content'][0]['text']);
+    // コードフェンスが付いていた場合は除去
+    $text = preg_replace('/^```(?:json)?\s*|\s*```$/s', '', $text);
+    $parsed = json_decode($text, true);
+    if (!is_array($parsed)) {
+        error_log('[employee_salary ocr] parse failed: ' . substr($text, 0, 300));
+        echo json_encode(['error' => 'AI読み取り結果の解析に失敗しました。手入力してください。']); exit;
+    }
+
+    $fields = [];
+    foreach (array_merge($PAY_FIELDS, $DED_FIELDS) as $f) {
+        $fields[$f] = max(0, (int)($parsed[$f] ?? 0));
+    }
+    echo json_encode([
+        'success' => true,
+        'fields'  => $fields,
+        'employee_name' => (string)($parsed['employee_name'] ?? ''),
+        'pay_year'  => (int)($parsed['pay_year'] ?? 0),
+        'pay_month' => (int)($parsed['pay_month'] ?? 0),
+        'uncertain_fields' => array_values(array_filter((array)($parsed['uncertain_fields'] ?? []), 'is_string')),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ─── 保存 ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save') {
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'CSRF']); exit; }

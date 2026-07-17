@@ -108,8 +108,10 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('esSlipFile').click()">再アップロード</button>
                         </div>
                     </div>
+                    <div id="esOcrStatus" class="mt-3" style="display:none"></div>
+                    <div id="esOcrWarn" class="mt-2" style="display:none"></div>
                     <div class="alert alert-secondary py-2 small mt-3 mb-0" style="font-size:.72rem">
-                        <i class="bi bi-lightbulb me-1"></i>アップロードした明細を見ながら右の項目を入力し、必ず内容をご確認の上、保存してください。
+                        <i class="bi bi-lightbulb me-1"></i>AIが自動で給与明細の内容を読み取りますが、誤認識する場合があります。必ず内容をご確認の上、保存してください。
                     </div>
                 </div>
             </div>
@@ -405,6 +407,66 @@ function esRecalc() {
     document.getElementById('esNetPay').innerHTML   = esFmt(pay - ded) + ' <span class="text-muted small">円</span>';
 }
 
+/* ---------- AI読み取り ---------- */
+var FIELD_LABELS = {
+    base_pay:'基本給', position_allowance:'役職手当', overtime_allowance:'残業手当',
+    commute_allowance:'通勤手当', other_allowance:'その他手当',
+    health_insurance:'健康保険', pension:'厚生年金', employment_insurance:'雇用保険',
+    income_tax:'所得税', resident_tax:'住民税', other_deduction:'その他控除',
+};
+
+function esRunOcr(file) {
+    var status = document.getElementById('esOcrStatus');
+    var warn   = document.getElementById('esOcrWarn');
+    warn.style.display = 'none';
+    status.className = 'alert alert-info py-2 small mb-0';
+    status.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>AIが給与明細を読み取り中...';
+    status.style.display = '';
+
+    var fd = new FormData();
+    fd.append('action', 'ocr');
+    fd.append('csrf', esCsrf);
+    fd.append('slip', file);
+    fetch(ES_API, { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (!res.success) {
+                status.className = 'alert alert-warning py-2 small mb-0';
+                status.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + esH(res.error || 'AI読み取りに失敗しました');
+                return;
+            }
+            // 読み取り結果をフォームへ反映
+            document.querySelectorAll('.es-amount').forEach(function(inp) {
+                var v = res.fields[inp.dataset.field];
+                if (v !== undefined) inp.value = v > 0 ? v : '';
+                inp.classList.remove('border-warning');
+            });
+            esRecalc();
+            status.className = 'alert alert-success py-2 small mb-0';
+            status.innerHTML = '<i class="bi bi-check-circle me-1"></i>自動読み取り完了 — 内容を確認してください';
+            // 確認が必要な項目
+            var unc = res.uncertain_fields || [];
+            if (unc.length) {
+                var items = '';
+                unc.forEach(function(k) {
+                    if (!FIELD_LABELS[k]) return;
+                    items += '<li>' + esH(FIELD_LABELS[k]) + '：金額の確認が必要です</li>';
+                    var inp = document.querySelector('.es-amount[data-field="' + k + '"]');
+                    if (inp) inp.classList.add('border-warning');
+                });
+                if (items) {
+                    warn.className = 'alert alert-warning py-2 small mb-0';
+                    warn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>確認が必要な項目（' + unc.length + '件）<ul class="mb-0 mt-1">' + items + '</ul>';
+                    warn.style.display = '';
+                }
+            }
+        })
+        .catch(function() {
+            status.className = 'alert alert-warning py-2 small mb-0';
+            status.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>AI読み取りの通信に失敗しました。手入力してください。';
+        });
+}
+
 /* ---------- 保存 ---------- */
 function esSave() {
     if (!esCurEmp) return;
@@ -478,6 +540,8 @@ document.addEventListener('DOMContentLoaded', function() {
             img.src = URL.createObjectURL(f);
             wrap.style.display = '';
         }
+        // AI自動読み取りを実行
+        esRunOcr(f);
     });
     // 1人しかいない場合は自動選択
     if (esEmployees.length === 1) {

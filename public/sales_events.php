@@ -174,6 +174,23 @@ $brands = getSalesStoreBrands($cid);
 $areas = getSalesAreas($cid);
 $workers = getSalesWorkers($cid);
 
+// フィルタ用: 現在取引中（表示中の年月に有効な案件がある）取引先のみ
+$_acSql = "SELECT DISTINCT client_id FROM sales_cases WHERE company_id=? AND case_type='event' AND case_year=? AND status NOT IN ('cancelled','終了') AND client_id IS NOT NULL";
+$_acParams = [$cid, $year];
+if ($month) { $_acSql .= ' AND case_month=?'; $_acParams[] = (int)$month; }
+$_acStmt = $db->prepare($_acSql);
+$_acStmt->execute($_acParams);
+$_activeClientIds = array_map('intval', $_acStmt->fetchAll(PDO::FETCH_COLUMN));
+$activeClients = array_values(array_filter($clients, fn($cl) => in_array((int)$cl['id'], $_activeClientIds, true)));
+
+// フィルタ用プルダウンHTML（初期表示・AJAX更新で共用）
+ob_start();
+echo '<option value="">全取引先</option>';
+foreach ($activeClients as $cl) {
+    echo '<option value="' . (int)$cl['id'] . '"' . (($_GET['client_id'] ?? '') == $cl['id'] ? ' selected' : '') . '>' . h($cl['client_name']) . '</option>';
+}
+$clientOptionsHtml = ob_get_clean();
+
 // 屋号・店舗名の選択肢（過去のDB値）
 $_tns = $db->prepare("SELECT DISTINCT trade_name FROM sales_cases WHERE company_id=? AND case_type='event' AND trade_name IS NOT NULL AND trade_name != '' ORDER BY trade_name");
 $_tns->execute([$cid]);
@@ -276,6 +293,7 @@ if (!empty($_GET['ajax'])) {
         'tfoot'      => $tfootHtml,
         'pagination' => $paginationHtml,
         'total'      => $totalCount,
+        'client_options' => $clientOptionsHtml,
     ]);
     exit;
 }
@@ -335,12 +353,7 @@ require_once __DIR__ . '/../includes/header.php';
     <form id="salesFilterForm" class="sales-filters">
         <input type="hidden" name="year" value="<?= $dispYear ?>">
         <input type="hidden" name="month" value="<?= $dispMonth ?>">
-        <select name="client_id" class="form-select">
-            <option value="">全取引先</option>
-            <?php foreach ($clients as $cl): ?>
-            <option value="<?= $cl['id'] ?>" <?= ($_GET['client_id'] ?? '') == $cl['id'] ? 'selected' : '' ?>><?= h($cl['client_name']) ?></option>
-            <?php endforeach; ?>
-        </select>
+        <select name="client_id" class="form-select"><?= $clientOptionsHtml ?></select>
         <select name="worker_type" class="form-select">
             <option value="">全区分</option>
             <?php foreach (['正社員','自社外注','アライアンス','個人外注','アルバイト'] as $wt): ?>
@@ -591,6 +604,20 @@ function fetchCases() {
             if (tfoot) tfoot.innerHTML = data.tfoot;
             var pgWrap = document.getElementById('paginationWrapper');
             if (pgWrap) pgWrap.innerHTML = data.pagination;
+            // 取引先プルダウンを現在取引中の会社のみに更新
+            if (data.client_options !== undefined) {
+                var clientSel = document.querySelector('#salesFilterForm select[name="client_id"]');
+                if (clientSel) {
+                    var cur = clientSel.value;
+                    clientSel.innerHTML = data.client_options;
+                    if (cur && !clientSel.querySelector('option[value="' + cur + '"]')) {
+                        clientSel.value = '';
+                        fetchCases(); // 選択中の取引先が取引終了になった場合は全取引先に戻して再取得
+                    } else {
+                        clientSel.value = cur;
+                    }
+                }
+            }
         });
 }
 (function() {

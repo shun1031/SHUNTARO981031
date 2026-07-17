@@ -150,6 +150,9 @@ $migrations = [
     // ---- employees: 所属会社カラム ----
     "ALTER TABLE employees ADD COLUMN affiliation_company VARCHAR(150) DEFAULT NULL COMMENT '所属会社'",
 
+    // ---- employee_salaries: 正社員給与管理テーブル ----
+    "CREATE TABLE IF NOT EXISTS employee_salaries (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_id INT NOT NULL, pay_year SMALLINT NOT NULL, pay_month TINYINT NOT NULL, base_pay INT NOT NULL DEFAULT 0, position_allowance INT NOT NULL DEFAULT 0, overtime_allowance INT NOT NULL DEFAULT 0, commute_allowance INT NOT NULL DEFAULT 0, other_allowance INT NOT NULL DEFAULT 0, health_insurance INT NOT NULL DEFAULT 0, pension INT NOT NULL DEFAULT 0, employment_insurance INT NOT NULL DEFAULT 0, income_tax INT NOT NULL DEFAULT 0, resident_tax INT NOT NULL DEFAULT 0, other_deduction INT NOT NULL DEFAULT 0, slip_image LONGBLOB DEFAULT NULL, slip_mime VARCHAR(50) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_es (company_id, employee_id, pay_year, pay_month), INDEX idx_es_month (company_id, pay_year, pay_month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     // ---- employees: 雇用形態の旧値（自社+区分）を新選択肢へ変換 ----
     "UPDATE employees SET employment_type='自社外注' WHERE employment_type='自社' AND employment_subtype='外注'",
     "UPDATE employees SET employment_type='アルバイト' WHERE employment_type='自社' AND employment_subtype='アルバイト'",

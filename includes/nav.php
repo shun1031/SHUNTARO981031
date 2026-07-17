@@ -81,6 +81,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/invoice_management.php', 'bi-receipt', '請求書管理', $currentPage === 'invoice_management') ?>
         <?= navLink(BASE_PATH . '/admin/change_requests.php', 'bi-inbox', '各種申請', $currentDir === 'admin' && $currentPage === 'change_requests', ($n = countPendingChangeRequests(getCompanyId() ?? 0)) ? (string)$n : '') ?>
         <?= navLink(BASE_PATH . '/public/salary.php', 'bi-cash-stack', '給与管理', $currentPage === 'salary') ?>
+        <?= navLink(BASE_PATH . '/public/employee_salary.php', 'bi-wallet2', '正社員給与管理', $currentPage === 'employee_salary') ?>
         <?= navLink(BASE_PATH . '/public/sga_management.php', 'bi-receipt-cutoff', '支出管理', $currentPage === 'sga_management') ?>
         <?= navLink(BASE_PATH . '/public/employees.php', 'bi-person-lines-fill', '社員一覧', $currentPage === 'employees' && $currentDir === 'public') ?>
 

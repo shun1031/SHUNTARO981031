@@ -56,7 +56,6 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-filetype-pdf me-1"></i>PDF保存</button>
-                <a href="<?= BASE_PATH ?>/public/salary.php" class="btn btn-outline-secondary btn-sm">給与一覧に戻る</a>
             </div>
         </div>
     </div>

@@ -132,12 +132,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-body">
                     <!-- 従業員情報 -->
                     <div class="border rounded p-2 mb-3" style="background:#f9fafb">
-                        <div class="fw-semibold small mb-2" style="color:#2563eb">従業員情報 <span class="text-muted fw-normal" style="font-size:.68rem">（社員マスターと自動紐付け）</span></div>
+                        <div class="fw-semibold small mb-2" style="color:#2563eb">従業員情報</div>
                         <div class="row g-1" style="font-size:.8rem">
                             <div class="col-6"><span class="text-muted me-2">会社名</span><span class="fw-semibold" id="esInfoCompany">-</span></div>
-                            <div class="col-6"><span class="text-muted me-2">部門名</span><span id="esInfoDept">-</span></div>
-                            <div class="col-6"><span class="text-muted me-2">氏名</span><span class="fw-semibold" id="esInfoName">-</span></div>
                             <div class="col-6"><span class="text-muted me-2">支給年月</span><span class="fw-semibold" id="esInfoMonth">-</span></div>
+                            <div class="col-6"><span class="text-muted me-2">氏名</span><span class="fw-semibold" id="esInfoName">-</span></div>
                         </div>
                     </div>
 
@@ -373,7 +372,6 @@ function esLoad() {
 
 function esRenderInfo(emp) {
     document.getElementById('esInfoCompany').textContent = emp.company_name || '-';
-    document.getElementById('esInfoDept').textContent    = emp.department || '-';
     document.getElementById('esInfoName').textContent    = emp.name || '-';
     document.getElementById('esInfoMonth').textContent   = esYear + '年' + String(esMonth).padStart(2, '0') + '月';
 }

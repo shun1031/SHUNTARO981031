@@ -16,7 +16,7 @@ $month = (int)($_GET['month'] ?? date('n'));
 $db = getDB();
 
 // 正社員のみ取得（社員一覧の正社員タブと同一判定）
-$empStmt = $db->prepare('SELECT id, name, name_kana, employee_number, department, employment_type, employment_subtype, hire_date FROM employees WHERE company_id = ? AND is_active = 1 ORDER BY employee_number, name');
+$empStmt = $db->prepare('SELECT id, name, name_kana, employee_number, department, employment_type, employment_subtype FROM employees WHERE company_id = ? AND is_active = 1 ORDER BY employee_number, name');
 $empStmt->execute([$cid]);
 $seishainList = [];
 foreach ($empStmt->fetchAll(PDO::FETCH_ASSOC) as $e) {
@@ -29,21 +29,30 @@ foreach ($empStmt->fetchAll(PDO::FETCH_ASSOC) as $e) {
         'name' => $e['name'],
         'kana' => $e['name_kana'] ?? '',
         'number' => $e['employee_number'] ?? '',
-        'department' => $e['department'] ?? '',
-        'employment_type' => $e['employment_type'] ?: '正社員',
-        'hire_date' => $e['hire_date'] ?? '',
     ];
 }
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<style>
+.es-sec-title { font-size:.8rem; font-weight:700; color:#2563eb; border-bottom:2px solid #dbeafe; padding-bottom:3px; margin-bottom:8px; }
+.es-item { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.es-item .es-label { flex:0 0 108px; font-size:.74rem; color:#374151; }
+.es-item input { max-width:120px; }
+.es-item .es-unit { font-size:.7rem; color:#9ca3af; flex:0 0 24px; }
+.es-calc-row { display:flex; align-items:center; justify-content:space-between; background:#f9fafb; border-radius:.35rem; padding:4px 8px; margin-bottom:4px; }
+.es-calc-row .es-calc-label { font-size:.76rem; font-weight:600; }
+.es-calc-row .es-calc-val { font-weight:700; font-size:.9rem; }
+@media (max-width: 576px) { .es-item .es-label { flex-basis:96px; font-size:.7rem; } }
+</style>
+
 <div class="container-fluid">
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1><i class="bi bi-wallet2 me-2"></i>正社員給与管理</h1>
-                <p>給与明細をアップロードして各項目を入力・保存できます</p>
+                <p>給与明細をアップロードすると、AIが自動で各項目を読み取り入力します</p>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-filetype-pdf me-1"></i>PDF保存</button>
@@ -125,63 +134,24 @@ require_once __DIR__ . '/../includes/header.php';
                     <!-- 従業員情報 -->
                     <div class="border rounded p-2 mb-3" style="background:#f9fafb">
                         <div class="fw-semibold small mb-2" style="color:#2563eb">従業員情報 <span class="text-muted fw-normal" style="font-size:.68rem">（社員マスターと自動紐付け）</span></div>
-                        <table class="table table-sm table-borderless mb-0" style="font-size:.8rem">
-                            <tr><td class="text-muted" style="width:80px">社員名</td><td class="fw-semibold" id="esInfoName">-</td></tr>
-                            <tr><td class="text-muted">社員番号</td><td id="esInfoNumber">-</td></tr>
-                            <tr><td class="text-muted">所属</td><td id="esInfoDept">-</td></tr>
-                            <tr><td class="text-muted">雇用区分</td><td id="esInfoType">-</td></tr>
-                            <tr><td class="text-muted">入社日</td><td id="esInfoHire">-</td></tr>
-                            <tr><td class="text-muted">支給年月</td><td class="fw-semibold" id="esInfoMonth">-</td></tr>
-                        </table>
-                    </div>
-
-                    <!-- 支給項目 -->
-                    <div class="fw-semibold small mb-2" style="color:#2563eb">支給項目</div>
-                    <div class="mb-3">
-                        <?php
-                        $payItems = [
-                            'base_pay' => '基本給', 'position_allowance' => '役職手当',
-                            'overtime_allowance' => '残業手当', 'commute_allowance' => '通勤手当',
-                            'other_allowance' => 'その他手当',
-                        ];
-                        foreach ($payItems as $key => $label): ?>
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <span class="small" style="width:90px"><?= $label ?></span>
-                            <input type="number" min="0" class="form-control form-control-sm text-end es-amount es-pay" data-field="<?= $key ?>" placeholder="0" style="max-width:140px">
-                            <span class="text-muted small">円</span>
-                        </div>
-                        <?php endforeach; ?>
-                        <div class="d-flex align-items-center justify-content-between border-top pt-2 mt-2">
-                            <span class="fw-semibold small">総支給額</span>
-                            <span class="fw-bold" id="esTotalPay" style="font-size:1.05rem">0 <span class="text-muted small">円</span></span>
+                        <div class="row g-1" style="font-size:.8rem">
+                            <div class="col-6"><span class="text-muted me-2">会社名</span><span class="fw-semibold" id="esInfoCompany">-</span></div>
+                            <div class="col-6"><span class="text-muted me-2">部門名</span><span id="esInfoDept">-</span></div>
+                            <div class="col-6"><span class="text-muted me-2">氏名</span><span class="fw-semibold" id="esInfoName">-</span></div>
+                            <div class="col-6"><span class="text-muted me-2">支給年月</span><span class="fw-semibold" id="esInfoMonth">-</span></div>
                         </div>
                     </div>
 
-                    <!-- 控除項目 -->
-                    <div class="fw-semibold small mb-2" style="color:#2563eb">控除項目</div>
-                    <div class="mb-3">
-                        <?php
-                        $dedItems = [
-                            'health_insurance' => '健康保険', 'pension' => '厚生年金',
-                            'employment_insurance' => '雇用保険', 'income_tax' => '所得税',
-                            'resident_tax' => '住民税', 'other_deduction' => 'その他控除',
-                        ];
-                        foreach ($dedItems as $key => $label): ?>
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <span class="small" style="width:90px"><?= $label ?></span>
-                            <input type="number" min="0" class="form-control form-control-sm text-end es-amount es-ded" data-field="<?= $key ?>" placeholder="0" style="max-width:140px">
-                            <span class="text-muted small">円</span>
-                        </div>
-                        <?php endforeach; ?>
-                        <div class="d-flex align-items-center justify-content-between border-top pt-2 mt-2">
-                            <span class="fw-semibold small">控除合計額</span>
-                            <span class="fw-bold" id="esTotalDed" style="font-size:1.05rem">0 <span class="text-muted small">円</span></span>
-                        </div>
-                    </div>
+                    <!-- 各セクション（JSで生成） -->
+                    <div id="esSections"></div>
+
+                    <!-- コメント欄 -->
+                    <div class="es-sec-title">コメント欄</div>
+                    <textarea id="esComment" class="form-control form-control-sm mb-3" rows="2" placeholder="コメント（会社からの備考）" style="font-size:.78rem"></textarea>
 
                     <!-- 差引支給額 -->
                     <div class="d-flex align-items-center justify-content-between rounded p-2 mb-3" style="background:#eff6ff">
-                        <span class="fw-bold">差引支給額</span>
+                        <span class="fw-bold">差引支給額（手取り）</span>
                         <span class="fw-bold" id="esNetPay" style="font-size:1.25rem;color:#2563eb">0 <span class="text-muted small">円</span></span>
                     </div>
 
@@ -242,10 +212,116 @@ $inlineJs .= 'var esCsrf = ' . json_encode(getCsrfToken()) . ';';
 $inlineJs .= 'var esEmployees = ' . json_encode($seishainList, JSON_UNESCAPED_UNICODE) . ';';
 $inlineJs .= <<<'JS'
 
-var esCurEmp = null, esYear = null, esMonth = null, esTrendChart = null, esSlipSelected = null;
+var esCurEmp = null, esYear = null, esMonth = null, esTrendChartObj = null, esSlipSelected = null;
 
-function esFmt(n) { return parseInt(n || 0).toLocaleString(); }
+/* ---------- 項目定義 ---------- */
+// type: 'input'=入力欄 / 'calc'=自動計算表示
+var ES_SECTIONS = [
+    { title: '勤怠項目', items: [
+        { key:'work_days',               label:'出勤日数',       type:'input', unit:'日',   step:'0.01' },
+        { key:'absence_days',            label:'欠勤日数',       type:'input', unit:'日',   step:'0.01' },
+        { key:'paid_overtime_hours',     label:'有給残業時間',   type:'input', unit:'時間', step:'0.01' },
+        { key:'midnight_overtime_hours', label:'深夜残業時間',   type:'input', unit:'時間', step:'0.01' },
+        { key:'holiday_work_hours',      label:'休日出勤時間',   type:'input', unit:'時間', step:'0.01' },
+        { key:'holiday_midnight_hours',  label:'休日深夜時間',   type:'input', unit:'時間', step:'0.01' },
+        { key:'late_early_hours',        label:'遅刻・早退時間', type:'input', unit:'時間', step:'0.01' },
+        { key:'working_days',            label:'勤務日数',       type:'input', unit:'日',   step:'0.01' },
+    ]},
+    { title: '支給項目', items: [
+        { key:'base_pay',                 label:'基本給',             type:'input', unit:'円' },
+        { key:'position_allowance',       label:'役職手当',           type:'input', unit:'円' },
+        { key:'skill_allowance',          label:'能力手当',           type:'input', unit:'円' },
+        { key:'fixed_overtime_allowance', label:'固定残業手当',       type:'input', unit:'円' },
+        { key:'duty_allowance',           label:'職務手当',           type:'input', unit:'円' },
+        { key:'communication_fee',        label:'通信費',             type:'input', unit:'円' },
+        { key:'management_incentive',     label:'管理インセンティブ', type:'input', unit:'円' },
+        { key:'sales_incentive',          label:'営業インセンティブ', type:'input', unit:'円' },
+        { key:'housing_allowance',        label:'家賃手当',           type:'input', unit:'円' },
+        { key:'overtime_allowance',       label:'時間外手当',         type:'input', unit:'円' },
+        { key:'work_deduction',           label:'勤務控除',           type:'input', unit:'円' },
+        { key:'commute_nontax',           label:'通勤手当（非）',     type:'input', unit:'円' },
+        { key:'commute_tax',              label:'通勤手当（課）',     type:'input', unit:'円' },
+        { key:'payment_sum',              label:'支給額合計',         type:'calc' },
+        { key:'total_payment',            label:'総支給額',           type:'calc' },
+    ]},
+    { title: '控除項目', items: [
+        { key:'health_insurance',       label:'健康保険',     type:'input', unit:'円' },
+        { key:'pension_insurance',      label:'厚生年金保険', type:'input', unit:'円' },
+        { key:'pension_fund',           label:'厚生年金基金', type:'input', unit:'円' },
+        { key:'employment_insurance',   label:'雇用保険',     type:'input', unit:'円' },
+        { key:'social_insurance_total', label:'社会保険合計', type:'calc' },
+        { key:'taxable_amount',         label:'課税対象額',   type:'input', unit:'円' },
+        { key:'income_tax',             label:'所得税',       type:'input', unit:'円' },
+        { key:'resident_tax',           label:'住民税',       type:'input', unit:'円' },
+        { key:'year_end_adjustment',    label:'年末調整',     type:'input', unit:'円' },
+        { key:'total_deduction',        label:'控除合計',     type:'calc' },
+    ]},
+    { title: '集計', items: [
+        { key:'prev_carryover',     label:'前回繰越額', type:'input', unit:'円' },
+        { key:'current_adjustment', label:'今回調整額', type:'input', unit:'円' },
+        { key:'bank_account1',      label:'振込口座1',  type:'input', unit:'円' },
+        { key:'bank_account2',      label:'振込口座2',  type:'input', unit:'円' },
+        { key:'bank_account3',      label:'振込口座3',  type:'input', unit:'円' },
+        { key:'cash_payment',       label:'現金支給額', type:'input', unit:'円' },
+    ]},
+];
+
+var ES_FIELD_LABELS = {};
+ES_SECTIONS.forEach(function(sec) { sec.items.forEach(function(it) { ES_FIELD_LABELS[it.key] = it.label; }); });
+
+function esFmt(n) { return Math.round(n || 0).toLocaleString(); }
 function esH(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ---------- セクション描画 ---------- */
+function esBuildSections() {
+    var wrap = document.getElementById('esSections');
+    var html = '';
+    ES_SECTIONS.forEach(function(sec) {
+        html += '<div class="es-sec-title">' + esH(sec.title) + '</div>';
+        html += '<div class="row g-0 mb-3">';
+        sec.items.forEach(function(it) {
+            if (it.type === 'input') {
+                html += '<div class="col-12 col-md-6"><div class="es-item">';
+                html += '<span class="es-label">' + esH(it.label) + '</span>';
+                html += '<input type="number" min="0"' + (it.step ? ' step="' + it.step + '"' : '') + ' class="form-control form-control-sm text-end es-amount" data-field="' + it.key + '" placeholder="0">';
+                html += '<span class="es-unit">' + esH(it.unit || '') + '</span>';
+                html += '</div></div>';
+            } else {
+                html += '<div class="col-12"><div class="es-calc-row">';
+                html += '<span class="es-calc-label">' + esH(it.label) + '</span>';
+                html += '<span class="es-calc-val" id="esCalc_' + it.key + '">0 <span class="text-muted small">円</span></span>';
+                html += '</div></div>';
+            }
+        });
+        html += '</div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.es-amount').forEach(function(inp) { inp.addEventListener('input', esRecalc); });
+}
+
+/* ---------- 金額計算 ---------- */
+function esVal(key) {
+    var inp = document.querySelector('.es-amount[data-field="' + key + '"]');
+    return inp ? (parseFloat(inp.value || 0) || 0) : 0;
+}
+
+function esRecalc() {
+    var payKeys = ['base_pay','position_allowance','skill_allowance','fixed_overtime_allowance','duty_allowance','communication_fee','management_incentive','sales_incentive','housing_allowance','overtime_allowance','commute_nontax','commute_tax'];
+    var pay = 0;
+    payKeys.forEach(function(k){ pay += esVal(k); });
+    pay -= esVal('work_deduction');
+    var social = esVal('health_insurance') + esVal('pension_insurance') + esVal('pension_fund') + esVal('employment_insurance');
+    var ded = social + esVal('income_tax') + esVal('resident_tax') + esVal('year_end_adjustment');
+    function setCalc(key, v) {
+        var el = document.getElementById('esCalc_' + key);
+        if (el) el.innerHTML = esFmt(v) + ' <span class="text-muted small">円</span>';
+    }
+    setCalc('payment_sum', pay);
+    setCalc('total_payment', pay);
+    setCalc('social_insurance_total', social);
+    setCalc('total_deduction', ded);
+    document.getElementById('esNetPay').innerHTML = esFmt(pay - ded) + ' <span class="text-muted small">円</span>';
+}
 
 /* ---------- 社員セレクト ---------- */
 function esBuildEmpSelect(filter) {
@@ -260,9 +336,8 @@ function esBuildEmpSelect(filter) {
     sel.innerHTML = html;
 }
 
-/* ---------- 対象年月 ---------- */
 function esGetYm() {
-    var v = document.getElementById('esMonth').value; // yyyy-mm
+    var v = document.getElementById('esMonth').value;
     if (!v) return null;
     var p = v.split('-');
     return { y: parseInt(p[0], 10), m: parseInt(p[1], 10) };
@@ -287,32 +362,34 @@ function esLoad() {
             document.getElementById('esEmptyState').style.display = 'none';
             document.getElementById('esMainRow').style.display = '';
             esRenderInfo(d.employee);
-            esRenderForm(d.salary);
+            esRenderForm(d.detail);
             esRenderCompare(d.totals, d.prev_totals);
             esRenderHistory(d.history);
             esRenderTrend(d.trend_year, d.trend);
-            esRenderSlip(d.salary);
+            esRenderSlip(d.has_slip);
             esRecalc();
         })
         .catch(function(){ alert('データの取得に失敗しました'); });
 }
 
 function esRenderInfo(emp) {
-    document.getElementById('esInfoName').textContent   = emp.name || '-';
-    document.getElementById('esInfoNumber').textContent = emp.employee_number || '-';
-    document.getElementById('esInfoDept').textContent   = emp.department || '-';
-    document.getElementById('esInfoType').textContent   = emp.employment_type || '正社員';
-    document.getElementById('esInfoHire').textContent   = emp.hire_date || '-';
-    document.getElementById('esInfoMonth').textContent  = esYear + '年' + String(esMonth).padStart(2, '0') + '月';
+    document.getElementById('esInfoCompany').textContent = emp.company_name || '-';
+    document.getElementById('esInfoDept').textContent    = emp.department || '-';
+    document.getElementById('esInfoName').textContent    = emp.name || '-';
+    document.getElementById('esInfoMonth').textContent   = esYear + '年' + String(esMonth).padStart(2, '0') + '月';
 }
 
-function esRenderForm(salary) {
+function esRenderForm(detail) {
     document.querySelectorAll('.es-amount').forEach(function(inp) {
-        var v = salary ? (salary[inp.dataset.field] || 0) : 0;
+        var v = detail ? (detail[inp.dataset.field] || 0) : 0;
         inp.value = v > 0 ? v : '';
+        inp.classList.remove('border-warning');
     });
+    document.getElementById('esComment').value = detail ? (detail.comment || '') : '';
     esSlipSelected = null;
     document.getElementById('esSlipFile').value = '';
+    document.getElementById('esOcrStatus').style.display = 'none';
+    document.getElementById('esOcrWarn').style.display = 'none';
 }
 
 function esRenderCompare(cur, prev) {
@@ -362,8 +439,8 @@ function esRenderTrend(trendYear, trend) {
     if (!ctx || typeof Chart === 'undefined') return;
     var labels = [];
     for (var i = 1; i <= 12; i++) labels.push(i + '月');
-    if (esTrendChart) esTrendChart.destroy();
-    esTrendChart = new Chart(ctx, {
+    if (esTrendChartObj) esTrendChartObj.destroy();
+    esTrendChartObj = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
@@ -385,10 +462,10 @@ function esRenderTrend(trendYear, trend) {
     });
 }
 
-function esRenderSlip(salary) {
+function esRenderSlip(hasSlip) {
     var wrap = document.getElementById('esSlipPreviewWrap');
     var img  = document.getElementById('esSlipPreview');
-    if (salary && salary.has_slip && String(salary.has_slip) !== '0') {
+    if (hasSlip) {
         img.src = ES_API + '?action=slip&employee_id=' + esCurEmp + '&year=' + esYear + '&month=' + esMonth + '&t=' + Date.now();
         wrap.style.display = '';
     } else {
@@ -397,24 +474,7 @@ function esRenderSlip(salary) {
     }
 }
 
-/* ---------- 金額計算 ---------- */
-function esRecalc() {
-    var pay = 0, ded = 0;
-    document.querySelectorAll('.es-pay').forEach(function(i){ pay += parseInt(i.value || 0, 10) || 0; });
-    document.querySelectorAll('.es-ded').forEach(function(i){ ded += parseInt(i.value || 0, 10) || 0; });
-    document.getElementById('esTotalPay').innerHTML = esFmt(pay) + ' <span class="text-muted small">円</span>';
-    document.getElementById('esTotalDed').innerHTML = esFmt(ded) + ' <span class="text-muted small">円</span>';
-    document.getElementById('esNetPay').innerHTML   = esFmt(pay - ded) + ' <span class="text-muted small">円</span>';
-}
-
 /* ---------- AI読み取り ---------- */
-var FIELD_LABELS = {
-    base_pay:'基本給', position_allowance:'役職手当', overtime_allowance:'残業手当',
-    commute_allowance:'通勤手当', other_allowance:'その他手当',
-    health_insurance:'健康保険', pension:'厚生年金', employment_insurance:'雇用保険',
-    income_tax:'所得税', resident_tax:'住民税', other_deduction:'その他控除',
-};
-
 function esRunOcr(file) {
     var status = document.getElementById('esOcrStatus');
     var warn   = document.getElementById('esOcrWarn');
@@ -435,28 +495,27 @@ function esRunOcr(file) {
                 status.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + esH(res.error || 'AI読み取りに失敗しました');
                 return;
             }
-            // 読み取り結果をフォームへ反映
             document.querySelectorAll('.es-amount').forEach(function(inp) {
                 var v = res.fields[inp.dataset.field];
                 if (v !== undefined) inp.value = v > 0 ? v : '';
                 inp.classList.remove('border-warning');
             });
+            if (res.comment) document.getElementById('esComment').value = res.comment;
             esRecalc();
             status.className = 'alert alert-success py-2 small mb-0';
             status.innerHTML = '<i class="bi bi-check-circle me-1"></i>自動読み取り完了 — 内容を確認してください';
-            // 確認が必要な項目
             var unc = res.uncertain_fields || [];
             if (unc.length) {
                 var items = '';
                 unc.forEach(function(k) {
-                    if (!FIELD_LABELS[k]) return;
-                    items += '<li>' + esH(FIELD_LABELS[k]) + '：金額の確認が必要です</li>';
+                    if (!ES_FIELD_LABELS[k]) return;
+                    items += '<li>' + esH(ES_FIELD_LABELS[k]) + '：金額の確認が必要です</li>';
                     var inp = document.querySelector('.es-amount[data-field="' + k + '"]');
                     if (inp) inp.classList.add('border-warning');
                 });
                 if (items) {
                     warn.className = 'alert alert-warning py-2 small mb-0';
-                    warn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>確認が必要な項目（' + unc.length + '件）<ul class="mb-0 mt-1">' + items + '</ul>';
+                    warn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>確認が必要な項目<ul class="mb-0 mt-1">' + items + '</ul>';
                     warn.style.display = '';
                 }
             }
@@ -474,15 +533,18 @@ function esSave() {
     var alertEl = document.getElementById('esSaveAlert');
     btn.disabled = true; btn.innerHTML = '保存中...';
     alertEl.style.display = 'none';
+    var detail = {};
+    document.querySelectorAll('.es-amount').forEach(function(inp) {
+        detail[inp.dataset.field] = inp.value !== '' ? inp.value : '0';
+    });
+    detail.comment = document.getElementById('esComment').value;
     var fd = new FormData();
     fd.append('action', 'save');
     fd.append('csrf', esCsrf);
     fd.append('employee_id', esCurEmp);
     fd.append('year', esYear);
     fd.append('month', esMonth);
-    document.querySelectorAll('.es-amount').forEach(function(inp) {
-        fd.append(inp.dataset.field, inp.value !== '' ? inp.value : '0');
-    });
+    fd.append('detail', JSON.stringify(detail));
     if (esSlipSelected) fd.append('slip', esSlipSelected);
     fetch(ES_API, { method: 'POST', body: fd })
         .then(function(r){ return r.json(); })
@@ -510,19 +572,17 @@ function esSave() {
 
 /* ---------- イベント ---------- */
 document.addEventListener('DOMContentLoaded', function() {
+    esBuildSections();
     esBuildEmpSelect('');
     document.getElementById('esEmpFilter').addEventListener('input', function(){ esBuildEmpSelect(this.value); });
     document.getElementById('esEmployee').addEventListener('change', esLoad);
     document.getElementById('esMonth').addEventListener('change', esLoad);
     document.getElementById('esTrendYear').addEventListener('change', function() {
         if (!esCurEmp) return;
-        fetch(ES_API + '?action=trend&employee_id=' + esCurEmp + '&year=' + esYear + '&month=' + esMonth + '&trend_year=' + this.value)
+        fetch(ES_API + '?action=trend&employee_id=' + esCurEmp + '&trend_year=' + this.value)
             .then(function(r){ return r.json(); })
             .then(function(d){ if (!d.error) esRenderTrend(d.trend_year, d.trend); })
             .catch(function(){});
-    });
-    document.querySelectorAll('.es-amount').forEach(function(inp) {
-        inp.addEventListener('input', esRecalc);
     });
     document.getElementById('esSaveBtn').addEventListener('click', esSave);
     document.getElementById('esCancelBtn').addEventListener('click', esLoad);
@@ -540,10 +600,8 @@ document.addEventListener('DOMContentLoaded', function() {
             img.src = URL.createObjectURL(f);
             wrap.style.display = '';
         }
-        // AI自動読み取りを実行
         esRunOcr(f);
     });
-    // 1人しかいない場合は自動選択
     if (esEmployees.length === 1) {
         document.getElementById('esEmployee').value = esEmployees[0].id;
         esLoad();

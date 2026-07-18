@@ -772,6 +772,11 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
+    <style>
+    /* 詳細ビューのランキング表: 横スクロールなしで収まるようコンパクト表示 */
+    .pie-rank-table th, .pie-rank-table td { font-size:.68rem; padding:.28rem .35rem; white-space:nowrap; }
+    </style>
+
     <!-- 集計カード 上段: キャリア別売上（左）+ 営業マン別売上（右） -->
     <div class="row g-4 mb-4">
         <div class="col-lg-6">
@@ -816,13 +821,13 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-5 text-center">
+                            <div class="col-md-4 text-center">
                                 <div class="fw-bold small mb-1" style="color:#059669" id="carrierPieTitle">売上割合</div>
                                 <div style="position:relative;height:180px"><canvas id="carrierPieChart"></canvas></div>
                             </div>
-                            <div class="col-md-7">
+                            <div class="col-md-8">
                                 <div class="table-responsive">
-                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                    <table class="table table-sm mb-0 pie-rank-table">
                                         <thead class="table-light"><tr><th>順位</th><th>キャリア</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
                                         <tbody id="carrierPieRank"></tbody>
                                     </table>
@@ -880,13 +885,13 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-5 text-center">
+                            <div class="col-md-4 text-center">
                                 <div class="fw-bold small mb-1" style="color:#059669" id="repPieTitle">売上割合</div>
                                 <div style="position:relative;height:180px"><canvas id="repPieChart"></canvas></div>
                             </div>
-                            <div class="col-md-7">
+                            <div class="col-md-8">
                                 <div class="table-responsive">
-                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                    <table class="table table-sm mb-0 pie-rank-table">
                                         <thead class="table-light"><tr><th>順位</th><th>営業マン</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
                                         <tbody id="repPieRank"></tbody>
                                     </table>
@@ -948,13 +953,13 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-5 text-center">
+                            <div class="col-md-4 text-center">
                                 <div class="fw-bold small mb-1" style="color:#059669" id="clientPieTitle">売上割合</div>
                                 <div style="position:relative;height:180px"><canvas id="clientPieChart"></canvas></div>
                             </div>
-                            <div class="col-md-7">
+                            <div class="col-md-8">
                                 <div class="table-responsive">
-                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                    <table class="table table-sm mb-0 pie-rank-table">
                                         <thead class="table-light"><tr><th>順位</th><th>会社名</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
                                         <tbody id="clientPieRank"></tbody>
                                     </table>
@@ -1012,13 +1017,13 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-5 text-center">
+                            <div class="col-md-4 text-center">
                                 <div class="fw-bold small mb-1" style="color:#059669" id="alliancePieTitle">売上割合</div>
                                 <div style="position:relative;height:180px"><canvas id="alliancePieChart"></canvas></div>
                             </div>
-                            <div class="col-md-7">
+                            <div class="col-md-8">
                                 <div class="table-responsive">
-                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                    <table class="table table-sm mb-0 pie-rank-table">
                                         <thead class="table-light"><tr><th>順位</th><th>会社名</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
                                         <tbody id="alliancePieRank"></tbody>
                                     </table>

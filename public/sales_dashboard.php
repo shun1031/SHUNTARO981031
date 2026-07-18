@@ -809,14 +809,24 @@ require_once __DIR__ . '/../includes/header.php';
                         </table>
                     </div>
                     <div id="carrierPieWrap" style="display:none" class="p-3" data-cardkey="carrier">
-                        <div class="row g-2 justify-content-center">
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
-                                <div style="position:relative;height:150px"><canvas id="carrierPieRev"></canvas></div>
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('carrier',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
+                                <button type="button" class="btn btn-outline-secondary pie-metric-profit" onclick="setPieMetric('carrier',true,this)" style="font-size:.7rem;padding:2px 8px">粗利</button>
                             </div>
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
-                                <div style="position:relative;height:150px"><canvas id="carrierPieProfit"></canvas></div>
+                        </div>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669" id="carrierPieTitle">売上割合</div>
+                                <div style="position:relative;height:180px"><canvas id="carrierPieChart"></canvas></div>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                        <thead class="table-light"><tr><th>順位</th><th>キャリア</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
+                                        <tbody id="carrierPieRank"></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                         <div class="text-center mt-2">
@@ -863,14 +873,24 @@ require_once __DIR__ . '/../includes/header.php';
                         </table>
                     </div>
                     <div id="repPieWrap" style="display:none" class="p-3" data-cardkey="rep">
-                        <div class="row g-2 justify-content-center">
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
-                                <div style="position:relative;height:150px"><canvas id="repPieRev"></canvas></div>
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('rep',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
+                                <button type="button" class="btn btn-outline-secondary pie-metric-profit" onclick="setPieMetric('rep',true,this)" style="font-size:.7rem;padding:2px 8px">粗利</button>
                             </div>
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
-                                <div style="position:relative;height:150px"><canvas id="repPieProfit"></canvas></div>
+                        </div>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669" id="repPieTitle">売上割合</div>
+                                <div style="position:relative;height:180px"><canvas id="repPieChart"></canvas></div>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                        <thead class="table-light"><tr><th>順位</th><th>営業マン</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
+                                        <tbody id="repPieRank"></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                         <div class="text-center mt-2">
@@ -921,14 +941,24 @@ require_once __DIR__ . '/../includes/header.php';
                         </table>
                     </div>
                     <div id="clientPieWrap" style="display:none" class="p-3" data-cardkey="client">
-                        <div class="row g-2 justify-content-center">
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
-                                <div style="position:relative;height:150px"><canvas id="clientPieRev"></canvas></div>
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('client',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
+                                <button type="button" class="btn btn-outline-secondary pie-metric-profit" onclick="setPieMetric('client',true,this)" style="font-size:.7rem;padding:2px 8px">粗利</button>
                             </div>
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
-                                <div style="position:relative;height:150px"><canvas id="clientPieProfit"></canvas></div>
+                        </div>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669" id="clientPieTitle">売上割合</div>
+                                <div style="position:relative;height:180px"><canvas id="clientPieChart"></canvas></div>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                        <thead class="table-light"><tr><th>順位</th><th>会社名</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
+                                        <tbody id="clientPieRank"></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                         <div class="text-center mt-2">
@@ -975,14 +1005,24 @@ require_once __DIR__ . '/../includes/header.php';
                         </table>
                     </div>
                     <div id="alliancePieWrap" style="display:none" class="p-3" data-cardkey="alliance">
-                        <div class="row g-2 justify-content-center">
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#059669">売上割合</div>
-                                <div style="position:relative;height:150px"><canvas id="alliancePieRev"></canvas></div>
+                        <div class="d-flex justify-content-center mb-2">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('alliance',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
+                                <button type="button" class="btn btn-outline-secondary pie-metric-profit" onclick="setPieMetric('alliance',true,this)" style="font-size:.7rem;padding:2px 8px">粗利</button>
                             </div>
-                            <div class="col-6 text-center">
-                                <div class="fw-bold small mb-1" style="color:#3b82f6">粗利割合</div>
-                                <div style="position:relative;height:150px"><canvas id="alliancePieProfit"></canvas></div>
+                        </div>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5 text-center">
+                                <div class="fw-bold small mb-1" style="color:#059669" id="alliancePieTitle">売上割合</div>
+                                <div style="position:relative;height:180px"><canvas id="alliancePieChart"></canvas></div>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0" style="font-size:.72rem">
+                                        <thead class="table-light"><tr><th>順位</th><th>会社名</th><th class="text-end">売上</th><th class="text-end">粗利</th><th class="text-end">粗利率</th></tr></thead>
+                                        <tbody id="alliancePieRank"></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                         <div class="text-center mt-2">
@@ -1672,52 +1712,102 @@ function closePieView(backBtn,pieWrapId,tableWrapId){
     }
 }
 
+var _pieMetric={}; // cardkey → 'revenue' | 'profit'
+
+function _pieEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// 売上/粗利トグル
+function setPieMetric(cardkey,isProfit,btn){
+    _pieMetric[cardkey]=isProfit?'profit':'revenue';
+    var wrap=document.querySelector('[data-cardkey="'+cardkey+'"]');
+    if(wrap){
+        wrap.querySelectorAll('.pie-metric-rev').forEach(function(b){b.classList.toggle('active',!isProfit);});
+        wrap.querySelectorAll('.pie-metric-profit').forEach(function(b){b.classList.toggle('active',isProfit);});
+    }
+    var card=(btn&&btn.closest)?btn.closest('.card'):null;
+    var taxIncl=card?card.querySelector('.summary-tax-incl.active')!==null:false;
+    drawRankPieCharts(cardkey,taxIncl);
+}
+
 function drawRankPieCharts(cardkey,taxIncl){
     var data=RANK_PIE_DATA[cardkey];
     if(!data||!data.length)return;
     var rate=taxIncl?1.1:1.0;
-    var labels  =data.map(function(r){return r.name;});
-    var revenues=data.map(function(r){return Math.round((parseInt(r.revenue)||0)*rate);});
-    var profits =data.map(function(r){return Math.round((parseInt(r.profit) ||0)*rate);});
-    var colors  =labels.map(function(_,i){return PIE_CHART_COLORS[i%PIE_CHART_COLORS.length];});
+    var metric=_pieMetric[cardkey]||'revenue';
+    var rows=data.map(function(r){
+        return{name:r.name,revenue:Math.round((parseInt(r.revenue)||0)*rate),profit:Math.round((parseInt(r.profit)||0)*rate)};
+    });
 
-    function makeOrUpdate(instKey,canvasId,vals){
-        var canvas=document.getElementById(canvasId);
-        if(!canvas)return;
-        if(_rankPieInsts[instKey]){
-            _rankPieInsts[instKey].data.labels=labels;
-            _rankPieInsts[instKey].data.datasets[0].data=vals;
-            _rankPieInsts[instKey].data.datasets[0].backgroundColor=colors;
-            _rankPieInsts[instKey].update();
-            return;
-        }
-        _rankPieInsts[instKey]=new Chart(canvas,{
-            type:'doughnut',
-            data:{labels:labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:1,borderColor:'#fff'}]},
-            options:{
-                responsive:true,maintainAspectRatio:false,
-                plugins:{
-                    legend:{position:'bottom',labels:{font:{size:10},padding:5,boxWidth:10,
-                        generateLabels:function(chart){
-                            var ds=chart.data.datasets[0];
-                            var total=ds.data.reduce(function(a,b){return a+b;},0);
-                            return chart.data.labels.map(function(lbl,i){
-                                var pct=total>0?Math.round((ds.data[i]||0)/total*100):0;
-                                return{text:lbl+' '+pct+'%',fillStyle:ds.backgroundColor[i],strokeStyle:'#fff',lineWidth:1,hidden:false,index:i};
-                            });
-                        }
-                    }},
-                    tooltip:{callbacks:{label:function(ctx){
-                        var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
-                        var pct=total>0?Math.round(ctx.raw/total*100):0;
-                        return ctx.label+': '+ctx.raw.toLocaleString()+'円 ('+pct+'%)';
-                    }}}
-                }
-            }
-        });
+    // ランキング（全カード共通: TOP5 + 6位以下は「その他」に集約）
+    var top=rows.slice(0,5), rest=rows.slice(5);
+    var rankRows=top.slice();
+    if(rest.length){
+        var oRev=0,oPro=0;
+        rest.forEach(function(r){oRev+=r.revenue;oPro+=r.profit;});
+        rankRows.push({name:'その他',revenue:oRev,profit:oPro,isOther:true});
     }
-    makeOrUpdate(cardkey+'_rev',    cardkey+'PieRev',    revenues);
-    makeOrUpdate(cardkey+'_profit', cardkey+'PieProfit', profits);
+    var tbody=document.getElementById(cardkey+'PieRank');
+    if(tbody){
+        var html='';
+        rankRows.forEach(function(r,i){
+            var margin=r.revenue>0?(r.profit/r.revenue*100).toFixed(1)+'%':'-';
+            html+='<tr'+(r.isOther?' class="text-muted"':'')+'>';
+            html+='<td>'+(r.isOther?'-':(i+1))+'</td>';
+            html+='<td>'+_pieEsc(r.name)+'</td>';
+            html+='<td class="text-end">'+r.revenue.toLocaleString()+'</td>';
+            html+='<td class="text-end" style="color:#3b82f6">'+r.profit.toLocaleString()+'</td>';
+            html+='<td class="text-end">'+margin+'</td>';
+            html+='</tr>';
+        });
+        tbody.innerHTML=html;
+    }
+
+    // 円グラフ: クライアント/アライアンスはTOP5+その他、キャリア/営業マンは全件
+    var chartRows=(cardkey==='client'||cardkey==='alliance')?rankRows:rows;
+    var labels=chartRows.map(function(r){return r.name;});
+    var vals  =chartRows.map(function(r){return metric==='profit'?r.profit:r.revenue;});
+    var colors=chartRows.map(function(r,i){return r.isOther?'#9ca3af':PIE_CHART_COLORS[i%PIE_CHART_COLORS.length];});
+
+    // タイトル切替
+    var titleEl=document.getElementById(cardkey+'PieTitle');
+    if(titleEl){
+        titleEl.textContent=metric==='profit'?'粗利割合':'売上割合';
+        titleEl.style.color=metric==='profit'?'#3b82f6':'#059669';
+    }
+
+    var canvas=document.getElementById(cardkey+'PieChart');
+    if(!canvas)return;
+    if(_rankPieInsts[cardkey]){
+        _rankPieInsts[cardkey].data.labels=labels;
+        _rankPieInsts[cardkey].data.datasets[0].data=vals;
+        _rankPieInsts[cardkey].data.datasets[0].backgroundColor=colors;
+        _rankPieInsts[cardkey].update();
+        return;
+    }
+    _rankPieInsts[cardkey]=new Chart(canvas,{
+        type:'doughnut',
+        data:{labels:labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:1,borderColor:'#fff'}]},
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            plugins:{
+                legend:{position:'bottom',labels:{font:{size:10},padding:5,boxWidth:10,
+                    generateLabels:function(chart){
+                        var ds=chart.data.datasets[0];
+                        var total=ds.data.reduce(function(a,b){return a+b;},0);
+                        return chart.data.labels.map(function(lbl,i){
+                            var pct=total>0?Math.round((ds.data[i]||0)/total*100):0;
+                            return{text:lbl+' '+pct+'%',fillStyle:ds.backgroundColor[i],strokeStyle:'#fff',lineWidth:1,hidden:false,index:i};
+                        });
+                    }
+                }},
+                tooltip:{callbacks:{label:function(ctx){
+                    var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+                    var pct=total>0?Math.round(ctx.raw/total*100):0;
+                    return ctx.label+': '+ctx.raw.toLocaleString()+'円 ('+pct+'%)';
+                }}}
+            }
+        }
+    });
 }
 RANKPIEJS;
 

@@ -61,7 +61,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     try {
         $stmt = $db->prepare($sql);
         $stmt->execute([$cid, $companyType, $refId, $refName, $checkYear, $checkMonth, $value, $userName, $now]);
-        echo json_encode(['ok' => true, 'updated_by' => $userName, 'updated_at' => $now]);
+
+        // 全チェックが外れた場合は更新情報をクリア（誰もチェックしていない状態に戻す）
+        $chkStmt = $db->prepare("SELECT (check_create + check_staff1 + check_staff2 + final_check) AS total
+            FROM invoice_checks
+            WHERE bms_company_id=? AND company_type=? AND ref_id=? AND ref_name=? AND check_year=? AND check_month=?");
+        $chkStmt->execute([$cid, $companyType, $refId, $refName, $checkYear, $checkMonth]);
+        $total = (int)$chkStmt->fetchColumn();
+
+        if ($total === 0) {
+            $db->prepare("UPDATE invoice_checks SET updated_by=NULL, updated_at=NULL
+                WHERE bms_company_id=? AND company_type=? AND ref_id=? AND ref_name=? AND check_year=? AND check_month=?")
+               ->execute([$cid, $companyType, $refId, $refName, $checkYear, $checkMonth]);
+            echo json_encode(['ok' => true, 'updated_by' => '', 'updated_at' => '']);
+        } else {
+            echo json_encode(['ok' => true, 'updated_by' => $userName, 'updated_at' => $now]);
+        }
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
@@ -399,7 +414,11 @@ function saveCheck(cb) {
             if (d.ok) {
                 var updCell = row.querySelector('.update-info');
                 if (updCell) {
-                    updCell.innerHTML = escHtml(d.updated_by) + '<br>' + escHtml(d.updated_at.substr(0, 16));
+                    if (d.updated_by) {
+                        updCell.innerHTML = escHtml(d.updated_by) + '<br>' + escHtml(d.updated_at.substr(0, 16));
+                    } else {
+                        updCell.innerHTML = '';
+                    }
                 }
                 var done = rowComplete(row);
                 row.style.background = done ? '#f0fdf4' : '';

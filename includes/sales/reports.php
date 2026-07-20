@@ -329,10 +329,16 @@ function getSalesReps(int $companyId, ?int $year = null): array {
 
 function getSalesRepReport(int $companyId, int $year, ?string $employeeName = null): array {
     $db = getDB();
+    // 粗利0円稼働者（配分は直営業100%）
+    $zpStmt = $db->prepare('SELECT name FROM employees WHERE company_id = ? AND is_active = 1 AND zero_profit_flag = 1');
+    $zpStmt->execute([$companyId]);
+    $zeroProfitNames = array_flip($zpStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+
     // manager・recruiterもGROUP BY対象にしてPHP側で50/50分割を行う
+    // （worker_nameは粗利0円稼働者判定のためGROUP BYに含める）
     $sql = "SELECT
         sc.case_month, sc.case_type,
-        sc.sales_rep, sc.manager, sc.recruiter,
+        sc.sales_rep, sc.manager, sc.recruiter, sc.worker_name,
         COALESCE(SUM(sc.revenue),0) as revenue,
         COALESCE(SUM(sc.gross_profit),0) as profit,
         COUNT(*) as case_count,
@@ -347,7 +353,7 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $sql .= " AND (sc.sales_rep = ? OR sc.manager = ? OR sc.recruiter = ?)";
         $params[] = $employeeName; $params[] = $employeeName; $params[] = $employeeName;
     }
-    $sql .= " GROUP BY sc.case_month, sc.case_type, sc.sales_rep, sc.manager, sc.recruiter";
+    $sql .= " GROUP BY sc.case_month, sc.case_type, sc.sales_rep, sc.manager, sc.recruiter, sc.worker_name";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
 
@@ -396,6 +402,14 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $newTx     = (int)$row['new_transactions'];
         $neg       = (int)$row['negotiations_count'];
         $con       = (int)$row['contracts_count'];
+
+        // 粗利0円稼働者の案件: 担当者へ配分せず直営業100%
+        // （案件数・商談数・成約数のカウントは従来どおり営業担当に帰属）
+        if (isset($zeroProfitNames[trim($row['worker_name'] ?? '')])) {
+            $addEntry($rep, $month, $type, 0, 0, $count, $newTx, $neg, $con);
+            $addEntry('直営業', $month, $type, $revenue, $profit, 0, 0, 0, 0);
+            continue;
+        }
 
         // 売上・粗利を50/50で分割（表示ページと同じくfloor: 端数は分割先へ）
         $repRev = (int)floor($revenue / 2);

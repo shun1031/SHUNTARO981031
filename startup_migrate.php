@@ -163,6 +163,9 @@ $migrations = [
     // ---- departure_reports: 出発報告メール履歴 ----
     "CREATE TABLE IF NOT EXISTS departure_reports (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_id INT NOT NULL, token VARCHAR(64) NOT NULL, sent_to VARCHAR(200) NOT NULL, admin_email VARCHAR(200) DEFAULT NULL, answer VARCHAR(10) DEFAULT NULL, sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, answered_at TIMESTAMP NULL DEFAULT NULL, UNIQUE KEY uk_dr_token (token), INDEX idx_dr_emp (company_id, employee_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+    // ---- departure_reports: 通知先の複数指定（カンマ区切り）対応 ----
+    "ALTER TABLE departure_reports MODIFY COLUMN admin_email VARCHAR(500) DEFAULT NULL",
+
     // ---- departure_reports: シフト連携自動送信用カラム ----
     "ALTER TABLE departure_reports ADD COLUMN shift_id INT DEFAULT NULL COMMENT '自動送信元シフトID'",
     "ALTER TABLE departure_reports ADD COLUMN is_auto TINYINT(1) NOT NULL DEFAULT 0 COMMENT '自動送信フラグ'",

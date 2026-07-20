@@ -41,7 +41,10 @@ if (!preg_match('/^[a-f0-9]{48}$/', $token) || !in_array($answer, ['yes', 'no'],
     <p style="color:#9ca3af;font-size:12px">このメールは bMS 社内ポータルから自動送信されています。</p>
 </div>
 HTML;
-            sendAppMail($row['admin_email'], '【出発報告】' . $row['emp_name'] . 'さんの回答: ' . ($answer === 'yes' ? 'はい' : 'いいえ'), $body);
+            // カンマ区切りで複数の管理者へ通知
+            foreach (array_filter(array_map('trim', explode(',', $row['admin_email']))) as $notifyTo) {
+                sendAppMail($notifyTo, '【出発報告】' . $row['emp_name'] . 'さんの回答: ' . ($answer === 'yes' ? 'はい' : 'いいえ'), $body);
+            }
         }
 
         $ok = true;

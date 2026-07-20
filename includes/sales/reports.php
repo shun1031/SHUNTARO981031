@@ -403,19 +403,20 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $neg       = (int)$row['negotiations_count'];
         $con       = (int)$row['contracts_count'];
 
-        // 粗利0円稼働者の案件: 担当者へ配分せず直営業100%
-        // （案件数・商談数・成約数のカウントは従来どおり営業担当に帰属）
-        if (isset($zeroProfitNames[trim($row['worker_name'] ?? '')])) {
-            $addEntry($rep, $month, $type, 0, 0, $count, $newTx, $neg, $con);
-            $addEntry('直営業', $month, $type, $revenue, $profit, 0, 0, 0, 0);
-            continue;
-        }
-
         // 売上・粗利を50/50で分割（表示ページと同じくfloor: 端数は分割先へ）
         $repRev = (int)floor($revenue / 2);
         $refRev = $revenue - $repRev;
         $repPro = (int)floor($profit / 2);
         $refPro = $profit - $repPro;
+
+        // 粗利0円稼働者の案件: 売上は通常どおり50/50、粗利のみ直営業100%
+        if (isset($zeroProfitNames[trim($row['worker_name'] ?? '')])) {
+            $addEntry($rep, $month, $type, $repRev, 0, $count, $newTx, $neg, $con);
+            $referrer = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '直営業');
+            $addEntry($referrer, $month, $type, $refRev, 0, 0, 0, 0, 0);
+            $addEntry('直営業', $month, $type, 0, $profit, 0, 0, 0, 0);
+            continue;
+        }
 
         // 営業担当: 50%（案件数・商談数・成約数は営業担当にのみ帰属）
         $addEntry($rep, $month, $type, $repRev, $repPro, $count, $newTx, $neg, $con);

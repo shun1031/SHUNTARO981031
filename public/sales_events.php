@@ -232,14 +232,13 @@ if (empty($cases)) { echo '<tr><td colspan="11" class="text-center text-muted py
 else { foreach ($cases as $c):
     $isZeroProfit = isset($zeroProfitNames[trim($c['worker_name'] ?? '')]);
     $splitTo = $c['manager'] ?: ($c['recruiter'] ?: '直営業');
+    // 売上は常に50/50分割
+    $repRev  = (int)floor($c['revenue'] / 2);
+    $otRev   = $c['revenue'] - $repRev;
     if ($isZeroProfit) {
-        // 粗利0円稼働者の案件は担当者へ配分せず直営業100%
-        $splitTo = '直営業';
-        $repRev = 0; $otRev = (int)$c['revenue'];
+        // 粗利0円稼働者の案件は粗利のみ直営業100%
         $repPro = 0; $otPro = (int)$c['gross_profit'];
     } else {
-        $repRev  = (int)floor($c['revenue'] / 2);
-        $otRev   = $c['revenue'] - $repRev;
         $repPro  = (int)floor($c['gross_profit'] / 2);
         $otPro   = $c['gross_profit'] - $repPro;
     }
@@ -253,7 +252,7 @@ else { foreach ($cases as $c):
     <td class="small"><?= h($c['store_name'] ?? '') ?></td>
     <td class="amount amount-positive" style="vertical-align:top">
         <span id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></span>
-        <?php if ($c['sales_rep']): ?><div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" data-zero="<?= $isZeroProfit ? 1 : 0 ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?php if ($isZeroProfit): ?>直営業 <?= number_format($otRev) ?><?php else: ?><?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br><?= h($splitTo) ?> <?= number_format($otRev) ?><?php endif; ?></div><?php endif; ?>
+        <?php if ($c['sales_rep']): ?><div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br><?= h($splitTo) ?> <?= number_format($otRev) ?></div><?php endif; ?>
     </td>
     <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" style="vertical-align:top">
         <span id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></span>
@@ -745,15 +744,13 @@ function updateSplit(id, rev, profit) {
     var rEl = document.getElementById('rev_split_' + id);
     var pEl = document.getElementById('profit_split_' + id);
     if (rEl) {
-        if (rEl.dataset.zero === '1') {
-            rEl.innerHTML = '直営業 ' + rev.toLocaleString();
-        } else {
-            var repRev = Math.floor(rev / 2);
-            rEl.innerHTML = rEl.dataset.rep + ' ' + repRev.toLocaleString() + '<br>' + rEl.dataset.split + ' ' + (rev - repRev).toLocaleString();
-        }
+        // 売上は常に50/50分割
+        var repRev = Math.floor(rev / 2);
+        rEl.innerHTML = rEl.dataset.rep + ' ' + repRev.toLocaleString() + '<br>' + rEl.dataset.split + ' ' + (rev - repRev).toLocaleString();
     }
     if (pEl) {
         if (pEl.dataset.zero === '1') {
+            // 粗利0円稼働者: 粗利は直営業100%
             pEl.innerHTML = '直営業 ' + profit.toLocaleString();
         } else {
             var repPro = Math.floor(profit / 2);

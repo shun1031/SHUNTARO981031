@@ -320,29 +320,27 @@ $_s = $_sDb->prepare($_allianceFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $allianceFyRows = $_s->fetchAll();
 // 営業マン別売上（当月）: 担当者別売上レポートと同じ50%分割で集計
-// ※粗利0円稼働者（zero_profit_flag=1）の案件は担当者へ配分せず直営業100%
-$_zpSub = "worker_name NOT IN (SELECT em.name FROM employees em WHERE em.company_id = sales_cases.company_id AND em.is_active = 1 AND em.zero_profit_flag = 1)";
+// ※粗利0円稼働者（zero_profit_flag=1）の案件は売上は50/50のまま、粗利のみ直営業100%
+$_zpCond = "worker_name IN (SELECT em.name FROM employees em WHERE em.company_id = sales_cases.company_id AND em.is_active = 1 AND em.zero_profit_flag = 1)";
 $_repFySql = "
     SELECT name, SUM(revenue) AS revenue, SUM(profit) AS profit
     FROM (
         SELECT sales_rep AS name,
                FLOOR(revenue/2) AS revenue,
-               FLOOR(gross_profit/2) AS profit
+               CASE WHEN $_zpCond THEN 0 ELSE FLOOR(gross_profit/2) END AS profit
         FROM sales_cases
         WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
           AND case_year = ? AND case_month = ?
-          AND $_zpSub
           $_ctf2
         UNION ALL
         SELECT CASE WHEN COALESCE(manager,'') NOT IN ('','該当者なし') THEN manager
                     WHEN COALESCE(recruiter,'') NOT IN ('','該当者なし') THEN recruiter
                     ELSE '直営業' END AS name,
                revenue - FLOOR(revenue/2) AS revenue,
-               gross_profit - FLOOR(gross_profit/2) AS profit
+               CASE WHEN $_zpCond THEN 0 ELSE gross_profit - FLOOR(gross_profit/2) END AS profit
         FROM sales_cases
         WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
           AND case_year = ? AND case_month = ?
-          AND $_zpSub
           $_ctf2
     ) t
     WHERE name NOT IN ('直営業','','該当者なし')
@@ -355,12 +353,12 @@ $_yamaneFound = false;
 foreach ($repFyRows as $_r) { if ($_r['name'] === '山根脩平') { $_yamaneFound = true; break; } }
 if (!$_yamaneFound) { $repFyRows[] = ['name' => '山根脩平', 'revenue' => 0, 'profit' => 0]; }
 // 直営業の月間売上を取得して最後尾に追加
-// 粗利0円稼働者の案件は全額直営業、それ以外は紹介元なしの場合に半分
+// 売上: 紹介元なしの場合に半分（従来どおり）
+// 粗利: 粗利0円稼働者の案件は全額直営業、それ以外は紹介元なしの場合に半分
 $_directSql = "
-    SELECT SUM(CASE WHEN NOT ($_zpSub) THEN revenue
-                    WHEN COALESCE(manager,'') IN ('','該当者なし') AND COALESCE(recruiter,'') IN ('','該当者なし') THEN revenue - FLOOR(revenue/2)
+    SELECT SUM(CASE WHEN COALESCE(manager,'') IN ('','該当者なし') AND COALESCE(recruiter,'') IN ('','該当者なし') THEN revenue - FLOOR(revenue/2)
                     ELSE 0 END) AS revenue,
-           SUM(CASE WHEN NOT ($_zpSub) THEN gross_profit
+           SUM(CASE WHEN $_zpCond THEN gross_profit
                     WHEN COALESCE(manager,'') IN ('','該当者なし') AND COALESCE(recruiter,'') IN ('','該当者なし') THEN gross_profit - FLOOR(gross_profit/2)
                     ELSE 0 END) AS profit
     FROM sales_cases

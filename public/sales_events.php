@@ -221,15 +221,28 @@ FROM sales_cases WHERE $kpiWhere");
 $sumStmt->execute($kpiParams);
 $monthSummary = $sumStmt->fetch();
 
+// 粗利0円稼働者（配分は直営業100%）
+$_zpStmt = $db->prepare('SELECT name FROM employees WHERE company_id = ? AND is_active = 1 AND zero_profit_flag = 1');
+$_zpStmt->execute([$cid]);
+$zeroProfitNames = array_flip($_zpStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+
 // テーブルHTML事前レンダリング（AJAX対応）
 ob_start();
 if (empty($cases)) { echo '<tr><td colspan="11" class="text-center text-muted py-4">案件がありません</td></tr>'; }
 else { foreach ($cases as $c):
+    $isZeroProfit = isset($zeroProfitNames[trim($c['worker_name'] ?? '')]);
     $splitTo = $c['manager'] ?: ($c['recruiter'] ?: '直営業');
-    $repRev  = (int)floor($c['revenue'] / 2);
-    $otRev   = $c['revenue'] - $repRev;
-    $repPro  = (int)floor($c['gross_profit'] / 2);
-    $otPro   = $c['gross_profit'] - $repPro;
+    if ($isZeroProfit) {
+        // 粗利0円稼働者の案件は担当者へ配分せず直営業100%
+        $splitTo = '直営業';
+        $repRev = 0; $otRev = (int)$c['revenue'];
+        $repPro = 0; $otPro = (int)$c['gross_profit'];
+    } else {
+        $repRev  = (int)floor($c['revenue'] / 2);
+        $otRev   = $c['revenue'] - $repRev;
+        $repPro  = (int)floor($c['gross_profit'] / 2);
+        $otPro   = $c['gross_profit'] - $repPro;
+    }
 ?><tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" data-price-in="<?= (int)$c['unit_price_in'] ?>" data-price-out="<?= (int)$c['unit_price_out'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
     <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
     <td class="small"><?= h($c['sales_rep']) ?></td>
@@ -240,11 +253,11 @@ else { foreach ($cases as $c):
     <td class="small"><?= h($c['store_name'] ?? '') ?></td>
     <td class="amount amount-positive" style="vertical-align:top">
         <span id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></span>
-        <?php if ($c['sales_rep']): ?><div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br><?= h($splitTo) ?> <?= number_format($otRev) ?></div><?php endif; ?>
+        <?php if ($c['sales_rep']): ?><div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" data-zero="<?= $isZeroProfit ? 1 : 0 ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?php if ($isZeroProfit): ?>直営業 <?= number_format($otRev) ?><?php else: ?><?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br><?= h($splitTo) ?> <?= number_format($otRev) ?><?php endif; ?></div><?php endif; ?>
     </td>
     <td class="amount <?= $c['gross_profit'] >= 0 ? 'amount-positive' : 'amount-negative' ?>" style="vertical-align:top">
         <span id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></span>
-        <?php if ($c['sales_rep']): ?><div id="profit_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?= h($c['sales_rep']) ?> <?= number_format($repPro) ?><br><?= h($splitTo) ?> <?= number_format($otPro) ?></div><?php endif; ?>
+        <?php if ($c['sales_rep']): ?><div id="profit_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" data-zero="<?= $isZeroProfit ? 1 : 0 ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?php if ($isZeroProfit): ?>直営業 <?= number_format($otPro) ?><?php else: ?><?= h($c['sales_rep']) ?> <?= number_format($repPro) ?><br><?= h($splitTo) ?> <?= number_format($otPro) ?><?php endif; ?></div><?php endif; ?>
     </td>
     <td class="text-center" style="white-space:nowrap">
         <div class="d-flex align-items-center justify-content-center gap-1">
@@ -732,12 +745,20 @@ function updateSplit(id, rev, profit) {
     var rEl = document.getElementById('rev_split_' + id);
     var pEl = document.getElementById('profit_split_' + id);
     if (rEl) {
-        var repRev = Math.floor(rev / 2);
-        rEl.innerHTML = rEl.dataset.rep + ' ' + repRev.toLocaleString() + '<br>' + rEl.dataset.split + ' ' + (rev - repRev).toLocaleString();
+        if (rEl.dataset.zero === '1') {
+            rEl.innerHTML = '直営業 ' + rev.toLocaleString();
+        } else {
+            var repRev = Math.floor(rev / 2);
+            rEl.innerHTML = rEl.dataset.rep + ' ' + repRev.toLocaleString() + '<br>' + rEl.dataset.split + ' ' + (rev - repRev).toLocaleString();
+        }
     }
     if (pEl) {
-        var repPro = Math.floor(profit / 2);
-        pEl.innerHTML = pEl.dataset.rep + ' ' + repPro.toLocaleString() + '<br>' + pEl.dataset.split + ' ' + (profit - repPro).toLocaleString();
+        if (pEl.dataset.zero === '1') {
+            pEl.innerHTML = '直営業 ' + profit.toLocaleString();
+        } else {
+            var repPro = Math.floor(profit / 2);
+            pEl.innerHTML = pEl.dataset.rep + ' ' + repPro.toLocaleString() + '<br>' + pEl.dataset.split + ' ' + (profit - repPro).toLocaleString();
+        }
     }
 }
 

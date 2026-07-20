@@ -104,6 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'employment_type'    => trim($_POST['employment_type'] ?? ''),
             'employment_subtype' => trim($_POST['employment_subtype'] ?? ''),
             'work_style'         => trim($_POST['work_style'] ?? ''),
+            'departure_report_flag' => !empty($_POST['departure_report_flag']) ? 1 : 0,
+            'zero_profit_flag'      => !empty($_POST['zero_profit_flag']) ? 1 : 0,
             'retirement_date'    => $_POST['retirement_date'] ?: null,
             'skills_json'        => !empty($skillsRaw) ? json_encode(array_values($skillsRaw), JSON_UNESCAPED_UNICODE) : null,
         ];
@@ -468,6 +470,29 @@ require_once __DIR__ . '/../includes/header.php';
                         </select>
                     </div>
 
+                    <!-- 対象フラグ -->
+                    <div class="col-md-3">
+                        <label class="form-label">対象フラグ</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="departure_report_flag" value="1" id="depReportFlag"
+                                   <?= !empty($employee['departure_report_flag']) ? 'checked' : '' ?> onchange="toggleDepSendBtn()">
+                            <label class="form-check-label small" for="depReportFlag">出発報告対象者</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="zero_profit_flag" value="1" id="zeroProfitFlag"
+                                   <?= !empty($employee['zero_profit_flag']) ? 'checked' : '' ?>>
+                            <label class="form-check-label small" for="zeroProfitFlag">粗利0円稼働者</label>
+                        </div>
+                        <?php if ($id): ?>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-1" id="depSendBtn"
+                                onclick="sendDepartureMail(<?= (int)$id ?>)"
+                                <?= empty($employee['departure_report_flag']) ? 'disabled' : '' ?>>
+                            <i class="bi bi-envelope me-1"></i>出発報告メールを送信
+                        </button>
+                        <div id="depSendMsg" class="small mt-1" style="display:none"></div>
+                        <?php endif; ?>
+                    </div>
+
                     <!-- スキル管理 -->
                     <div class="col-12">
                         <label class="form-label">スキル管理</label>
@@ -612,11 +637,49 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php
-$inlineJs = <<<'JS2'
+$inlineJs = 'window.DEP_REPORT_API = ' . json_encode(BASE_PATH . '/public/api/departure_report.php') . ';';
+$inlineJs .= <<<'JS2'
 function genPw(fieldId) {
     var c = 'abcdefghijkmnpqrstuvwxyz23456789', p = '';
     for (var i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)];
     document.getElementById(fieldId).value = p;
+}
+function toggleDepSendBtn() {
+    var btn = document.getElementById('depSendBtn');
+    var chk = document.getElementById('depReportFlag');
+    if (btn && chk) btn.disabled = !chk.checked;
+}
+function sendDepartureMail(empId) {
+    var btn = document.getElementById('depSendBtn');
+    var msg = document.getElementById('depSendMsg');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>送信中...';
+    msg.style.display = 'none';
+    var fd = new FormData();
+    fd.append('csrf', document.querySelector('input[name="csrf"]').value);
+    fd.append('employee_id', empId);
+    fetch(window.DEP_REPORT_API, { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-envelope me-1"></i>出発報告メールを送信';
+            msg.style.display = '';
+            if (res.success) {
+                msg.className = 'small mt-1 text-success';
+                msg.textContent = '送信しました（' + res.sent_to + '）';
+            } else {
+                msg.className = 'small mt-1 text-danger';
+                msg.textContent = res.error || '送信に失敗しました';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-envelope me-1"></i>出発報告メールを送信';
+            msg.style.display = '';
+            msg.className = 'small mt-1 text-danger';
+            msg.textContent = '通信エラーが発生しました';
+        });
 }
 function updateRoleUI() {
     var isAdmin = document.getElementById('roleAdmin') && document.getElementById('roleAdmin').checked;

@@ -309,7 +309,7 @@ $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $clientFyRows = $_s->fetchAll();
 // アライアンス別売上（年度）
 $_allianceFySql = "
-    SELECT al.alliance_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
+    SELECT al.id AS alliance_id, al.alliance_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
     FROM sales_cases sc
     JOIN sales_alliances al ON sc.alliance_id = al.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
@@ -998,7 +998,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php if ($allianceFyRows): ?>
                                 <?php foreach ($allianceFyRows as $i => $row): ?>
                                 <tr <?= $i >= 5 ? 'class="extra-row" style="display:none"' : '' ?>>
-                                    <td style="padding-left:.75rem"><?= h($row['name']) ?></td>
+                                    <td style="padding-left:.75rem"><a href="#" class="alliance-detail-link text-decoration-none" data-aid="<?= (int)$row['alliance_id'] ?>" onclick="openAllianceDetail(event,this)"><?= h($row['name']) ?></a></td>
                                     <td class="text-end summary-tax-val" data-raw="<?= (int)$row['revenue'] ?>"><?= number_format($row['revenue']) ?></td>
                                     <td class="text-end summary-tax-val" data-raw="<?= (int)($row['profit'] ?? 0) ?>" style="padding-right:.75rem;color:#3b82f6"><?= number_format($row['profit'] ?? 0) ?></td>
                                 </tr>
@@ -1233,6 +1233,41 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
+</div>
+
+<!-- アライアンス会社別 実績詳細モーダル -->
+<div class="modal fade" id="allianceDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" style="font-size:.9rem"><i class="bi bi-building me-1"></i><span id="adTitle">実績詳細</span> <small class="text-muted ms-2" id="adFyLabel"></small></h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div id="adLoading" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>読み込み中...</div>
+                <div id="adContent" style="display:none">
+                    <!-- サマリー -->
+                    <div class="row g-2 mb-3" style="font-size:.8rem">
+                        <div class="col-6 col-md-2"><div class="border rounded text-center p-2"><div class="text-muted" style="font-size:.65rem">年間売上</div><div class="fw-bold" style="color:#059669" id="adRevenue">-</div></div></div>
+                        <div class="col-6 col-md-2"><div class="border rounded text-center p-2"><div class="text-muted" style="font-size:.65rem">年間粗利</div><div class="fw-bold" style="color:#3b82f6" id="adProfit">-</div></div></div>
+                        <div class="col-6 col-md-2"><div class="border rounded text-center p-2"><div class="text-muted" style="font-size:.65rem">原価（支払額）</div><div class="fw-bold" style="color:#f59e0b" id="adCost">-</div></div></div>
+                        <div class="col-6 col-md-2"><div class="border rounded text-center p-2"><div class="text-muted" style="font-size:.65rem">粗利率</div><div class="fw-bold" id="adMargin">-</div></div></div>
+                        <div class="col-6 col-md-2"><div class="border rounded text-center p-2"><div class="text-muted" style="font-size:.65rem">在籍スタッフ数</div><div class="fw-bold" style="color:#8b5cf6" id="adStaffCount">-</div></div></div>
+                        <div class="col-6 col-md-2"><div class="border rounded text-center p-2"><div class="text-muted" style="font-size:.65rem">年間平均達成率</div><div class="fw-bold" id="adAvgRate">-</div></div></div>
+                    </div>
+                    <!-- スタッフ×月 達成率 -->
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0" style="font-size:.72rem">
+                            <thead class="table-light" id="adTableHead"></thead>
+                            <tbody id="adTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted mt-2" style="font-size:.65rem">※ 達成率は日報の実績（固定合計）÷店舗予算で自動計算。「-」は未稼働または予算未設定の月です。</div>
+                </div>
+                <div id="adError" class="alert alert-danger small py-2" style="display:none"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <?php
@@ -1815,6 +1850,83 @@ function drawRankPieCharts(cardkey,taxIncl){
     });
 }
 RANKPIEJS;
+
+$inlineJs .= 'var ALLIANCE_DETAIL_API = ' . json_encode(BASE_PATH . '/public/api/alliance_detail.php') . ';';
+$inlineJs .= 'var adYear = ' . (int)$year . ';';
+$inlineJs .= <<<'ALLIANCEJS'
+
+// アライアンス会社名クリック → 実績詳細モーダル
+function openAllianceDetail(ev, link) {
+    ev.preventDefault();
+    var aid = link.dataset.aid;
+    if (!aid) return;
+    var modal = new bootstrap.Modal(document.getElementById('allianceDetailModal'));
+    document.getElementById('adTitle').textContent = link.textContent + '　実績詳細';
+    document.getElementById('adFyLabel').textContent = '';
+    document.getElementById('adLoading').style.display = '';
+    document.getElementById('adContent').style.display = 'none';
+    document.getElementById('adError').style.display = 'none';
+    modal.show();
+
+    fetch(ALLIANCE_DETAIL_API + '?alliance_id=' + aid + '&year=' + adYear)
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+            document.getElementById('adLoading').style.display = 'none';
+            if (d.error) {
+                var er = document.getElementById('adError');
+                er.textContent = d.error;
+                er.style.display = '';
+                return;
+            }
+            document.getElementById('adTitle').textContent = d.alliance_name + '　実績詳細';
+            document.getElementById('adFyLabel').textContent = d.fy_label;
+            var s = d.summary;
+            document.getElementById('adRevenue').textContent    = s.revenue.toLocaleString() + '円';
+            document.getElementById('adProfit').textContent     = s.profit.toLocaleString() + '円';
+            document.getElementById('adCost').textContent       = s.cost.toLocaleString() + '円';
+            document.getElementById('adMargin').textContent     = s.margin !== null ? s.margin + '%' : '-';
+            document.getElementById('adStaffCount').textContent = s.staff_count + '名';
+            var avgEl = document.getElementById('adAvgRate');
+            avgEl.textContent = s.avg_rate !== null ? s.avg_rate + '%' : '-';
+            avgEl.style.color = s.avg_rate === null ? '' : (s.avg_rate >= 100 ? '#059669' : (s.avg_rate >= 70 ? '#d97706' : '#ef4444'));
+
+            // ヘッダー（スタッフ名 + 9月〜8月）
+            var head = '<tr><th style="min-width:90px;white-space:nowrap">スタッフ名</th>';
+            d.months.forEach(function(m){ head += '<th class="text-center" style="min-width:52px">' + m + '月</th>'; });
+            head += '</tr>';
+            document.getElementById('adTableHead').innerHTML = head;
+
+            // 明細
+            var body = '';
+            if (!d.staff.length) {
+                body = '<tr><td colspan="13" class="text-center text-muted py-3">この年度に稼働したスタッフがいません</td></tr>';
+            } else {
+                d.staff.forEach(function(st) {
+                    body += '<tr><td class="fw-medium" style="white-space:nowrap">' + _pieEsc(st.name) + '</td>';
+                    st.cells.forEach(function(c) {
+                        if (!c.worked) {
+                            body += '<td class="text-center text-muted">-</td>';
+                        } else if (c.rate === null) {
+                            body += '<td class="text-center text-muted" title="予算未設定">-</td>';
+                        } else {
+                            var col = c.rate >= 100 ? '#059669' : (c.rate >= 70 ? '#d97706' : '#ef4444');
+                            body += '<td class="text-center fw-semibold" style="color:' + col + '">' + c.rate + '%</td>';
+                        }
+                    });
+                    body += '</tr>';
+                });
+            }
+            document.getElementById('adTableBody').innerHTML = body;
+            document.getElementById('adContent').style.display = '';
+        })
+        .catch(function() {
+            document.getElementById('adLoading').style.display = 'none';
+            var er = document.getElementById('adError');
+            er.textContent = '通信エラーが発生しました';
+            er.style.display = '';
+        });
+}
+ALLIANCEJS;
 
 require_once __DIR__ . '/../includes/footer.php';
 ?>

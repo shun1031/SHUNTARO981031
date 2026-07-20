@@ -114,6 +114,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <img id="esSlipPreview" src="" alt="給与明細" class="img-fluid border rounded" style="max-height:320px;display:block;margin:0 auto">
                         <div class="text-center mt-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('esSlipFile').click()">再アップロード</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm ms-1" id="esSlipDeleteBtn" onclick="deleteSlip()"><i class="bi bi-trash me-1"></i>削除</button>
                         </div>
                     </div>
                     <div id="esOcrStatus" class="mt-3" style="display:none"></div>
@@ -469,6 +470,37 @@ function esRenderSlip(hasSlip) {
         img.src = '';
         wrap.style.display = 'none';
     }
+}
+
+/* ---------- 明細画像 削除 ---------- */
+function deleteSlip() {
+    if (!esCurEmp) return;
+    // 未保存の選択中ファイルのみの場合はフロントだけクリア
+    if (esSlipSelected) {
+        esSlipSelected = null;
+        document.getElementById('esSlipFile').value = '';
+        esRenderSlip(false);
+        var st = document.getElementById('esOcrStatus'); if (st) st.style.display = 'none';
+        var wn = document.getElementById('esOcrWarn'); if (wn) wn.style.display = 'none';
+        return;
+    }
+    if (!confirm('アップロードされた画像を削除しますか？')) return;
+    var fd = new FormData();
+    fd.append('action', 'delete_slip');
+    fd.append('csrf', esCsrf);
+    fd.append('employee_id', esCurEmp);
+    fd.append('year', esYear);
+    fd.append('month', esMonth);
+    fetch(ES_API, { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                esRenderSlip(false);
+            } else {
+                alert('削除に失敗しました: ' + (res.error || '不明なエラー'));
+            }
+        })
+        .catch(function(){ alert('通信エラーが発生しました'); });
 }
 
 /* ---------- AI読み取り ---------- */

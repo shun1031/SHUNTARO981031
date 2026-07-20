@@ -166,6 +166,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($action === 'data' || $action === '
     exit;
 }
 
+// ─── 明細画像 削除 ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete_slip') {
+    if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'CSRF']); exit; }
+    $empId = (int)($_POST['employee_id'] ?? 0);
+    $year  = (int)($_POST['year']  ?? 0);
+    $month = (int)($_POST['month'] ?? 0);
+    if (!$empId || $year < 2000 || $month < 1 || $month > 12) { echo json_encode(['error' => '入力値が不正です']); exit; }
+    if (!esFetchEmployee($db, $cid, $empId)) { echo json_encode(['error' => '対象社員が見つかりません']); exit; }
+    $db->prepare('UPDATE employee_salaries SET slip_image=NULL, slip_mime=NULL WHERE company_id=? AND employee_id=? AND pay_year=? AND pay_month=?')
+       ->execute([$cid, $empId, $year, $month]);
+    echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ─── AI読み取り（給与明細画像 → 各項目を自動抽出） ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'ocr') {
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'CSRF']); exit; }

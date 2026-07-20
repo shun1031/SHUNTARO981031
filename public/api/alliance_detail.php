@@ -21,6 +21,9 @@ if (!in_array($user['role'] ?? '', ['super_admin', 'company_admin'], true)) {
 $db         = getDB();
 $allianceId = (int)($_GET['alliance_id'] ?? 0);
 $year       = (int)($_GET['year'] ?? date('Y'));
+// ダッシュボードの絞り込みと同期（regular=常勤 / event=イベント / 空=総合）
+$caseType   = $_GET['case_type'] ?? '';
+if (!in_array($caseType, ['regular', 'event'], true)) $caseType = '';
 if (!$allianceId) { echo json_encode(['error' => 'alliance_idが必要です']); exit; }
 
 session_write_close(); // 長めの集計中に他リクエストをブロックしない
@@ -41,15 +44,18 @@ $fyStart = sprintf('%04d-09-01', $year - 1);
 $fyEnd   = sprintf('%04d-08-31', $year);
 
 // ─── 案件集計（会社サマリー + スタッフ×月の稼働） ───
+$_ctWhere  = $caseType !== '' ? ' AND case_type = ?' : '';
+$_ctParams = $caseType !== '' ? [$caseType] : [];
 $cSt = $db->prepare("
     SELECT case_year, case_month, worker_name,
            COALESCE(SUM(revenue),0) AS rev, COALESCE(SUM(gross_profit),0) AS profit, COALESCE(SUM(cost),0) AS cost
     FROM sales_cases
     WHERE company_id = ? AND alliance_id = ? AND status = 'confirmed'
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+      $_ctWhere
     GROUP BY case_year, case_month, worker_name
 ");
-$cSt->execute([$cid, $allianceId, $year - 1, $year]);
+$cSt->execute(array_merge([$cid, $allianceId, $year - 1, $year], $_ctParams));
 
 $totalRev = 0; $totalProfit = 0; $totalCost = 0;
 $workedMap = []; // worker_name => set of "y-m"
@@ -129,9 +135,11 @@ foreach ($workers as $w) {
 $margin  = $totalRev > 0 ? round($totalProfit / $totalRev * 100, 1) : null;
 $avgRate = count($allRates) > 0 ? round(array_sum($allRates) / count($allRates), 1) : null;
 
+$scopeLabel = $caseType === 'regular' ? '（常勤案件のみ）' : ($caseType === 'event' ? '（イベント案件のみ）' : '');
+
 echo json_encode([
     'alliance_name' => $allianceName,
-    'fy_label'      => ($year - 1) . '年9月〜' . $year . '年8月',
+    'fy_label'      => ($year - 1) . '年9月〜' . $year . '年8月' . $scopeLabel,
     'summary' => [
         'revenue'     => $totalRev,
         'profit'      => $totalProfit,

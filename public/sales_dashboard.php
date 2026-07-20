@@ -1853,6 +1853,7 @@ RANKPIEJS;
 
 $inlineJs .= 'var ALLIANCE_DETAIL_API = ' . json_encode(BASE_PATH . '/public/api/alliance_detail.php') . ';';
 $inlineJs .= 'var adYear = ' . (int)$year . ';';
+$inlineJs .= 'var adCaseType = ' . json_encode($caseTypeFilter) . ';';
 $inlineJs .= <<<'ALLIANCEJS'
 
 // アライアンス会社名クリック → 実績詳細モーダル
@@ -1868,7 +1869,7 @@ function openAllianceDetail(ev, link) {
     document.getElementById('adError').style.display = 'none';
     modal.show();
 
-    fetch(ALLIANCE_DETAIL_API + '?alliance_id=' + aid + '&year=' + adYear)
+    fetch(ALLIANCE_DETAIL_API + '?alliance_id=' + aid + '&year=' + adYear + '&case_type=' + encodeURIComponent(adCaseType))
         .then(function(r){ return r.json(); })
         .then(function(d) {
             document.getElementById('adLoading').style.display = 'none';

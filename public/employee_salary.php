@@ -619,6 +619,13 @@ document.addEventListener('DOMContentLoaded', function() {
         var f = this.files && this.files[0];
         if (!f) return;
         esSlipSelected = f;
+        // 再アップロード時は既存の数字をクリアし、新しい画像の内容に切り替える
+        document.querySelectorAll('.es-amount').forEach(function(inp) {
+            inp.value = '';
+            inp.classList.remove('border-warning');
+        });
+        document.getElementById('esComment').value = '';
+        esRecalc();
         var wrap = document.getElementById('esSlipPreviewWrap');
         var img  = document.getElementById('esSlipPreview');
         if (f.type === 'application/pdf') {

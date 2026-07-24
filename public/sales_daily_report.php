@@ -749,9 +749,9 @@ require_once __DIR__ . '/../includes/header.php';
                 primaryHtml += '<div class="text-center" style="font-size:.63rem;color:#6b7280">達成率 <span style="font-weight:700;color:' + rateColor + '">' + rate + (rate !== '-' ? '%' : '') + '</span></div>';
                 primaryHtml += '</div></div></div>';
             } else {
-                subHtml += '<div style="flex:0 0 auto;min-width:72px;max-width:88px">';
-                subHtml += '<div class="card text-center shadow-sm" style="border-radius:.6rem;border-top:2px solid ' + color + ';padding:5px 4px 4px">';
-                subHtml += '<div class="fw-semibold" style="font-size:.65rem;color:' + color + ';margin-bottom:2px">' + esc(label) + '</div>';
+                subHtml += '<div style="flex:0 0 84px;width:84px">';
+                subHtml += '<div class="card text-center shadow-sm h-100" style="border-radius:.6rem;border-top:2px solid ' + color + ';padding:5px 4px 4px">';
+                subHtml += '<div class="fw-semibold" style="font-size:.65rem;color:' + color + ';margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(label) + '</div>';
                 subHtml += '<div style="font-size:.5rem;color:#9ca3af">実績</div>';
                 subHtml += '<div style="font-size:.92rem;font-weight:700;color:' + color + ';line-height:1.15">' + actual + '</div>';
                 subHtml += '<div style="font-size:.48rem;color:#9ca3af">件</div>';
@@ -790,8 +790,8 @@ require_once __DIR__ . '/../includes/header.php';
         }
         var html = primaryHtml;
         if (subHtml) {
-            // 固定合計の右に1列（横スクロール）で表示
-            html += '<div class="col d-flex align-items-center" style="min-width:0"><div class="d-flex gap-1 flex-nowrap overflow-auto pb-1 w-100">' + subHtml + '</div></div>';
+            // 固定合計の右に1列（横スクロール）で表示。カード高さを揃える
+            html += '<div class="col d-flex align-items-stretch" style="min-width:0"><div class="d-flex gap-1 flex-nowrap align-items-stretch overflow-auto pb-1 w-100">' + subHtml + '</div></div>';
         }
         wrap.innerHTML = html;
     }

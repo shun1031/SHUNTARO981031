@@ -169,6 +169,9 @@ $migrations = [
     // ---- sales_frame_targets: 目標二次以降枠数カラム ----
     "ALTER TABLE sales_frame_targets ADD COLUMN target_second_frame INT NOT NULL DEFAULT 0 COMMENT '目標二次以降枠数' AFTER target_first_frame",
 
+    // ---- app_sessions: DBセッション保存（再デプロイでログアウトされない） ----
+    "CREATE TABLE IF NOT EXISTS app_sessions (id VARCHAR(128) PRIMARY KEY, data MEDIUMTEXT NOT NULL, last_activity INT NOT NULL, INDEX idx_last_activity (last_activity)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     // ---- departure_reports: 通知先の複数指定（カンマ区切り）対応 ----
     "ALTER TABLE departure_reports MODIFY COLUMN admin_email VARCHAR(500) DEFAULT NULL",
 

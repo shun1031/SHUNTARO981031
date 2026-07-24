@@ -4,6 +4,7 @@
 // ============================================================
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/db_session.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/eval_functions.php';
 require_once __DIR__ . '/assessment_functions.php';
@@ -14,6 +15,8 @@ require_once __DIR__ . '/sales_functions.php';
 // ----------------------------------------------------------------
 function startSession(): void {
     if (session_status() === PHP_SESSION_NONE) {
+        // セッションをDBに保存（再デプロイでセッションが消えないようにする）
+        registerDbSessionHandler();
         session_name(SESSION_NAME);
         session_set_cookie_params([
             'lifetime' => SESSION_LIFETIME,
@@ -29,6 +32,7 @@ function startSession(): void {
             $_SESSION = [];
             session_destroy();
             // 新しいセッションを再作成（古いCookieは無効化）
+            registerDbSessionHandler();
             session_name(SESSION_NAME);
             session_set_cookie_params([
                 'lifetime' => SESSION_LIFETIME,

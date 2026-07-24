@@ -414,11 +414,11 @@ if ($caseTypeFilter) {
     }
 }
 
-// 年度月別販管費合計（営業利益表示用）
+// 年度月別販管費合計（営業利益表示用）※区分=販管費(sga)のみ。原価(cost)は除外
 $_sgaFyStmt = $_sDb->prepare("
     SELECT target_year, target_month, COALESCE(SUM(amount),0) AS sga_total
     FROM sga_expenses
-    WHERE company_id = ?
+    WHERE company_id = ? AND expense_type = 'sga'
       AND ((target_year = ? AND target_month >= 9) OR (target_year = ? AND target_month <= 8))
     GROUP BY target_year, target_month
 ");

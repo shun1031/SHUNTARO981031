@@ -829,7 +829,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1">TOP3</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="0">詳細</button>
+                        <button type="button" class="btn btn-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -840,7 +840,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div id="carrierFyTableWrap">
+                    <div id="carrierFyTableWrap" style="display:none">
                         <table class="table table-sm mb-0" id="carrierFyTable">
                             <thead class="table-light"><tr><th style="padding-left:.75rem">キャリア</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                             <tbody>
@@ -858,7 +858,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </tbody>
                         </table>
                     </div>
-                    <div id="carrierPieWrap" style="display:none" class="p-3" data-cardkey="carrier">
+                    <div id="carrierPieWrap" class="p-3" data-cardkey="carrier">
                         <div class="d-flex justify-content-center mb-2">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('carrier',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
@@ -893,7 +893,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="0">詳細</button>
+                        <button type="button" class="btn btn-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -904,7 +904,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div id="repFyTableWrap">
+                    <div id="repFyTableWrap" style="display:none">
                         <table class="table table-sm mb-0" id="repFyTable">
                             <thead class="table-light"><tr><th style="padding-left:.75rem">氏名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                             <tbody>
@@ -922,7 +922,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </tbody>
                         </table>
                     </div>
-                    <div id="repPieWrap" style="display:none" class="p-3" data-cardkey="rep">
+                    <div id="repPieWrap" class="p-3" data-cardkey="rep">
                         <div class="d-flex justify-content-center mb-2">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('rep',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
@@ -961,7 +961,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1">TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="0">詳細</button>
+                        <button type="button" class="btn btn-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -972,7 +972,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div id="clientFyTableWrap">
+                    <div id="clientFyTableWrap" style="display:none">
                         <table class="table table-sm mb-0" id="clientFyTable">
                             <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                             <tbody>
@@ -990,7 +990,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </tbody>
                         </table>
                     </div>
-                    <div id="clientPieWrap" style="display:none" class="p-3" data-cardkey="client">
+                    <div id="clientPieWrap" class="p-3" data-cardkey="client">
                         <div class="d-flex justify-content-center mb-2">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('client',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
@@ -1025,7 +1025,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1">TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="0">詳細</button>
+                        <button type="button" class="btn btn-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1036,7 +1036,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div id="allianceFyTableWrap">
+                    <div id="allianceFyTableWrap" style="display:none">
                         <table class="table table-sm mb-0" id="allianceFyTable">
                             <thead class="table-light"><tr><th style="padding-left:.75rem">会社名</th><th class="text-end">売上</th><th class="text-end" style="padding-right:.75rem">粗利</th></tr></thead>
                             <tbody>
@@ -1054,7 +1054,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </tbody>
                         </table>
                     </div>
-                    <div id="alliancePieWrap" style="display:none" class="p-3" data-cardkey="alliance">
+                    <div id="alliancePieWrap" class="p-3" data-cardkey="alliance">
                         <div class="d-flex justify-content-center mb-2">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn btn-outline-secondary active pie-metric-rev" onclick="setPieMetric('alliance',false,this)" style="font-size:.7rem;padding:2px 8px">売上</button>
@@ -1899,6 +1899,17 @@ function drawRankPieCharts(cardkey,taxIncl){
         }
     });
 }
+
+// 初期表示は円グラフ（各カードのチャートをページ表示時に描画）
+document.addEventListener('DOMContentLoaded', function(){
+    ['carrier','rep','client','alliance'].forEach(function(cardkey){
+        var wrap=document.querySelector('[data-cardkey="'+cardkey+'"]');
+        if(!wrap || wrap.style.display==='none')return;
+        var card=wrap.closest?wrap.closest('.card'):null;
+        var taxIncl=card?card.querySelector('.summary-tax-incl.active')!==null:false;
+        drawRankPieCharts(cardkey,taxIncl);
+    });
+});
 RANKPIEJS;
 
 $inlineJs .= 'var ALLIANCE_DETAIL_API = ' . json_encode(BASE_PATH . '/public/api/alliance_detail.php') . ';';

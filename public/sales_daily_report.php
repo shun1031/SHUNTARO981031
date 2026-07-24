@@ -790,7 +790,8 @@ require_once __DIR__ . '/../includes/header.php';
         }
         var html = primaryHtml;
         if (subHtml) {
-            html += '<div class="col-12 mt-1"><div class="d-flex gap-1 flex-nowrap overflow-auto pb-1">' + subHtml + '</div></div>';
+            // 固定合計の右に1列（横スクロール）で表示
+            html += '<div class="col d-flex align-items-center" style="min-width:0"><div class="d-flex gap-1 flex-nowrap overflow-auto pb-1 w-100">' + subHtml + '</div></div>';
         }
         wrap.innerHTML = html;
     }

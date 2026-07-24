@@ -94,20 +94,21 @@ $fyRevMap = [];
 foreach ($fyCasesStmt->fetchAll() as $r) {
     $fyRevMap[$r['case_year']][$r['case_month']] = ['rev' => (int)$r['rev'], 'profit' => (int)$r['profit']];
 }
-// 前年同月売上（総合ダッシュボードの月別売上テーブル用: 前年度 Sep(Y-2)〜Aug(Y-1)）
+// 前年同月売上（前年度 Sep(Y-2)〜Aug(Y-1)）
+// 各ダッシュボードで表示中の売上と同じ絞り込み（常勤/イベント/総合）を適用し整合させる
 $fyPrevRevMap = [];
-if (!$caseTypeFilter) {
-    $fyPrevStmt = $fyDb->prepare("
-        SELECT case_year, case_month, COALESCE(SUM(revenue),0) AS rev
-        FROM sales_cases
-        WHERE company_id = ? AND status != '終了'
-          AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
-        GROUP BY case_year, case_month
-    ");
-    $fyPrevStmt->execute([$cid, $year-2, $year-1]);
-    foreach ($fyPrevStmt->fetchAll() as $r) {
-        $fyPrevRevMap[$r['case_year']][$r['case_month']] = (int)$r['rev'];
-    }
+$fyPrevStmt = $fyDb->prepare("
+    SELECT case_year, case_month, COALESCE(SUM(revenue),0) AS rev
+    FROM sales_cases
+    WHERE company_id = ? AND status != '終了'
+      $_fyTypeWhere
+      AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+    GROUP BY case_year, case_month
+");
+$_fyPrevParams = $caseTypeFilter ? [$cid, $caseTypeFilter, $year-2, $year-1] : [$cid, $year-2, $year-1];
+$fyPrevStmt->execute($_fyPrevParams);
+foreach ($fyPrevStmt->fetchAll() as $r) {
+    $fyPrevRevMap[$r['case_year']][$r['case_month']] = (int)$r['rev'];
 }
 // 月別売上・粗利（常勤/イベント別）
 $fyTypeStmt = $fyDb->prepare("
@@ -669,9 +670,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end fw-bold table-secondary <?= $fyAch >= 100 ? 'text-success' : ($fyAch >= 80 ? 'text-primary' : ($fyAch >= 50 ? 'text-warning' : ($fyAch > 0 ? 'text-danger' : 'text-muted'))) ?>"><?= $fyAch > 0 ? $fyAch . '%' : '-' ?></td>
                         </tr>
-                        <?php if (!$caseTypeFilter): ?>
                         <?php
-                        // 前年同月売上・前年同月比（総合ダッシュボードのみ）
+                        // 前年同月売上・前年同月比（全ダッシュボード。売上と同じ絞り込みで整合）
                         $fyTotalPrevRev = 0;
                         foreach ($fyMonths as $fm) {
                             $fyTotalPrevRev += $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0;
@@ -698,7 +698,6 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                             <td class="text-end table-secondary text-muted"><?= $fyTotalYoy !== null ? $fyTotalYoy . '%' : '-' ?></td>
                         </tr>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>

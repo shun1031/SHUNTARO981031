@@ -56,10 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $ty = (int)($_POST['t_year']  ?? 0);
     $tm = (int)($_POST['t_month'] ?? 0);
     $tv = max(0, (int)str_replace([',', '¥', ' ', '　'], '', $_POST['t_value'] ?? '0'));
+    // frame_type: first=目標1次 / second=目標二次以降
+    $frameCol = ($_POST['frame_type'] ?? 'first') === 'second' ? 'target_second_frame' : 'target_first_frame';
     if ($ty && $tm) {
         $db = getDB();
-        try { $db->exec("CREATE TABLE IF NOT EXISTS sales_frame_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_first_frame INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sft (company_id, case_type, year, month), INDEX idx_sft_company (company_id, case_type, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"); } catch (PDOException $e) {}
-        $db->prepare("INSERT INTO sales_frame_targets (company_id, case_type, year, month, target_first_frame) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE target_first_frame=VALUES(target_first_frame), updated_at=NOW()")->execute([$cid, $caseTypeFilter, $ty, $tm, $tv]);
+        try { $db->exec("CREATE TABLE IF NOT EXISTS sales_frame_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_first_frame INT NOT NULL DEFAULT 0, target_second_frame INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sft (company_id, case_type, year, month), INDEX idx_sft_company (company_id, case_type, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"); } catch (PDOException $e) {}
+        try { $db->exec("ALTER TABLE sales_frame_targets ADD COLUMN target_second_frame INT NOT NULL DEFAULT 0 AFTER target_first_frame"); } catch (PDOException $e) {}
+        $db->prepare("INSERT INTO sales_frame_targets (company_id, case_type, year, month, `{$frameCol}`) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE `{$frameCol}`=VALUES(`{$frameCol}`), updated_at=NOW()")->execute([$cid, $caseTypeFilter, $ty, $tm, $tv]);
     }
     echo json_encode(['ok' => true]);
     exit;
@@ -381,31 +384,32 @@ $_s = $_sDb->prepare($_carrierFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $carrierFyRows = $_s->fetchAll();
 
-// 月別枠数目標（常勤/イベントのみ）
-$frameTargetMap = [];
-$frameActualMap = [];
-$frameTotalMap  = [];
+// 月別枠数目標・実績（常勤/イベントのみ。区分ごとに集計、相互に混在しない）
+$frameTargetMap  = []; // 目標1次
+$frameTarget2Map = []; // 目標二次以降
+$frameActualMap  = []; // 1次実績（case_division='1次'）
+$frameActual2Map = []; // 二次以降実績（case_division='二次以降'）
 if ($caseTypeFilter) {
     try {
-        $_ftStmt = $_sDb->prepare("SELECT year, month, target_first_frame FROM sales_frame_targets WHERE company_id=? AND case_type=? AND ((year=? AND month>=9) OR (year=? AND month<=8))");
+        try { $_sDb->exec("ALTER TABLE sales_frame_targets ADD COLUMN target_second_frame INT NOT NULL DEFAULT 0 AFTER target_first_frame"); } catch (PDOException $e) {}
+        $_ftStmt = $_sDb->prepare("SELECT year, month, target_first_frame, target_second_frame FROM sales_frame_targets WHERE company_id=? AND case_type=? AND ((year=? AND month>=9) OR (year=? AND month<=8))");
         $_ftStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
         foreach ($_ftStmt->fetchAll() as $_r) {
-            $frameTargetMap[(int)$_r['year']][(int)$_r['month']] = (int)$_r['target_first_frame'];
+            $frameTargetMap[(int)$_r['year']][(int)$_r['month']]  = (int)$_r['target_first_frame'];
+            $frameTarget2Map[(int)$_r['year']][(int)$_r['month']] = (int)$_r['target_second_frame'];
         }
-        // 1次枠実績（case_divisionが'1次'の件数）
-        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division='1次' AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month");
+        // 区分別 実績件数（1次 / 二次以降）
+        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, case_division, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division IN ('1次','二次以降') AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month, case_division");
         $_faStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
         foreach ($_faStmt->fetchAll() as $_r) {
-            $frameActualMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
-        }
-        // 合計枠実績（全件数）
-        $_fTotalStmt = $_sDb->prepare("SELECT case_year, case_month, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month");
-        $_fTotalStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
-        foreach ($_fTotalStmt->fetchAll() as $_r) {
-            $frameTotalMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
+            if ($_r['case_division'] === '1次') {
+                $frameActualMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
+            } else {
+                $frameActual2Map[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
+            }
         }
     } catch (PDOException $_e) {
-        $frameTargetMap = []; $frameActualMap = []; $frameTotalMap = [];
+        $frameTargetMap = []; $frameTarget2Map = []; $frameActualMap = []; $frameActual2Map = [];
     }
 }
 
@@ -735,6 +739,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         <input type="number" min="0" class="fy-tgt-input fy-frame-tgt-input form-control form-control-sm border-0 text-center px-1"
                                             style="min-width:52px;background:transparent"
                                             value="<?= $ftv ?: '' ?>"
+                                            data-frame="first"
                                             data-year="<?= $fm['y'] ?>"
                                             data-month="<?= $fm['m'] ?>"
                                             placeholder="0">
@@ -751,22 +756,56 @@ require_once __DIR__ . '/../includes/header.php';
                                         $ffv = $frameActualMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFirstFrameTotal += $ffv;
                                     ?>
-                                    <td class="text-center"><?= $ffv ?: '-' ?></td>
+                                    <td class="text-center fy-first-actual" data-val="<?= $ffv ?>"><?= $ffv ?: '-' ?></td>
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold"><?= $fyFirstFrameTotal ?: '-' ?></td>
                                 </tr>
-                                <!-- 合計枠数（自動集計） -->
+                                <!-- 目標二次以降枠数（手打ち） -->
+                                <tr>
+                                    <td class="fy-label">目標二次以降枠数</td>
+                                    <?php
+                                    $fyFrameTgt2Total = 0;
+                                    foreach ($fyMonths as $fm):
+                                        $ftv2 = $frameTarget2Map[$fm['y']][$fm['m']] ?? 0;
+                                        $fyFrameTgt2Total += $ftv2;
+                                    ?>
+                                    <td class="p-0">
+                                        <input type="number" min="0" class="fy-tgt-input fy-frame-tgt-input form-control form-control-sm border-0 text-center px-1"
+                                            style="min-width:52px;background:transparent"
+                                            value="<?= $ftv2 ?: '' ?>"
+                                            data-frame="second"
+                                            data-year="<?= $fm['y'] ?>"
+                                            data-month="<?= $fm['m'] ?>"
+                                            placeholder="0">
+                                    </td>
+                                    <?php endforeach; ?>
+                                    <td class="text-center table-secondary fw-semibold" id="fyFrameTgt2Total"><?= $fyFrameTgt2Total ?></td>
+                                </tr>
+                                <!-- 二次以降枠数（自動集計） -->
+                                <tr>
+                                    <td class="fy-label">二次以降枠数</td>
+                                    <?php
+                                    $fySecondFrameTotal = 0;
+                                    foreach ($fyMonths as $fm):
+                                        $sfv = $frameActual2Map[$fm['y']][$fm['m']] ?? 0;
+                                        $fySecondFrameTotal += $sfv;
+                                    ?>
+                                    <td class="text-center fy-second-actual" data-val="<?= $sfv ?>"><?= $sfv ?: '-' ?></td>
+                                    <?php endforeach; ?>
+                                    <td class="text-center table-secondary fw-semibold"><?= $fySecondFrameTotal ?: '-' ?></td>
+                                </tr>
+                                <!-- 合計枠数（1次＋二次以降を自動計算） -->
                                 <tr>
                                     <td class="fy-label">合計枠数</td>
                                     <?php
                                     $fyTotalFrameTotal = 0;
                                     foreach ($fyMonths as $fm):
-                                        $ftotal = $frameTotalMap[$fm['y']][$fm['m']] ?? 0;
+                                        $ftotal = ($frameActualMap[$fm['y']][$fm['m']] ?? 0) + ($frameActual2Map[$fm['y']][$fm['m']] ?? 0);
                                         $fyTotalFrameTotal += $ftotal;
                                     ?>
-                                    <td class="text-center"><?= $ftotal ?: '-' ?></td>
+                                    <td class="text-center fy-total-frame"><?= $ftotal ?: '-' ?></td>
                                     <?php endforeach; ?>
-                                    <td class="text-center table-secondary fw-semibold"><?= $fyTotalFrameTotal ?: '-' ?></td>
+                                    <td class="text-center table-secondary fw-semibold" id="fyTotalFrameSum"><?= $fyTotalFrameTotal ?: '-' ?></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1370,28 +1409,33 @@ function setKpiTaxMode(incl) {
 TAXJS;
 
 $inlineJs .= <<<'FRAMEJS'
-// 月別枠数目標: 自動保存
+// 月別枠数目標: 自動保存（1次 / 二次以降を区別）
 (function() {
     const inputs = document.querySelectorAll('.fy-frame-tgt-input');
     if (!inputs.length) return;
     const csrf = document.getElementById('fycsrf') ? document.getElementById('fycsrf').value : '';
     const saveUrl = window.location.pathname;
     function recalcTgtTotal() {
-        let sum = 0;
-        inputs.forEach(inp => { sum += parseInt(inp.value) || 0; });
-        const el = document.getElementById('fyFrameTgtTotal');
-        if (el) el.textContent = sum || 0;
+        let sum1 = 0, sum2 = 0;
+        inputs.forEach(inp => {
+            const v = parseInt(inp.value) || 0;
+            if (inp.dataset.frame === 'second') sum2 += v; else sum1 += v;
+        });
+        const el1 = document.getElementById('fyFrameTgtTotal');  if (el1) el1.textContent = sum1 || 0;
+        const el2 = document.getElementById('fyFrameTgt2Total'); if (el2) el2.textContent = sum2 || 0;
     }
     inputs.forEach(function(inp) {
         inp.addEventListener('change', function() {
             const yr = inp.dataset.year;
             const mo = inp.dataset.month;
+            const frame = inp.dataset.frame || 'first';
             const val = Math.max(0, parseInt(inp.value) || 0);
             inp.value = val;
             recalcTgtTotal();
             const fd = new FormData();
             fd.append('action', 'save_frame_target');
             fd.append('csrf', csrf);
+            fd.append('frame_type', frame);
             fd.append('t_year', yr);
             fd.append('t_month', mo);
             fd.append('t_value', val);

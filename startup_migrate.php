@@ -163,8 +163,8 @@ $migrations = [
     // ---- departure_reports: 出発報告メール履歴 ----
     "CREATE TABLE IF NOT EXISTS departure_reports (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_id INT NOT NULL, token VARCHAR(64) NOT NULL, sent_to VARCHAR(200) NOT NULL, admin_email VARCHAR(200) DEFAULT NULL, answer VARCHAR(10) DEFAULT NULL, sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, answered_at TIMESTAMP NULL DEFAULT NULL, UNIQUE KEY uk_dr_token (token), INDEX idx_dr_emp (company_id, employee_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    // ---- sales_cases: 区分「その他」を「二次以降」に変更 ----
-    "UPDATE sales_cases SET case_division='二次以降' WHERE case_division='その他'",
+    // ---- sales_cases: 区分「その他」「二次以降」を「2次以降」に統一 ----
+    "UPDATE sales_cases SET case_division='2次以降' WHERE case_division IN ('その他','二次以降')",
 
     // ---- sales_frame_targets: 目標二次以降枠数カラム ----
     "ALTER TABLE sales_frame_targets ADD COLUMN target_second_frame INT NOT NULL DEFAULT 0 COMMENT '目標二次以降枠数' AFTER target_first_frame",

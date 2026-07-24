@@ -400,7 +400,7 @@ if ($caseTypeFilter) {
             $frameTarget2Map[(int)$_r['year']][(int)$_r['month']] = (int)$_r['target_second_frame'];
         }
         // 区分別 実績件数（1次 / 二次以降）
-        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, case_division, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division IN ('1次','二次以降') AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month, case_division");
+        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, case_division, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division IN ('1次','2次以降') AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month, case_division");
         $_faStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
         foreach ($_faStmt->fetchAll() as $_r) {
             if ($_r['case_division'] === '1次') {
@@ -433,6 +433,8 @@ require_once __DIR__ . '/../includes/header.php';
 <style>
 .fy-monthly-table > :not(caption) > * > * { padding: .18rem .35rem !important; white-space: nowrap !important; vertical-align: middle !important; font-size: .72rem !important; }
 .fy-monthly-table thead > * > * { font-size: .68rem !important; text-align: center !important; }
+/* 月別枠数テーブル: 項目名がはみ出さないよう1列目を固定幅で確保 */
+.frame-count-table td.fy-label, .frame-count-table thead th:first-child { min-width: 118px !important; width: 118px !important; }
 .fy-monthly-table tbody > * > td:first-child { text-align: left !important; }
 .fy-monthly-table .fy-tgt-input { height: 22px !important; font-size: .7rem !important; padding: .1rem .25rem !important; }
 </style>
@@ -714,10 +716,10 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-sm table-bordered mb-0 fy-monthly-table">
+                        <table class="table table-sm table-bordered mb-0 fy-monthly-table frame-count-table">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="min-width:56px;width:56px">項目</th>
+                                    <th style="min-width:118px;width:118px">項目</th>
                                     <?php foreach ($fyMonths as $fm): ?>
                                     <th class="text-center"><?= $fm['m'] ?>月</th>
                                     <?php endforeach; ?>
@@ -759,9 +761,9 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold"><?= $fyFirstFrameTotal ?: '-' ?></td>
                                 </tr>
-                                <!-- 目標二次以降枠数（手打ち） -->
+                                <!-- 目標2次以降枠数（手打ち） -->
                                 <tr>
-                                    <td class="fy-label">目標二次以降枠数</td>
+                                    <td class="fy-label">目標2次以降枠数</td>
                                     <?php
                                     $fyFrameTgt2Total = 0;
                                     foreach ($fyMonths as $fm):
@@ -780,9 +782,9 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold" id="fyFrameTgt2Total"><?= $fyFrameTgt2Total ?></td>
                                 </tr>
-                                <!-- 二次以降枠数（自動集計） -->
+                                <!-- 2次以降枠数（自動集計） -->
                                 <tr>
-                                    <td class="fy-label">二次以降枠数</td>
+                                    <td class="fy-label">2次以降枠数</td>
                                     <?php
                                     $fySecondFrameTotal = 0;
                                     foreach ($fyMonths as $fm):
@@ -1408,7 +1410,7 @@ function setKpiTaxMode(incl) {
 TAXJS;
 
 $inlineJs .= <<<'FRAMEJS'
-// 月別枠数目標: 自動保存（1次 / 二次以降を区別）
+// 月別枠数目標: 自動保存（1次 / 2次以降を区別）
 (function() {
     const inputs = document.querySelectorAll('.fy-frame-tgt-input');
     if (!inputs.length) return;

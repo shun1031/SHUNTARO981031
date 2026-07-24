@@ -453,7 +453,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <select name="case_division" id="f_case_division" class="form-select" required>
                             <option value="">-- 選択してください --</option>
                             <option value="1次">1次</option>
-                            <option value="二次以降">二次以降</option>
+                            <option value="2次以降">2次以降</option>
                         </select>
                     </div>
                     <div class="col-md-4">

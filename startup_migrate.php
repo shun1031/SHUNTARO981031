@@ -169,6 +169,9 @@ $migrations = [
     // ---- sales_frame_targets: 目標二次以降枠数カラム ----
     "ALTER TABLE sales_frame_targets ADD COLUMN target_second_frame INT NOT NULL DEFAULT 0 COMMENT '目標二次以降枠数' AFTER target_first_frame",
 
+    // ---- sales_shifts: 出発時間（出発報告対象者のみ使用） ----
+    "ALTER TABLE sales_shifts ADD COLUMN departure_time VARCHAR(10) DEFAULT NULL COMMENT '出発予定時間' AFTER start_time",
+
     // ---- app_sessions: DBセッション保存（再デプロイでログアウトされない） ----
     "CREATE TABLE IF NOT EXISTS app_sessions (id VARCHAR(128) PRIMARY KEY, data MEDIUMTEXT NOT NULL, last_activity INT NOT NULL, INDEX idx_last_activity (last_activity)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

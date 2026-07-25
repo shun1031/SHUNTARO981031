@@ -55,14 +55,15 @@ while (true) {
         $today    = date('Y-m-d', $now);
         $tomorrow = date('Y-m-d', $now + 86400); // 日付をまたぐ深夜シフト対応
 
+        // 出発報告対象者かつ出発時間が入力されているシフトのみ対象
         $st = $db->prepare("
-            SELECT s.id AS shift_id, s.company_id, s.shift_date, s.start_time,
+            SELECT s.id AS shift_id, s.company_id, s.shift_date, s.departure_time,
                    e.id AS emp_id, e.name, e.email
             FROM sales_shifts s
             JOIN employees e ON e.company_id = s.company_id AND e.name = s.employee_name
             WHERE s.shift_date IN (?, ?)
               AND (s.is_day_off IS NULL OR s.is_day_off = 0)
-              AND s.start_time IS NOT NULL AND s.start_time != ''
+              AND s.departure_time IS NOT NULL AND s.departure_time != ''
               AND e.is_active = 1
               AND e.departure_report_flag = 1
               AND e.email IS NOT NULL AND e.email != ''
@@ -73,15 +74,17 @@ while (true) {
         $adminEmail = getenv('DEPARTURE_NOTIFY_EMAIL') ?: (getenv('SMTP_USER') ?: null);
 
         foreach ($st->fetchAll() as $row) {
-            $startTs = strtotime($row['shift_date'] . ' ' . $row['start_time']);
-            if ($startTs === false) continue;
-            $diff = $startTs - $now;
-            // 出勤予定の30分前〜出勤時刻の間で未送信なら送信
-            if ($diff > 0 && $diff <= 1800) {
+            $depTs = strtotime($row['shift_date'] . ' ' . $row['departure_time']);
+            if ($depTs === false) continue;
+            // 送信予定時刻 = 出発時間の10分後
+            $sendTs = $depTs + 600;
+            $diff = $now - $sendTs;
+            // 送信予定時刻を過ぎてから10分以内（0〜600秒）に未送信なら送信
+            if ($diff >= 0 && $diff <= 600) {
                 $emp = ['id' => (int)$row['emp_id'], 'name' => $row['name'], 'email' => $row['email']];
                 $res = sendDepartureReportMail($db, (int)$row['company_id'], $emp, $adminEmail, (int)$row['shift_id'], $baseUrl);
                 if ($res['success']) {
-                    schedLog('自動送信: ' . $row['name'] . ' (' . $row['email'] . ') シフト ' . $row['shift_date'] . ' ' . $row['start_time']);
+                    schedLog('自動送信: ' . $row['name'] . ' (' . $row['email'] . ') シフト ' . $row['shift_date'] . ' 出発' . $row['departure_time'] . 'の10分後');
                 } else {
                     schedLog('送信失敗: ' . $row['name'] . ' → ' . ($res['error'] ?? '不明'));
                 }

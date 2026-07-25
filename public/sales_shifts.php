@@ -46,6 +46,16 @@ $grid        = $selectedEmp ? getShiftGrid($cid, $year, $month, $selectedEmp)   
 $summary     = $selectedEmp ? getShiftSummary($cid, $year, $month, $selectedEmp) : [];
 $empGrid     = $grid[$selectedEmp] ?? [];
 
+// 選択中の社員が出発報告対象者か（対象者のみ出発時間列を表示）
+$isDepartureTarget = false;
+if ($selectedEmp) {
+    try {
+        $_dtStmt = getDB()->prepare("SELECT departure_report_flag FROM employees WHERE company_id = ? AND name = ? AND is_active = 1 LIMIT 1");
+        $_dtStmt->execute([$cid, $selectedEmp]);
+        $isDepartureTarget = (bool)$_dtStmt->fetchColumn();
+    } catch (PDOException $e) {}
+}
+
 $isAjax = ($_GET['ajax'] ?? '') === '1';
 
 // ─── コンテンツ HTML を生成（AJAX・通常共通） ───
@@ -64,6 +74,7 @@ if (!empty($selectedEmp)):
                     <tr>
                         <th style="width:100px">日付</th>
                         <th style="width:60px">曜日</th>
+                        <?php if ($isDepartureTarget): ?><th style="width:80px">出発時間</th><?php endif; ?>
                         <th style="width:130px">シフト時間</th>
                         <th style="width:90px">出勤時間</th>
                         <th style="width:90px">退勤時間</th>
@@ -116,6 +127,9 @@ if (!empty($selectedEmp)):
                     <tr class="<?= $rowClass ?>">
                         <td><?= $dateStr ?><?php if (!empty($s['is_additional'])): ?> <span class="badge bg-info text-dark" style="font-size:.6rem">追加</span><?php endif; ?></td>
                         <td class="<?= $dow===0?'text-danger':($dow===6?'text-primary':'') ?>"><?= $dowLbl ?></td>
+                        <?php if ($isDepartureTarget): ?>
+                        <td><?= (!empty($s['departure_time']) && !$dayOff) ? h($s['departure_time']) : '<span class="text-muted">-</span>' ?></td>
+                        <?php endif; ?>
                         <td>
                             <?php if ($dayOff): ?>
                             <span class="text-muted">休み</span>

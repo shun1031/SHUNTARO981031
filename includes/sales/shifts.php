@@ -59,20 +59,22 @@ function saveShift(int $companyId, array $data): int {
     }
     // 出退勤報告（attendance_status/checkin_time）は saveAttendanceStatus() の責務。
     // ここではシフト予定項目のみ更新し、既存の出退勤データは保持する。
+    $departureTime = $data['departure_time'] ?? null;
     $stmt = $db->prepare("INSERT INTO sales_shifts
         (company_id, employee_name, shift_date, shift_year, shift_month,
-         scheduled_time, start_time, end_time, is_day_off, is_additional, checkin_time, report_status, location, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         scheduled_time, start_time, departure_time, end_time, is_day_off, is_additional, checkin_time, report_status, location, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             scheduled_time = VALUES(scheduled_time),
             start_time = VALUES(start_time),
+            departure_time = VALUES(departure_time),
             end_time = VALUES(end_time),
             is_day_off = VALUES(is_day_off),
             is_additional = VALUES(is_additional),
             location = VALUES(location)");
     $stmt->execute([
         $companyId, $data['employee_name'], $date, (int)$ym[0], (int)$ym[1],
-        $scheduledTime, $startTime, $endTime, $isDayOff, $isAdditional,
+        $scheduledTime, $startTime, $departureTime, $endTime, $isDayOff, $isAdditional,
         $data['checkin_time'] ?? null, $data['report_status'] ?? '',
         $data['location'] ?? null, $data['note'] ?? null,
     ]);

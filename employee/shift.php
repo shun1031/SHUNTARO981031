@@ -62,28 +62,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $daysInMonthPost = cal_days_in_month(CAL_GREGORIAN, $month, $year);
     $location   = trim($_POST['location'] ?? '');   // 月全体共通の勤務地（1回入力）
     $startTimes = $_POST['start_time'] ?? [];
+    $departTimes= $_POST['departure_time'] ?? [];
     $endTimes   = $_POST['end_time'] ?? [];
     $isDayOff   = $_POST['is_day_off'] ?? [];
     for ($d = 1; $d <= $daysInMonthPost; $d++) {
         $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $d);
         $start   = trim($startTimes[$dateStr] ?? '');
+        $depart  = trim($departTimes[$dateStr] ?? '');
         $end     = trim($endTimes[$dateStr] ?? '');
         $dayOff  = isset($isDayOff[$dateStr]) ? 1 : 0;
         if (!$start && !$end && !$dayOff) continue;
         saveShift($cid, [
-            'employee_name' => $myName,
-            'shift_date'    => $dateStr,
-            'start_time'    => $start ?: null,
-            'end_time'      => $end ?: null,
-            'is_day_off'    => $dayOff,
-            'is_additional' => 0,
-            'location'      => $location ?: null,
+            'employee_name'  => $myName,
+            'shift_date'     => $dateStr,
+            'start_time'     => $start ?: null,
+            'departure_time' => $depart ?: null,
+            'end_time'       => $end ?: null,
+            'is_day_off'     => $dayOff,
+            'is_additional'  => 0,
+            'location'       => $location ?: null,
         ]);
     }
     redirect(BASE_PATH . '/employee/shift.php?year='.$year.'&month='.$month.'&msg=saved');
 }
 
 $shifts = $myName ? getShifts($cid, $year, $month, $myName) : [];
+
+// 出発報告対象者かどうか（対象者のみ出発時間欄を表示）
+$isDepartureTarget = false;
+if ($myName) {
+    try {
+        $_dtStmt = getDB()->prepare("SELECT departure_report_flag FROM employees WHERE company_id = ? AND name = ? AND is_active = 1 LIMIT 1");
+        $_dtStmt->execute([$cid, $myName]);
+        $isDepartureTarget = (bool)$_dtStmt->fetchColumn();
+    } catch (PDOException $e) {}
+}
+
 $shiftsByDate = [];
 $defaultLocation = '';
 foreach ($shifts as $s) {
@@ -138,6 +152,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <thead class="table-light">
                         <tr>
                             <th style="width:140px">日付</th>
+                            <?php if ($isDepartureTarget): ?><th style="width:90px">出発時間</th><?php endif; ?>
                             <th>予定時間</th>
                             <th>勤務地</th>
                             <th style="width:80px" class="text-center">出退勤</th>
@@ -157,6 +172,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php if ($dateStr === $today): ?><span class="badge bg-success ms-1">本日</span><?php endif; ?>
                                 <?php if (!empty($s['is_additional'])): ?><span class="badge bg-info text-dark ms-1" style="font-size:.6rem">追加</span><?php endif; ?>
                             </td>
+                            <?php if ($isDepartureTarget): ?>
+                            <td><?= !empty($s['departure_time']) && empty($s['is_day_off']) ? h($s['departure_time']) : '<span class="text-muted">-</span>' ?></td>
+                            <?php endif; ?>
                             <td>
                                 <?php if (!empty($s['is_day_off'])): ?>
                                 <span class="badge bg-secondary">休み</span>
@@ -212,6 +230,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th style="width:110px">日付</th>
+                                <?php if ($isDepartureTarget): ?><th>出発時間</th><?php endif; ?>
                                 <th>出勤時間</th>
                                 <th>退勤時間</th>
                                 <th style="width:50px" class="text-center">休み</th>
@@ -226,6 +245,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 $isWeekend   = ($dow === 0 || $dow === 6);
                                 $dayOffVal   = !empty($s['is_day_off']);
                                 $existStart  = $s['start_time'] ?? '';
+                                $existDepart = $s['departure_time'] ?? '';
                                 $existEnd    = $s['end_time'] ?? '';
                                 $startInOpts = in_array($existStart, $startOpts, true);
                                 $endInOpts   = in_array($existEnd, $endOpts, true);
@@ -238,6 +258,16 @@ require_once __DIR__ . '/../includes/header.php';
                                     (<span class="<?= $dow === 0 ? 'text-danger' : ($dow === 6 ? 'text-primary' : '') ?>"><?= $dowLabels[$dow] ?></span>)
                                     <?php if ($isToday): ?><span class="badge bg-success ms-1" style="font-size:.55rem">本日</span><?php endif; ?>
                                 </td>
+                                <?php if ($isDepartureTarget): ?>
+                                <td>
+                                    <input type="text" name="departure_time[<?= $dateStr ?>]" id="sm_dep<?= $d ?>"
+                                        value="<?= h($existDepart) ?>"
+                                        class="form-control form-control-sm dep-time-inp"
+                                        maxlength="5" placeholder="HH:MM"
+                                        style="width:80px"
+                                        <?= $dayOffVal ? 'disabled' : '' ?>>
+                                </td>
+                                <?php endif; ?>
                                 <td>
                                     <div class="d-flex gap-1 align-items-center">
                                         <select class="form-select form-select-sm time-sel flex-grow-1"
@@ -417,6 +447,10 @@ document.querySelectorAll('.day-off-chk').forEach(function(chk) {
         row.querySelectorAll('.day-time-inp').forEach(function(inp) {
             inp.disabled = chk.checked;
             if (chk.checked) { inp.value = ''; inp.style.display = 'none'; }
+        });
+        row.querySelectorAll('.dep-time-inp').forEach(function(inp) {
+            inp.disabled = chk.checked;
+            if (chk.checked) { inp.value = ''; }
         });
     });
 });

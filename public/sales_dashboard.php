@@ -1677,10 +1677,10 @@ $inlineJs .= <<<'JSEOF2'
 JSEOF2;
 
 $inlineJs .= <<<'FYJS'
-// 年度月別目標 入力保存
+// 年度月別「売上目標」入力保存（枠数目標 .fy-frame-tgt-input は対象外）
 (function() {
     var csrf = document.getElementById('fycsrf') ? document.getElementById('fycsrf').value : '';
-    document.querySelectorAll('.fy-tgt-input').forEach(function(el) {
+    document.querySelectorAll('.fy-tgt-input:not(.fy-frame-tgt-input)').forEach(function(el) {
         el.addEventListener('focus', function() { this.select(); });
         el.addEventListener('blur', function() {
             var raw = this.value.replace(/[^0-9]/g, '') || '0';
@@ -1708,7 +1708,7 @@ $inlineJs .= <<<'FYJS'
     });
     function recalcFyTgtTotal() {
         var total = 0;
-        document.querySelectorAll('.fy-tgt-input').forEach(function(el) {
+        document.querySelectorAll('.fy-tgt-input:not(.fy-frame-tgt-input)').forEach(function(el) {
             total += parseInt(el.value.replace(/[^0-9]/g, '') || '0');
         });
         var el = document.getElementById('fyTgtTotal');

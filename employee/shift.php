@@ -16,6 +16,14 @@ $csrf = getCsrfToken();
 
 $startOpts = ['09:45', '10:00', '11:00', '12:00'];
 $endOpts   = ['18:45', '18:00', '19:00', '20:00', '21:00'];
+// 出発時間の候補（07:00〜12:00 を15分刻み）
+$departOpts = [];
+for ($h = 7; $h <= 12; $h++) {
+    foreach (['00','15','30','45'] as $mm) {
+        if ($h === 12 && $mm !== '00') break;
+        $departOpts[] = sprintf('%02d:%s', $h, $mm);
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) {
@@ -249,8 +257,10 @@ require_once __DIR__ . '/../includes/header.php';
                                 $existEnd    = $s['end_time'] ?? '';
                                 $startInOpts = in_array($existStart, $startOpts, true);
                                 $endInOpts   = in_array($existEnd, $endOpts, true);
+                                $departInOpts = in_array($existDepart, $departOpts, true);
                                 $showStartInp = ($existStart !== '' && !$startInOpts);
                                 $showEndInp   = ($existEnd !== '' && !$endInOpts);
+                                $showDepartInp = ($existDepart !== '' && !$departInOpts);
                             ?>
                             <tr class="<?= $isToday ? 'table-success' : ($isWeekend ? 'table-light' : '') ?>">
                                 <td class="fw-medium" style="white-space:nowrap">
@@ -260,12 +270,22 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <?php if ($isDepartureTarget): ?>
                                 <td>
-                                    <input type="text" name="departure_time[<?= $dateStr ?>]" id="sm_dep<?= $d ?>"
-                                        value="<?= h($existDepart) ?>"
-                                        class="form-control form-control-sm dep-time-inp"
-                                        maxlength="5" placeholder="HH:MM"
-                                        style="width:80px"
-                                        <?= $dayOffVal ? 'disabled' : '' ?>>
+                                    <div class="d-flex gap-1 align-items-center">
+                                        <select class="form-select form-select-sm time-sel flex-grow-1"
+                                            data-inp="sm_dep<?= $d ?>" <?= $dayOffVal ? 'disabled' : '' ?>>
+                                            <option value="">--</option>
+                                            <?php foreach ($departOpts as $opt): ?>
+                                            <option value="<?= $opt ?>" <?= $existDepart === $opt ? 'selected' : '' ?>><?= $opt ?></option>
+                                            <?php endforeach; ?>
+                                            <option value="__other__" <?= $showDepartInp ? 'selected' : '' ?>>手入力</option>
+                                        </select>
+                                        <input type="text" name="departure_time[<?= $dateStr ?>]" id="sm_dep<?= $d ?>"
+                                            value="<?= h($existDepart) ?>"
+                                            class="form-control form-control-sm day-time-inp dep-time-inp"
+                                            maxlength="5" placeholder="HH:MM"
+                                            style="width:68px;<?= $showDepartInp ? '' : 'display:none' ?>"
+                                            <?= $dayOffVal ? 'disabled' : '' ?>>
+                                    </div>
                                 </td>
                                 <?php endif; ?>
                                 <td>

@@ -325,7 +325,9 @@ $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $allianceFyRows = $_s->fetchAll();
 // 営業マン別売上（当月）: 担当者別売上レポートと同じ50%分割で集計
 // ※粗利0円稼働者（zero_profit_flag=1）の案件は売上は50/50のまま、粗利のみ直営業100%
-$_zpCond = "worker_name IN (SELECT em.name FROM employees em WHERE em.company_id = sales_cases.company_id AND em.is_active = 1 AND em.zero_profit_flag = 1)";
+// ※2026年7月イベント案件の 近藤航 のみ粗利0円稼働者扱い（一度きりのデータ対応。他の年月・他スタッフには影響しない）
+$_zpCond = "(worker_name IN (SELECT em.name FROM employees em WHERE em.company_id = sales_cases.company_id AND em.is_active = 1 AND em.zero_profit_flag = 1)"
+         . " OR (worker_name = '近藤航' AND case_year = 2026 AND case_month = 7 AND case_type = 'event'))";
 $_repFySql = "
     SELECT name, SUM(revenue) AS revenue, SUM(profit) AS profit
     FROM (
@@ -1828,21 +1830,31 @@ function drawRankPieCharts(cardkey,taxIncl){
         return{name:r.name,revenue:Math.round((parseInt(r.revenue)||0)*rate),profit:Math.round((parseInt(r.profit)||0)*rate)};
     });
 
-    // ランキング（全カード共通: TOP5 + 6位以下は「その他」に集約）
-    var top=rows.slice(0,5), rest=rows.slice(5);
-    var rankRows=top.slice();
-    if(rest.length){
-        var oRev=0,oPro=0;
-        rest.forEach(function(r){oRev+=r.revenue;oPro+=r.profit;});
-        rankRows.push({name:'その他',revenue:oRev,profit:oPro,isOther:true});
+    // ランキング: 営業マンは全員を個別表示（直営業は順位なしの別行）、他カードはTOP5 + 6位以下は「その他」に集約
+    var rankRows;
+    if(cardkey==='rep'){
+        rankRows=rows.map(function(r){
+            return{name:r.name,revenue:r.revenue,profit:r.profit,isDirect:r.name==='直営業'};
+        });
+    }else{
+        var top=rows.slice(0,5), rest=rows.slice(5);
+        rankRows=top.slice();
+        if(rest.length){
+            var oRev=0,oPro=0;
+            rest.forEach(function(r){oRev+=r.revenue;oPro+=r.profit;});
+            rankRows.push({name:'その他',revenue:oRev,profit:oPro,isOther:true});
+        }
     }
     var tbody=document.getElementById(cardkey+'PieRank');
     if(tbody){
         var html='';
-        rankRows.forEach(function(r,i){
+        var rankNo=0;
+        rankRows.forEach(function(r){
+            var noRank=r.isOther||r.isDirect;
+            if(!noRank)rankNo++;
             var margin=r.revenue>0?(r.profit/r.revenue*100).toFixed(1)+'%':'-';
             html+='<tr'+(r.isOther?' class="text-muted"':'')+'>';
-            html+='<td>'+(r.isOther?'-':(i+1))+'</td>';
+            html+='<td>'+(noRank?'-':rankNo)+'</td>';
             html+='<td>'+_pieEsc(r.name)+'</td>';
             html+='<td class="text-end">'+r.revenue.toLocaleString()+'</td>';
             html+='<td class="text-end" style="color:#3b82f6">'+r.profit.toLocaleString()+'</td>';

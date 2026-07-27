@@ -230,7 +230,9 @@ $zeroProfitNames = array_flip($_zpStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
 ob_start();
 if (empty($cases)) { echo '<tr><td colspan="11" class="text-center text-muted py-4">案件がありません</td></tr>'; }
 else { foreach ($cases as $c):
-    $isZeroProfit = isset($zeroProfitNames[trim($c['worker_name'] ?? '')]);
+    // ※2026年7月分のみ 近藤航 を粗利0円稼働者として扱う（一度きりのデータ対応。他の年月・他スタッフには影響しない）
+    $isZeroProfit = isset($zeroProfitNames[trim($c['worker_name'] ?? '')])
+        || (trim($c['worker_name'] ?? '') === '近藤航' && (int)($c['case_year'] ?? 0) === 2026 && (int)($c['case_month'] ?? 0) === 7);
     $splitTo = $c['manager'] ?: ($c['recruiter'] ?: '直営業');
     // 売上は常に50/50分割
     $repRev  = (int)floor($c['revenue'] / 2);

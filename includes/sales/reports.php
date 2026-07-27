@@ -410,7 +410,10 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $refPro = $profit - $repPro;
 
         // 粗利0円稼働者の案件: 売上は通常どおり50/50、粗利のみ直営業100%
-        if (isset($zeroProfitNames[trim($row['worker_name'] ?? '')])) {
+        // ※2026年7月イベント案件の 近藤航 のみ粗利0円稼働者扱い（一度きりのデータ対応。他の年月・他スタッフには影響しない）
+        $isZp = isset($zeroProfitNames[trim($row['worker_name'] ?? '')])
+            || (trim($row['worker_name'] ?? '') === '近藤航' && (int)$year === 2026 && $month === 7 && $type === 'event');
+        if ($isZp) {
             $addEntry($rep, $month, $type, $repRev, 0, $count, $newTx, $neg, $con);
             $referrer = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '直営業');
             $addEntry($referrer, $month, $type, $refRev, 0, 0, 0, 0, 0);

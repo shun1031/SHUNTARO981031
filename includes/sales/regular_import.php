@@ -31,14 +31,23 @@ if (!function_exists('impWorkerType')) {
     }
 }
 
+if (!function_exists('impStartYm')) {
+    /** 稼働開始日から年月を取り出す（例: 2025/12/01 → [2025, 12]。取れなければ [0, 0]） */
+    function impStartYm(string $s): array {
+        if (preg_match('#(\d{4})\s*[/\-年]\s*(\d{1,2})#', trim($s), $m)) {
+            return [(int)$m[1], (int)$m[2]];
+        }
+        return [0, 0];
+    }
+}
+
 if (!function_exists('impStartNote')) {
     /** 稼働開始日を備考用の文字列にする（例: 2025/12/01 → 稼働開始 2025/12） */
     function impStartNote(string $s): string {
         $s = trim($s);
         if ($s === '') return '';
-        if (preg_match('#(\d{4})\s*[/\-年]\s*(\d{1,2})#', $s, $m)) {
-            return '稼働開始 ' . $m[1] . '/' . str_pad($m[2], 2, '0', STR_PAD_LEFT);
-        }
+        [$y, $m] = impStartYm($s);
+        if ($y) return '稼働開始 ' . $y . '/' . str_pad((string)$m, 2, '0', STR_PAD_LEFT);
         return '稼働開始 ' . $s;
     }
 }
@@ -46,12 +55,14 @@ if (!function_exists('impStartNote')) {
 if (!function_exists('parseRegularImport')) {
     /**
      * 貼り付けデータを解釈する
-     * @param string $raw         貼り付けテキスト
-     * @param array  $clientMap   既存取引先 名前 => id
-     * @param array  $allianceMap 既存外注先 名前 => id
+     * @param string $raw          貼り付けテキスト
+     * @param array  $clientMap    既存取引先 名前 => id
+     * @param array  $allianceMap  既存外注先 名前 => id
+     * @param int    $targetYear   登録先の年（稼働開始が対象月より後かの判定用。0で判定しない）
+     * @param int    $targetMonth  登録先の月
      * @return array{rows:array, skipped:array, new_clients:array, new_alliances:array}
      */
-    function parseRegularImport(string $raw, array $clientMap, array $allianceMap): array {
+    function parseRegularImport(string $raw, array $clientMap, array $allianceMap, int $targetYear = 0, int $targetMonth = 0): array {
         $lines        = preg_split('/\r\n|\r|\n/', $raw);
         $rows         = [];
         $skipped      = [];
@@ -120,6 +131,16 @@ if (!function_exists('parseRegularImport')) {
             if ($priceIn === 0)     $warn[] = '売上が0です';
             if ($priceIn - $priceOut < 0) $warn[] = '粗利がマイナスです';
 
+            // 稼働開始が登録先の月より後 → 別の月の稼働分なので既定で対象外にする
+            $isFuture = false;
+            [$sy, $sm] = impStartYm($col(8));
+            if ($targetYear && $sy && (($sy * 100 + $sm) > ($targetYear * 100 + $targetMonth))) {
+                $isFuture = true;
+                $warn[] = '稼働開始が' . $sy . '/' . str_pad((string)$sm, 2, '0', STR_PAD_LEFT)
+                        . 'で登録先の' . $targetYear . '/' . str_pad((string)$targetMonth, 2, '0', STR_PAD_LEFT)
+                        . 'より後のため、既定で登録対象外にしています';
+            }
+
             if ($workerName !== '') {
                 $nameCount[$workerName] = ($nameCount[$workerName] ?? 0) + 1;
             }
@@ -142,6 +163,7 @@ if (!function_exists('parseRegularImport')) {
                 'unit_price_out' => $priceOut,
                 'gross_profit'   => $priceIn - $priceOut,
                 'note'           => impStartNote($col(8)),
+                'is_future'      => $isFuture,
                 'warnings'       => $warn,
             ];
         }

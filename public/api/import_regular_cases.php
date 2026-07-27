@@ -35,17 +35,18 @@ $allianceMap = [];
 foreach (getSalesAlliances($cid) as $al) { $allianceMap[trim($al['alliance_name'])] = (int)$al['id']; }
 
 // ─── 貼り付けデータの解釈 ───
-$parsed       = parseRegularImport($raw, $clientMap, $allianceMap);
+$parsed       = parseRegularImport($raw, $clientMap, $allianceMap, $year, $month);
 $rows         = $parsed['rows'];
 $skipped      = $parsed['skipped'];
 $newClients   = $parsed['new_clients'];
 $newAlliances = $parsed['new_alliances'];
 
-$totalIn  = array_sum(array_column($rows, 'unit_price_in'));
-$totalOut = array_sum(array_column($rows, 'unit_price_out'));
-
 // ─── 確認（プレビュー） ───
 if ($action === 'preview') {
+    // 既定で登録する行（稼働開始が対象月より後の行は除く）の合計
+    $defRows  = array_values(array_filter($rows, fn($r) => !$r['is_future']));
+    $totalIn  = array_sum(array_column($defRows, 'unit_price_in'));
+    $totalOut = array_sum(array_column($defRows, 'unit_price_out'));
     echo json_encode([
         'success'       => true,
         'target'        => sprintf('%d年%d月', $year, $month),
@@ -54,6 +55,8 @@ if ($action === 'preview') {
         'new_clients'   => $newClients,
         'new_alliances' => $newAlliances,
         'count'         => count($rows),
+        'default_count' => count($defRows),
+        'future_count'  => count($rows) - count($defRows),
         'total_revenue' => $totalIn,
         'total_cost'    => $totalOut,
         'total_profit'  => $totalIn - $totalOut,
@@ -63,7 +66,13 @@ if ($action === 'preview') {
 
 // ─── 登録 ───
 if ($action === 'commit') {
-    if (!$rows) { echo json_encode(['error' => '登録できる行がありません']); exit; }
+    // 確認画面でチェックされた行のみ登録する
+    $selected = trim((string)($_POST['lines'] ?? ''));
+    if ($selected !== '') {
+        $keep = array_flip(array_map('intval', array_filter(explode(',', $selected), 'strlen')));
+        $rows = array_values(array_filter($rows, fn($r) => isset($keep[$r['line']])));
+    }
+    if (!$rows) { echo json_encode(['error' => '登録する行が選択されていません']); exit; }
     $startDate = sprintf('%04d-%02d-01', $year, $month);
     $created = 0; $failed = [];
     $createdClients = 0; $createdAlliances = 0;

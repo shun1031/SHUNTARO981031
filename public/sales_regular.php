@@ -613,6 +613,10 @@ require_once __DIR__ . '/../includes/header.php';
                         <table class="table table-sm table-hover mb-0" style="font-size:.74rem">
                             <thead class="table-light" style="position:sticky;top:0;z-index:1">
                                 <tr>
+                                    <th style="width:38px" class="text-center">
+                                        <input type="checkbox" class="form-check-input" id="impCheckAll" checked
+                                               onchange="impToggleAll(this)" title="すべて選択／解除">
+                                    </th>
                                     <th style="width:34px">#</th>
                                     <th>取引先</th>
                                     <th>営業</th>
@@ -1002,9 +1006,16 @@ function impRenderPreview(d) {
     // サマリー
     var s = '';
     s += '<div class="alert alert-info py-2 mb-2">';
-    s += '<div class="fw-semibold mb-1"><i class="bi bi-clipboard-check me-1"></i>' + impEsc(d.target) + ' に <strong>' + d.count + '件</strong> を登録します</div>';
-    s += '<div class="small">売上合計 <strong>' + impYen(d.total_revenue) + '円</strong>　／　原価合計 <strong>' + impYen(d.total_cost) + '円</strong>　／　粗利合計 <strong>' + impYen(d.total_profit) + '円</strong></div>';
+    s += '<div class="fw-semibold mb-1"><i class="bi bi-clipboard-check me-1"></i>' + impEsc(d.target) + ' に <strong><span id="impSelCount">' + d.default_count + '</span>件</strong> を登録します<span class="fw-normal text-muted small">（読み込み ' + d.count + '行）</span></div>';
+    s += '<div class="small">売上合計 <strong id="impSumRev">' + impYen(d.total_revenue) + '円</strong>　／　原価合計 <strong id="impSumCost">' + impYen(d.total_cost) + '円</strong>　／　粗利合計 <strong id="impSumProfit">' + impYen(d.total_profit) + '円</strong></div>';
+    s += '<div class="small text-muted mt-1">左端のチェックを外した行は登録されません。</div>';
     s += '</div>';
+
+    if (d.future_count) {
+        s += '<div class="alert alert-warning py-2 small mb-2"><i class="bi bi-calendar-x me-1"></i>'
+           + '<strong>稼働開始が' + impEsc(d.target) + 'より後の' + d.future_count + '行は、チェックを外した状態にしています。</strong>'
+           + '<div class="mt-1" style="font-size:.75rem">別の月の稼働分と判断しました。登録したい場合はチェックを入れてください。</div></div>';
+    }
 
     if (d.new_clients.length) {
         s += '<div class="alert alert-warning py-2 small mb-2"><i class="bi bi-plus-circle me-1"></i><strong>新しく作成される取引先（' + d.new_clients.length + '件）:</strong> '
@@ -1032,7 +1043,11 @@ function impRenderPreview(d) {
         if (r.warnings && r.warnings.length) {
             warnHtml += '<div class="text-warning-emphasis" style="color:#b45309">' + r.warnings.map(impEsc).join('<br>') + '</div>';
         }
-        html += '<tr>';
+        var checked = r.is_future ? '' : ' checked';
+        html += '<tr class="imp-row' + (r.is_future ? ' table-warning' : '') + '">';
+        html += '<td class="text-center"><input type="checkbox" class="form-check-input imp-chk"'
+              + ' data-line="' + r.line + '" data-rev="' + r.unit_price_in + '" data-cost="' + r.unit_price_out + '"'
+              + checked + ' onchange="impRecalc()"></td>';
         html += '<td class="text-muted">' + (i + 1) + '</td>';
         html += '<td>' + impEsc(r.client_name) + (r.client_id ? '' : ' <span class="badge bg-warning text-dark" style="font-size:.6rem">新規</span>') + '</td>';
         html += '<td>' + impEsc(r.sales_rep) + '</td>';
@@ -1057,10 +1072,40 @@ function impRenderPreview(d) {
     document.getElementById('impPreviewBtn').style.display = 'none';
     document.getElementById('impCommitBtn').style.display = '';
     document.getElementById('impBackBtn').style.display = '';
+    var all = document.getElementById('impCheckAll');
+    if (all) all.checked = (d.future_count === 0);
+    impRecalc();
+}
+
+/* チェック状態に応じて件数・合計を再計算 */
+function impRecalc() {
+    var n = 0, rev = 0, cost = 0;
+    document.querySelectorAll('.imp-chk').forEach(function(c) {
+        if (!c.checked) return;
+        n++;
+        rev  += parseInt(c.dataset.rev)  || 0;
+        cost += parseInt(c.dataset.cost) || 0;
+    });
+    var e = function(id) { return document.getElementById(id); };
+    if (e('impSelCount'))  e('impSelCount').textContent  = n;
+    if (e('impSumRev'))    e('impSumRev').textContent    = impYen(rev) + '円';
+    if (e('impSumCost'))   e('impSumCost').textContent   = impYen(cost) + '円';
+    if (e('impSumProfit')) e('impSumProfit').textContent = impYen(rev - cost) + '円';
+    var btn = e('impCommitBtn');
+    if (btn) btn.disabled = (n === 0);
+    _impRowCount = n;
+}
+
+function impToggleAll(master) {
+    document.querySelectorAll('.imp-chk').forEach(function(c) { c.checked = master.checked; });
+    impRecalc();
 }
 
 function impCommit() {
-    if (!confirm(_impRowCount + '件を登録します。よろしいですか？')) return;
+    var lines = [];
+    document.querySelectorAll('.imp-chk').forEach(function(c) { if (c.checked) lines.push(c.dataset.line); });
+    if (!lines.length) { alert('登録する行にチェックを入れてください。'); return; }
+    if (!confirm(lines.length + '件を登録します。よろしいですか？')) return;
     var btn = document.getElementById('impCommitBtn');
     btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>登録中...';
 
@@ -1070,6 +1115,7 @@ function impCommit() {
     fd.append('data', document.getElementById('impData').value);
     fd.append('year',  document.getElementById('impYear').value);
     fd.append('month', document.getElementById('impMonth').value);
+    fd.append('lines', lines.join(','));
 
     fetch(importApiUrl, { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })

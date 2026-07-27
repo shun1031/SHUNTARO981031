@@ -893,7 +893,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
+                    <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月</small></span>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">

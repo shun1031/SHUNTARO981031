@@ -372,7 +372,11 @@ function _ensureChartJs(cb) {
 
 function openRepDetail(repName) {
     var data = REP_FISCAL_DATA[repName];
-    if (!data) return;
+    // 売上0円で年間データがない担当者も全月0円として表示する
+    if (!data) {
+        data = [];
+        for (var i = 0; i < 12; i++) data.push({revenue: 0, profit: 0, profitRate: null});
+    }
     document.getElementById('repDetailTitle').textContent = repName + '　年間推移（' + FISCAL_YEAR_LABEL + '）';
     _curRepData = { name: repName, data: data };
     var modalEl = document.getElementById('repDetailModal');

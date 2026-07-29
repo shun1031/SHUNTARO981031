@@ -175,9 +175,6 @@ function renderRepCardMom(string $repName, array $entry, string $footerText, boo
         <div class="card-header">
             <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="fw-bold fs-6"><?= h($repName) ?></div>
-                <?php if ($showDetail): ?>
-                <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0 py-0 px-2" style="font-size:.72rem;line-height:1.8" data-repname="<?= htmlspecialchars($repName, ENT_QUOTES) ?>" onclick="openRepDetail(this.dataset.repname)">詳細</button>
-                <?php endif; ?>
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap mt-1">
                 <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>

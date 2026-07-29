@@ -176,13 +176,6 @@ function renderRepCardMom(string $repName, array $entry, string $footerText, boo
             <div class="d-flex align-items-center justify-content-between gap-2">
                 <div class="fw-bold fs-6"><?= h($repName) ?></div>
             </div>
-            <div class="d-flex align-items-center gap-3 flex-wrap mt-1">
-                <span><span class="text-muted small">売上</span> <span class="fw-bold" style="color:#059669"><?= number_format($revenue) ?></span></span>
-                <span class="text-muted small">粗利 <?= number_format($profit) ?></span>
-                <?php if ($profRate !== null): ?>
-                <span class="text-muted small">粗利率 <?= number_format($profRate, 1) ?>%</span>
-                <?php endif; ?>
-            </div>
         </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">

@@ -18,6 +18,29 @@ if ($prevM < 1) { $prevM = 12; $prevY--; }
 $nextM = $month + 1; $nextY = $year;
 if ($nextM > 12) { $nextM = 1; $nextY++; }
 
+// 担当者別 月別売上目標の保存（AJAX / 集計クエリの前に処理して軽量に返す）
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_rep_target') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'csrf']); exit; }
+    session_write_close(); // 連続入力で後続リクエストをブロックしない
+    $rep = trim($_POST['rep_name'] ?? '');
+    $ty  = (int)($_POST['t_year']  ?? 0);
+    $tm  = (int)($_POST['t_month'] ?? 0);
+    $tv  = max(0, (int)str_replace([',', '¥', ' ', '　'], '', $_POST['t_value'] ?? '0'));
+    if ($rep !== '' && $ty && $tm >= 1 && $tm <= 12) {
+        $_db = getDB();
+        try {
+            $_db->prepare('INSERT INTO sales_rep_targets (company_id, rep_name, year, month, target_revenue) VALUES (?,?,?,?,?)
+                           ON DUPLICATE KEY UPDATE target_revenue=VALUES(target_revenue), updated_at=NOW()')
+                ->execute([$cid, $rep, $ty, $tm, $tv]);
+        } catch (PDOException $e) {
+            echo json_encode(['error' => 'db']); exit;
+        }
+    }
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 $empFilter   = getEmployeeNameFilter();
 $yearlyData  = getSalesRepReport($cid, $year,     $empFilter);
 $prevYearly  = getSalesRepReport($cid, $year - 1, $empFilter);
@@ -85,6 +108,27 @@ foreach (array_unique(array_merge(array_keys($yearlyDataAll), array_keys($prevYe
         $pts[] = ['revenue'=>$rev, 'profit'=>$pro, 'profitRate'=> $rev>0 ? round($pro/$rev*100,1) : null];
     }
     $fiscalChartData[$rk] = $pts;
+}
+
+// ---- 担当者別 月別売上目標（年度9月〜翌8月の2年分を1クエリで取得） ----
+$repTargetData = [];
+try {
+    $_tStmt = getDB()->prepare('SELECT rep_name, year, month, target_revenue FROM sales_rep_targets
+                                WHERE company_id = ? AND year IN (?, ?)');
+    $_tStmt->execute([$cid, $year - 1, $year]);
+    $_tMap = [];
+    foreach ($_tStmt->fetchAll() as $_tr) {
+        $_tMap[$_tr['rep_name'] . '|' . (int)$_tr['year'] . '|' . (int)$_tr['month']] = (int)$_tr['target_revenue'];
+    }
+    foreach (array_keys($fiscalChartData) as $rk) {
+        $vals = [];
+        foreach ($fiscalMonthSeq as $ym) {
+            $vals[] = $_tMap[$rk . '|' . $ym['y'] . '|' . $ym['m']] ?? 0;
+        }
+        $repTargetData[$rk] = $vals;
+    }
+} catch (PDOException $e) {
+    $repTargetData = [];
 }
 
 // インセンティブ率マップ（0=なし、それ以外は割合）
@@ -260,6 +304,12 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
         </div>
     </div>
 </div>
+<style>
+/* 年間推移テーブル: 5行でもスクロールせず一目で見えるよう行を詰める */
+.rep-detail-table td, .rep-detail-table th { padding: .2rem .3rem; vertical-align: middle; }
+.rep-detail-table .rep-tgt-inp { box-shadow: none; }
+.rep-detail-table .rep-tgt-inp:focus { background: #fef3c7 !important; }
+</style>
 <!-- ▼ 担当者詳細モーダル -->
 <div class="modal fade" id="repDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -273,7 +323,7 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
                     <canvas id="repDetailChart"></canvas>
                 </div>
                 <div class="mt-3" style="overflow-x:auto">
-                    <table class="table table-sm table-bordered mb-0 text-center" style="font-size:.75rem;min-width:680px">
+                    <table class="table table-sm table-bordered mb-0 text-center rep-detail-table" style="font-size:.72rem;min-width:680px">
                         <thead class="table-light" id="repDetailThead"></thead>
                         <tbody id="repDetailTbody"></tbody>
                     </table>
@@ -285,6 +335,9 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
 
 <script>
 var REP_FISCAL_DATA   = <?= json_encode($fiscalChartData, JSON_UNESCAPED_UNICODE) ?>;
+var REP_TARGET_DATA   = <?= json_encode($repTargetData, JSON_UNESCAPED_UNICODE) ?>;
+var REP_FISCAL_YM     = <?= json_encode(array_map(fn($ym) => [$ym['y'], $ym['m']], $fiscalMonthSeq)) ?>;
+var REP_TGT_CSRF      = '<?= h(getCsrfToken()) ?>';
 var FISCAL_YEAR_LABEL = '<?= ($year-1) ?>年9月〜<?= $year ?>年8月';
 var _repChart    = null;
 var _repModalBs  = null;
@@ -441,10 +494,10 @@ function _drawRepChart(repName, data) {
         },
     });
 
-    // 月別数値テーブル
+    // 月別数値テーブル（売上目標 → 売上 → 売上達成率 → 粗利 → 粗利率）
     var thead = document.getElementById('repDetailThead');
     var tbody = document.getElementById('repDetailTbody');
-    thead.innerHTML = '<tr><th style="min-width:50px">月</th>' +
+    thead.innerHTML = '<tr><th style="min-width:56px">月</th>' +
         labels.map(function(m) { return '<th class="text-end">' + m + '</th>'; }).join('') + '</tr>';
     var fmtV = function(v) {
         return v > 0 ? '<span>' + v.toLocaleString() + '</span>' : '<span class="text-muted">-</span>';
@@ -452,15 +505,78 @@ function _drawRepChart(repName, data) {
     var fmtR = function(v) {
         return v !== null ? '<span style="color:#d97706;font-weight:600">' + v + '%</span>' : '<span class="text-muted">-</span>';
     };
-    tbody.innerHTML = [
-        { label: '売上', vals: revenues.map(fmtV) },
-        { label: '粗利', vals: profits.map(fmtV) },
-        { label: '粗利率', vals: rates.map(fmtR) },
-    ].map(function(row) {
-        return '<tr><td class="fw-semibold text-start text-nowrap">' + row.label + '</td>' +
-            row.vals.map(function(v) { return '<td class="text-end text-nowrap">' + v + '</td>'; }).join('') +
-            '</tr>';
-    }).join('');
+
+    var targets = (REP_TARGET_DATA[repName] || []).slice();
+    while (targets.length < 12) targets.push(0);
+
+    var html = '';
+    // 1. 売上目標（手入力）
+    html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>';
+    for (var i = 0; i < 12; i++) {
+        html += '<td class="p-0"><input type="text" inputmode="numeric" class="rep-tgt-inp form-control form-control-sm border-0 text-end px-1"'
+             + ' style="font-size:.72rem;height:24px;background:#fffbeb" data-idx="' + i + '"'
+             + ' value="' + (targets[i] > 0 ? targets[i].toLocaleString() : '') + '"></td>';
+    }
+    html += '</tr>';
+    // 2. 売上
+    html += '<tr><td class="fw-semibold text-start text-nowrap">売上</td>'
+         + revenues.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('') + '</tr>';
+    // 3. 売上達成率（売上 ÷ 売上目標 × 100）
+    html += '<tr><td class="fw-semibold text-start text-nowrap">売上達成率</td>';
+    for (var j = 0; j < 12; j++) {
+        html += '<td class="text-end text-nowrap" id="repAchv' + j + '"></td>';
+    }
+    html += '</tr>';
+    // 4. 粗利
+    html += '<tr><td class="fw-semibold text-start text-nowrap">粗利</td>'
+         + profits.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('') + '</tr>';
+    // 5. 粗利率
+    html += '<tr><td class="fw-semibold text-start text-nowrap">粗利率</td>'
+         + rates.map(function(v) { return '<td class="text-end text-nowrap">' + fmtR(v) + '</td>'; }).join('') + '</tr>';
+    tbody.innerHTML = html;
+
+    // 達成率セルの更新（目標未入力・0なら「-」）
+    function _updateAchv(idx) {
+        var cell = document.getElementById('repAchv' + idx);
+        if (!cell) return;
+        var tgt = targets[idx] || 0;
+        var rev = revenues[idx] || 0;
+        if (tgt <= 0) { cell.innerHTML = '<span class="text-muted">-</span>'; return; }
+        var pct = Math.round(rev / tgt * 1000) / 10;
+        cell.innerHTML = '<span style="font-weight:600;color:' + (pct >= 100 ? '#059669' : '#dc2626') + '">' + pct + '%</span>';
+    }
+    for (var k = 0; k < 12; k++) _updateAchv(k);
+
+    // 売上目標の入力 → 達成率を即時再計算 → 非同期保存（画面リロードなし）
+    tbody.querySelectorAll('.rep-tgt-inp').forEach(function(inp) {
+        inp.addEventListener('input', function() {
+            var idx = parseInt(inp.dataset.idx, 10);
+            targets[idx] = Math.max(0, parseInt(String(inp.value).replace(/[^0-9]/g, ''), 10) || 0);
+            _updateAchv(idx);
+        });
+        inp.addEventListener('change', function() {
+            var idx = parseInt(inp.dataset.idx, 10);
+            var val = targets[idx] || 0;
+            inp.value = val > 0 ? val.toLocaleString() : '';
+            if (!REP_TARGET_DATA[repName]) REP_TARGET_DATA[repName] = targets.slice();
+            REP_TARGET_DATA[repName][idx] = val;
+            var ym = REP_FISCAL_YM[idx];
+            var fd = new FormData();
+            fd.append('action', 'save_rep_target');
+            fd.append('csrf', REP_TGT_CSRF);
+            fd.append('rep_name', repName);
+            fd.append('t_year', ym[0]);
+            fd.append('t_month', ym[1]);
+            fd.append('t_value', val);
+            fetch(location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res && res.error) { inp.style.background = '#fee2e2'; }
+                    else { inp.style.background = '#fffbeb'; }
+                })
+                .catch(function() { inp.style.background = '#fee2e2'; });
+        });
+    });
 }
 </script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

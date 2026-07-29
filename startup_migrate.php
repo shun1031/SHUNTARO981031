@@ -156,6 +156,11 @@ $migrations = [
     // ---- employee_salaries: 明細項目JSON（勤怠/支給/控除/集計/コメント） ----
     "ALTER TABLE employee_salaries ADD COLUMN detail TEXT DEFAULT NULL AFTER pay_month",
 
+    // ---- sales_cases: 案件単位の粗利0円フラグ（特定案件だけ粗利を直営業100%にする） ----
+    "ALTER TABLE sales_cases ADD COLUMN zero_profit_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT '粗利0円稼働（案件単位）'",
+    // 2026年7月イベント案件の近藤航のみ粗利0円稼働として扱う
+    "UPDATE sales_cases SET zero_profit_flag=1 WHERE worker_name='近藤航' AND case_type='event' AND case_year=2026 AND case_month=7",
+
     // ---- employees: 出発報告対象者・粗利0円稼働者フラグ ----
     "ALTER TABLE employees ADD COLUMN departure_report_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT '出発報告対象者'",
     "ALTER TABLE employees ADD COLUMN zero_profit_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT '粗利0円稼働者'",
@@ -202,6 +207,9 @@ $migrations = [
 
     // ---- sales_cases: 案件区分（1次/その他） ----
     "ALTER TABLE sales_cases ADD COLUMN case_division VARCHAR(20) DEFAULT NULL",
+
+    // ---- sales_rep_targets: 担当者別 月別売上目標テーブル ----
+    "CREATE TABLE IF NOT EXISTS sales_rep_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, rep_name VARCHAR(100) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_revenue INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_srt (company_id, rep_name, year, month), INDEX idx_srt_company (company_id, year, month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
     // ---- sales_frame_targets: 月別枠数目標テーブル ----
     "CREATE TABLE IF NOT EXISTS sales_frame_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_first_frame INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sft (company_id, case_type, year, month), INDEX idx_sft_company (company_id, case_type, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",

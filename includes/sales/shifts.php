@@ -20,6 +20,24 @@ function getShifts(int $companyId, int $year, int $month, ?string $employeeName 
     return $stmt->fetchAll();
 }
 
+/**
+ * 指定日に稼働予定のスタッフのシフトを取得（休みの人は除外）
+ * 出勤・退勤・ステータスの最新状態を1人1行で返す
+ */
+function getShiftsByDate(int $companyId, string $date, ?string $employeeName = null): array {
+    $db = getDB();
+    $sql = "SELECT * FROM sales_shifts
+            WHERE company_id = ? AND shift_date = ?
+              AND (is_day_off IS NULL OR is_day_off = 0)
+              AND (start_time IS NOT NULL AND TRIM(start_time) != '')";
+    $params = [$companyId, $date];
+    if ($employeeName !== null) { $sql .= " AND employee_name = ?"; $params[] = $employeeName; }
+    $sql .= " ORDER BY start_time, employee_name";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
 function getShiftGrid(int $companyId, int $year, int $month, ?string $employeeName = null): array {
     $shifts = getShifts($companyId, $year, $month, $employeeName);
     $grid = [];

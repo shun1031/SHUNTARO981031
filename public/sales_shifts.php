@@ -60,6 +60,72 @@ $isAjax = ($_GET['ajax'] ?? '') === '1';
 
 // ─── コンテンツ HTML を生成（AJAX・通常共通） ───
 ob_start();
+
+// ── 当日の稼働者一覧（個人シフト一覧の上に表示。1人1行） ──
+$todayShifts = getShiftsByDate($cid, $today, $isAdminView ? null : $empFilter);
+$_todayDow    = (int)date('w', strtotime($today));
+$_todayDowLbl = ['日','月','火','水','木','金','土'][$_todayDow];
+?>
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="bi bi-people me-1"></i>本日の稼働者</span>
+        <span class="text-muted" style="font-size:.75rem"><?= h($today) ?>（<?= $_todayDowLbl ?>）<?= count($todayShifts) ?>名</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:.78rem">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:100px">日付</th>
+                        <th style="width:60px">曜日</th>
+                        <th style="width:120px">スタッフ</th>
+                        <th style="width:130px">シフト時間</th>
+                        <th style="width:90px">出勤時間</th>
+                        <th style="width:90px">退勤時間</th>
+                        <th style="width:80px">ステータス</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($todayShifts)): ?>
+                    <tr><td colspan="7" class="text-center text-muted py-3">本日稼働予定のスタッフはいません</td></tr>
+                    <?php else: foreach ($todayShifts as $ts):
+                        $tStart    = $ts['start_time']    ?? '';
+                        $tEnd      = $ts['end_time']      ?? '';
+                        $tCheckin  = $ts['checkin_time']  ?? '';
+                        $tCheckout = $ts['checkout_time'] ?? '';
+                        $tStatus   = calcShiftStatus($ts);
+                        if ($tStatus === '欠勤' && ($ts['attendance_status'] ?? '') !== '欠勤') { $tStatus = ''; }
+                        $tColorMap = ['出勤'=>'success','遅刻'=>'warning','早退'=>'warning','欠勤'=>'danger'];
+                        $tLate     = ($tCheckin && $tStart && $tCheckin > $tStart);
+                    ?>
+                    <tr class="<?= $tStatus === '欠勤' ? 'table-danger' : '' ?>">
+                        <td><?= h($today) ?></td>
+                        <td class="<?= $_todayDow===0?'text-danger':($_todayDow===6?'text-primary':'') ?>"><?= $_todayDowLbl ?></td>
+                        <td class="fw-semibold"><?= h($ts['employee_name']) ?></td>
+                        <td><?= h($tStart) ?><?= $tEnd ? ' 〜 '.h($tEnd) : '' ?></td>
+                        <td class="<?= $tLate ? 'text-danger fw-bold' : '' ?>">
+                            <?php if ($tStatus === '欠勤'): ?><span class="text-danger">欠勤</span>
+                            <?php elseif ($tCheckin): ?><?= h($tCheckin) ?>
+                            <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($tStatus === '欠勤'): ?><span class="text-danger">欠勤</span>
+                            <?php elseif ($tCheckout): ?><?= h($tCheckout) ?>
+                            <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($tStatus !== ''): ?>
+                            <span class="badge bg-<?= $tColorMap[$tStatus] ?? 'secondary' ?>"><?= h($tStatus) ?></span>
+                            <?php else: ?><span class="text-muted small">未報告</span><?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php
 $counts = ['work'=>0,'late'=>0,'early'=>0,'absent'=>0];
 if (!empty($selectedEmp)):
 ?>
@@ -273,6 +339,26 @@ $empParam = $selectedEmp ? '&emp='.urlencode($selectedEmp) : '';
 $inlineJs = <<<'JS'
 (function () {
     var sel = document.getElementById('empSelector');
+
+    // 出勤・退勤・ステータスの変更を全画面リロードなしで反映（コンテンツ部分のみ差し替え）
+    function refreshShiftContent() {
+        var u = new URL(window.location.href);
+        u.searchParams.set('ajax', '1');
+        fetch(u.toString(), { credentials: 'same-origin' })
+            .then(function (r) { return r.text(); })
+            .then(function (html) {
+                var el = document.getElementById('shiftContent');
+                if (el) el.innerHTML = html;
+            })
+            .catch(function () {});
+    }
+    // 60秒ごと＋タブに戻ったタイミングで最新化
+    setInterval(refreshShiftContent, 60000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) refreshShiftContent();
+    });
+    window.shiftRefresh = refreshShiftContent;
+
     if (!sel) return;
 
     function updateMonthNavLinks(emp) {

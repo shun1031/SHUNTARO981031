@@ -341,8 +341,8 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
 <style>
 /* 年間推移テーブル: 5行でもスクロールせず一目で見えるよう行を詰める */
 .rep-detail-table td, .rep-detail-table th { padding: .2rem .3rem; vertical-align: middle; }
-.rep-detail-table .rep-tgt-inp { box-shadow: none; }
-.rep-detail-table .rep-tgt-inp:focus { background: #fef3c7 !important; }
+.rep-detail-table .rep-tgt-inp { box-shadow: none; background: transparent; }
+.rep-detail-table .rep-tgt-inp:focus { background: transparent; }
 </style>
 <!-- ▼ 担当者詳細モーダル -->
 <div class="modal fade" id="repDetailModal" tabindex="-1" aria-hidden="true">
@@ -601,7 +601,7 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>';
     for (var i = 0; i < 12; i++) {
         html += '<td class="p-0"><input type="text" inputmode="numeric" class="rep-tgt-inp form-control form-control-sm border-0 text-end px-1"'
-             + ' style="font-size:.72rem;height:24px;background:#fffbeb" data-idx="' + i + '"'
+             + ' style="font-size:.72rem;height:24px;background:transparent" data-idx="' + i + '"'
              + ' value="' + (targets[i] > 0 ? targets[i].toLocaleString() : '') + '"></td>';
     }
     html += '</tr>';
@@ -662,8 +662,9 @@ function _drawRepChart(repName, data, targetsArg, fy) {
             fetch(location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
+                    // 保存失敗時のみ一時的に色を付けて知らせる（通常時は周囲のセルと同じ背景）
                     if (res && res.error) { inp.style.background = '#fee2e2'; }
-                    else { inp.style.background = '#fffbeb'; }
+                    else { inp.style.background = 'transparent'; }
                 })
                 .catch(function() { inp.style.background = '#fee2e2'; });
         });

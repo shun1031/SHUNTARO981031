@@ -69,7 +69,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 // ── 年度データ（9月始まり）: year Y = Sep(Y-1)〜Aug(Y) ──
+// 売上推移チャート・月別売上テーブルのみ、月ナビとは独立に年度を切り替えできる（?fy=）
+$fyYear = (int)($_GET['fy'] ?? $year);
+if ($fyYear < 2000 || $fyYear > 2100) $fyYear = $year;
+// 年度切替のAJAX（該当2セクションのみを描画して返す）
+$FY_ONLY = ($_GET['fy_only'] ?? '') === '1';
+if ($FY_ONLY) { ob_start(); } // ヘッダー等の出力を捨てるための外側バッファ
+
 $fyMonths = [
+    ['y' => $fyYear-1, 'm' => 9],  ['y' => $fyYear-1, 'm' => 10],
+    ['y' => $fyYear-1, 'm' => 11], ['y' => $fyYear-1, 'm' => 12],
+    ['y' => $fyYear,   'm' => 1],  ['y' => $fyYear,   'm' => 2],
+    ['y' => $fyYear,   'm' => 3],  ['y' => $fyYear,   'm' => 4],
+    ['y' => $fyYear,   'm' => 5],  ['y' => $fyYear,   'm' => 6],
+    ['y' => $fyYear,   'm' => 7],  ['y' => $fyYear,   'm' => 8],
+];
+// 月別枠数テーブルは従来どおり表示中の年度（$year）に固定
+$fyMonthsFrame = [
     ['y' => $year-1, 'm' => 9],  ['y' => $year-1, 'm' => 10],
     ['y' => $year-1, 'm' => 11], ['y' => $year-1, 'm' => 12],
     ['y' => $year,   'm' => 1],  ['y' => $year,   'm' => 2],
@@ -88,7 +104,7 @@ $fyCasesStmt = $fyDb->prepare("
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
     GROUP BY case_year, case_month
 ");
-$_fyParams = $caseTypeFilter ? [$cid, $caseTypeFilter, $year-1, $year] : [$cid, $year-1, $year];
+$_fyParams = $caseTypeFilter ? [$cid, $caseTypeFilter, $fyYear-1, $fyYear] : [$cid, $fyYear-1, $fyYear];
 $fyCasesStmt->execute($_fyParams);
 $fyRevMap = [];
 foreach ($fyCasesStmt->fetchAll() as $r) {
@@ -105,7 +121,7 @@ $fyPrevStmt = $fyDb->prepare("
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
     GROUP BY case_year, case_month
 ");
-$_fyPrevParams = $caseTypeFilter ? [$cid, $caseTypeFilter, $year-2, $year-1] : [$cid, $year-2, $year-1];
+$_fyPrevParams = $caseTypeFilter ? [$cid, $caseTypeFilter, $fyYear-2, $fyYear-1] : [$cid, $fyYear-2, $fyYear-1];
 $fyPrevStmt->execute($_fyPrevParams);
 foreach ($fyPrevStmt->fetchAll() as $r) {
     $fyPrevRevMap[$r['case_year']][$r['case_month']] = (int)$r['rev'];
@@ -119,7 +135,7 @@ $fyTypeStmt = $fyDb->prepare("
       AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
     GROUP BY case_year, case_month, case_type
 ");
-$fyTypeStmt->execute([$cid, $year-1, $year]);
+$fyTypeStmt->execute([$cid, $fyYear-1, $fyYear]);
 $fyTypeRevMap = [];
 foreach ($fyTypeStmt->fetchAll() as $r) {
     $fyTypeRevMap[$r['case_year']][$r['case_month']][$r['case_type']] = [
@@ -129,13 +145,13 @@ foreach ($fyTypeStmt->fetchAll() as $r) {
 // 月別目標（常勤/イベントは各タイプ、総合はregular+eventの合計）
 $fyTgtMap = [];
 $_tgtType = $caseTypeFilter ?: null;
-foreach (getSalesTargets($cid, $year-1) as $m => $types) {
-    $fyTgtMap[$year-1][$m] = $_tgtType
+foreach (getSalesTargets($cid, $fyYear-1) as $m => $types) {
+    $fyTgtMap[$fyYear-1][$m] = $_tgtType
         ? (int)($types[$_tgtType]['revenue_target'] ?? 0)
         : (int)($types['regular']['revenue_target'] ?? 0) + (int)($types['event']['revenue_target'] ?? 0);
 }
-foreach (getSalesTargets($cid, $year) as $m => $types) {
-    $fyTgtMap[$year][$m] = $_tgtType
+foreach (getSalesTargets($cid, $fyYear) as $m => $types) {
+    $fyTgtMap[$fyYear][$m] = $_tgtType
         ? (int)($types[$_tgtType]['revenue_target'] ?? 0)
         : (int)($types['regular']['revenue_target'] ?? 0) + (int)($types['event']['revenue_target'] ?? 0);
 }
@@ -146,6 +162,26 @@ foreach ($fyMonths as $fm) {
     $fyTotalProfit += $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
     $fyTotalTarget += $fyTgtMap[$fm['y']][$fm['m']]          ?? 0;
 }
+// チャート用データ（年度順: 9月→8月 = インデックス1〜12）※年度切替AJAXでも使うため先に算出
+$trendData    = [];
+$trendTargets = [];
+foreach ($fyMonths as $i => $fm) {
+    $idx    = $i + 1;
+    $rev    = $fyRevMap[$fm['y']][$fm['m']]['rev']    ?? 0;
+    $profit = $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
+    $tgt    = $fyTgtMap[$fm['y']][$fm['m']] ?? 0;
+    $trendData[$idx] = [
+        'revenue'        => $rev,
+        'profit'         => $profit,
+        'regular_rev'    => $fyTypeRevMap[$fm['y']][$fm['m']]['regular']['rev']    ?? 0,
+        'regular_profit' => $fyTypeRevMap[$fm['y']][$fm['m']]['regular']['profit'] ?? 0,
+        'event_rev'      => $fyTypeRevMap[$fm['y']][$fm['m']]['event']['rev']      ?? 0,
+        'event_profit'   => $fyTypeRevMap[$fm['y']][$fm['m']]['event']['profit']   ?? 0,
+        'ach'            => $tgt > 0 ? round($rev / $tgt * 100, 1) : null,
+    ];
+    $trendTargets[$idx] = $tgt;
+}
+
 $fyMargin = $fyTotalRev > 0 ? round($fyTotalProfit / $fyTotalRev * 100, 1) : 0;
 $fyAch    = $fyTotalTarget > 0 ? round($fyTotalRev / $fyTotalTarget * 100, 1) : 0;
 $fyAchColor = $fyAch >= 100 ? '#059669' : ($fyAch >= 80 ? '#3b82f6' : ($fyAch >= 50 ? '#f59e0b' : '#ef4444'));
@@ -464,7 +500,14 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php
     // 月合計KPI用
-    $monthTarget = $fyTgtMap[$year][$month] ?? 0;
+    // 年度切替（$fy）の影響を受けないよう、表示中の月の目標は $year から取得
+    $monthTarget = $fyTgtMap[$year][$month] ?? null;
+    if ($monthTarget === null) {
+        $_curTypes   = getSalesTargets($cid, $year)[$month] ?? [];
+        $monthTarget = $_tgtType
+            ? (int)($_curTypes[$_tgtType]['revenue_target'] ?? 0)
+            : (int)($_curTypes['regular']['revenue_target'] ?? 0) + (int)($_curTypes['event']['revenue_target'] ?? 0);
+    }
     $monthAch = $monthTarget > 0 ? round($kpis['revenue'] / $monthTarget * 100, 1) : 0;
     $monthAchColor = $monthAch >= 100 ? '#059669' : ($monthAch >= 80 ? '#3b82f6' : ($monthAch >= 50 ? '#f59e0b' : '#ef4444'));
     ?>
@@ -536,15 +579,24 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
+    <div id="fySectionsWrap">
+    <?php ob_start(); // ▼ 年度切替の対象範囲（売上推移チャート＋年度月別売上テーブル） ?>
     <!-- 売上推移チャート（全幅）→ KPI直下に移動 -->
     <div class="row g-4 mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-graph-up me-1" style="color:#059669"></i><?= $year-1 ?>年度 売上推移（9月〜8月）</span>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary active" id="btnTrendTaxExcl" onclick="setTrendTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnTrendTaxIncl" onclick="setTrendTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                    <span><i class="bi bi-graph-up me-1" style="color:#059669"></i><?= $fyYear-1 ?>年度 売上推移（9月〜8月）</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.7rem" onclick="setFyYear(<?= $fyYear-1 ?>)" title="前年度">◀</button>
+                            <span class="fw-semibold text-nowrap" style="font-size:.75rem;min-width:150px;text-align:center"><?= $fyYear-1 ?>年9月〜<?= $fyYear ?>年8月</span>
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.7rem" onclick="setFyYear(<?= $fyYear+1 ?>)" title="翌年度">▶</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active" id="btnTrendTaxExcl" onclick="setTrendTaxMode(false)" style="font-size:.7rem;padding:2px 8px">税抜</button>
+                            <button type="button" class="btn btn-outline-secondary" id="btnTrendTaxIncl" onclick="setTrendTaxMode(true)" style="font-size:.7rem;padding:2px 8px">税込</button>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -560,7 +612,7 @@ require_once __DIR__ . '/../includes/header.php';
     <input type="hidden" id="fycsrf" value="<?= h(getCsrfToken()) ?>">
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-table me-1" style="color:#6366f1"></i><?= $year-1 ?>-<?= $year ?>年度 月別売上（9月〜8月）</span>
+            <span><i class="bi bi-table me-1" style="color:#6366f1"></i><?= $fyYear-1 ?>-<?= $fyYear ?>年度 月別売上（9月〜8月）</span>
             <?php if ($caseTypeFilter): ?>
             <small class="text-muted">売上目標は直接入力で保存されます</small>
             <?php else: ?>
@@ -707,6 +759,25 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+    <?php
+    // ▲ 年度切替の対象範囲ここまで
+    $fySectionsHtml = ob_get_clean();
+    echo $fySectionsHtml;
+    if ($FY_ONLY) {
+        // ヘッダー等の出力を破棄し、該当セクションのHTMLとチャートデータのみ返す
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok'      => true,
+            'html'    => $fySectionsHtml,
+            'trend'   => $trendData,
+            'targets' => $trendTargets,
+            'fy_year' => $fyYear,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    ?>
+    </div><!-- /#fySectionsWrap -->
 
     <?php if ($caseTypeFilter): ?>
     <!-- 月別枠数テーブル（常勤/イベントのみ） -->
@@ -722,7 +793,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <thead class="table-light">
                                 <tr>
                                     <th style="min-width:118px;width:118px">項目</th>
-                                    <?php foreach ($fyMonths as $fm): ?>
+                                    <?php foreach ($fyMonthsFrame as $fm): ?>
                                     <th class="text-center"><?= $fm['m'] ?>月</th>
                                     <?php endforeach; ?>
                                     <th class="text-center table-secondary">合計</th>
@@ -734,7 +805,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td class="fy-label">目標1次枠数</td>
                                     <?php
                                     $fyFrameTgtTotal = 0;
-                                    foreach ($fyMonths as $fm):
+                                    foreach ($fyMonthsFrame as $fm):
                                         $ftv = $frameTargetMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFrameTgtTotal += $ftv;
                                     ?>
@@ -755,7 +826,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td class="fy-label">1次枠数</td>
                                     <?php
                                     $fyFirstFrameTotal = 0;
-                                    foreach ($fyMonths as $fm):
+                                    foreach ($fyMonthsFrame as $fm):
                                         $ffv = $frameActualMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFirstFrameTotal += $ffv;
                                     ?>
@@ -768,7 +839,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td class="fy-label">目標2次以降枠数</td>
                                     <?php
                                     $fyFrameTgt2Total = 0;
-                                    foreach ($fyMonths as $fm):
+                                    foreach ($fyMonthsFrame as $fm):
                                         $ftv2 = $frameTarget2Map[$fm['y']][$fm['m']] ?? 0;
                                         $fyFrameTgt2Total += $ftv2;
                                     ?>
@@ -789,7 +860,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td class="fy-label">2次以降枠数</td>
                                     <?php
                                     $fySecondFrameTotal = 0;
-                                    foreach ($fyMonths as $fm):
+                                    foreach ($fyMonthsFrame as $fm):
                                         $sfv = $frameActual2Map[$fm['y']][$fm['m']] ?? 0;
                                         $fySecondFrameTotal += $sfv;
                                     ?>
@@ -802,7 +873,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td class="fy-label">合計枠数</td>
                                     <?php
                                     $fyTotalFrameTotal = 0;
-                                    foreach ($fyMonths as $fm):
+                                    foreach ($fyMonthsFrame as $fm):
                                         $ftotal = ($frameActualMap[$fm['y']][$fm['m']] ?? 0) + ($frameActual2Map[$fm['y']][$fm['m']] ?? 0);
                                         $fyTotalFrameTotal += $ftotal;
                                     ?>
@@ -1318,25 +1389,6 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php
-// チャート用データ（年度順: 9月→8月 = インデックス1〜12）
-$trendData    = [];
-$trendTargets = [];
-foreach ($fyMonths as $i => $fm) {
-    $idx    = $i + 1;
-    $rev    = $fyRevMap[$fm['y']][$fm['m']]['rev']    ?? 0;
-    $profit = $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
-    $tgt    = $fyTgtMap[$fm['y']][$fm['m']] ?? 0;
-    $trendData[$idx] = [
-        'revenue'        => $rev,
-        'profit'         => $profit,
-        'regular_rev'    => $fyTypeRevMap[$fm['y']][$fm['m']]['regular']['rev']    ?? 0,
-        'regular_profit' => $fyTypeRevMap[$fm['y']][$fm['m']]['regular']['profit'] ?? 0,
-        'event_rev'      => $fyTypeRevMap[$fm['y']][$fm['m']]['event']['rev']      ?? 0,
-        'event_profit'   => $fyTypeRevMap[$fm['y']][$fm['m']]['event']['profit']   ?? 0,
-        'ach'            => $tgt > 0 ? round($rev / $tgt * 100, 1) : null,
-    ];
-    $trendTargets[$idx] = $tgt;
-}
 $fyChartLabels = ['9月','10月','11月','12月','1月','2月','3月','4月','5月','6月','7月','8月'];
 
 $wLabels = array_keys($workerGrouped);
@@ -1350,8 +1402,9 @@ $staffPieColors = ['#3b82f6', '#059669'];
 
 $rawWorkerValues = json_encode($wValues);
 
-$inlineJs = 'const trendRawData = ' . json_encode($trendData) . ';';
-$inlineJs .= 'const trendTargets = ' . json_encode($trendTargets) . ';';
+$inlineJs = 'let trendRawData = ' . json_encode($trendData) . ';';
+$inlineJs .= 'let trendTargets = ' . json_encode($trendTargets) . ';';
+$inlineJs .= 'let fyCurrentYear = ' . (int)$fyYear . ';';
 $inlineJs .= 'const fyChartLabels = ' . json_encode($fyChartLabels) . ';';
 $inlineJs .= 'let trendChartInstance = salesDrawTrendChart("trendChart", trendRawData, trendTargets, fyChartLabels);';
 $inlineJs .= 'const workerRawValues = ' . $rawWorkerValues . ';';
@@ -1680,9 +1733,11 @@ JSEOF2;
 
 $inlineJs .= <<<'FYJS'
 // 年度月別「売上目標」入力保存（枠数目標 .fy-frame-tgt-input は対象外）
-(function() {
+function bindFyTargetInputs() {
     var csrf = document.getElementById('fycsrf') ? document.getElementById('fycsrf').value : '';
     document.querySelectorAll('.fy-tgt-input:not(.fy-frame-tgt-input)').forEach(function(el) {
+        if (el.dataset.fyBound === '1') return;
+        el.dataset.fyBound = '1';
         el.addEventListener('focus', function() { this.select(); });
         el.addEventListener('blur', function() {
             var raw = this.value.replace(/[^0-9]/g, '') || '0';
@@ -1708,15 +1763,51 @@ $inlineJs .= <<<'FYJS'
                 });
         });
     });
-    function recalcFyTgtTotal() {
-        var total = 0;
-        document.querySelectorAll('.fy-tgt-input:not(.fy-frame-tgt-input)').forEach(function(el) {
-            total += parseInt(el.value.replace(/[^0-9]/g, '') || '0');
+}
+function recalcFyTgtTotal() {
+    var total = 0;
+    document.querySelectorAll('.fy-tgt-input:not(.fy-frame-tgt-input)').forEach(function(el) {
+        total += parseInt(el.value.replace(/[^0-9]/g, '') || '0');
+    });
+    var el = document.getElementById('fyTgtTotal');
+    if (el) el.textContent = total > 0 ? total.toLocaleString() : '-';
+}
+bindFyTargetInputs();
+
+// 年度切替（売上推移チャート・年度月別売上テーブルのみ。画面全体はリロードしない）
+var _fyLoading = false;
+function setFyYear(newFy) {
+    if (_fyLoading || !newFy) return;
+    _fyLoading = true;
+    var wrap = document.getElementById('fySectionsWrap');
+    if (wrap) wrap.style.opacity = '.5';
+    var params = new URLSearchParams(window.location.search);
+    params.set('fy', newFy);
+    params.set('fy_only', '1');
+    fetch(window.location.pathname + '?' + params.toString(), { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d || !d.ok) throw new Error('failed');
+            fyCurrentYear = d.fy_year;
+            trendRawData  = d.trend;
+            trendTargets  = d.targets;
+            if (wrap) wrap.innerHTML = d.html;
+            // チャートを新しい年度で再描画（税抜/税込の選択状態は維持）
+            if (trendChartInstance && trendChartInstance.destroy) trendChartInstance.destroy();
+            trendChartInstance = salesDrawTrendChart('trendChart', trendRawData, trendTargets, fyChartLabels);
+            if (typeof trendTaxIncluded !== 'undefined' && trendTaxIncluded) setTrendTaxMode(true);
+            bindFyTargetInputs();
+            // URLを更新（リロードはしない）
+            var url = new URLSearchParams(window.location.search);
+            url.set('fy', newFy);
+            history.replaceState(null, '', window.location.pathname + '?' + url.toString());
+        })
+        .catch(function() { alert('年度データの取得に失敗しました'); })
+        .then(function() {
+            _fyLoading = false;
+            if (wrap) wrap.style.opacity = '1';
         });
-        var el = document.getElementById('fyTgtTotal');
-        if (el) el.textContent = total > 0 ? total.toLocaleString() : '-';
-    }
-})();
+}
 FYJS;
 
 $inlineJs .= <<<'SUMMARYJS'

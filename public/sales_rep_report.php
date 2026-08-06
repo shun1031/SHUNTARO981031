@@ -42,6 +42,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 $empFilter   = getEmployeeNameFilter();
+
+// 詳細モーダルの年度切替（該当担当者の12ヶ月分のみ返す軽量API）
+if (($_GET['ajax_rep_fy'] ?? '') === '1') {
+    header('Content-Type: application/json; charset=utf-8');
+    $_fy  = (int)($_GET['fy'] ?? 0);
+    $_rep = trim($_GET['rep'] ?? '');
+    if ($_fy < 2000 || $_fy > 2100 || $_rep === '') { echo json_encode(['error' => 'invalid']); exit; }
+    session_write_close();
+    $_seq = [];
+    for ($i = 0; $i < 4; $i++)  { $_seq[] = ['y' => $_fy - 1, 'm' => 9 + $i]; }
+    for ($i = 1; $i <= 8; $i++) { $_seq[] = ['y' => $_fy,     'm' => $i]; }
+    $_curData  = getSalesRepReport($cid, $_fy,     $empFilter);
+    $_prevData = getSalesRepReport($cid, $_fy - 1, $empFilter);
+    $_pts = [];
+    foreach ($_seq as $_ym) {
+        $_src = $_ym['y'] === $_fy ? ($_curData[$_rep] ?? []) : ($_prevData[$_rep] ?? []);
+        $_md  = $_src['months'][$_ym['m']] ?? [];
+        $_rv  = (int)($_md['revenue'] ?? 0);
+        $_pr  = (int)($_md['profit']  ?? 0);
+        $_pts[] = ['revenue' => $_rv, 'profit' => $_pr, 'profitRate' => $_rv > 0 ? round($_pr / $_rv * 100, 1) : null];
+    }
+    $_tgts = array_fill(0, 12, 0);
+    try {
+        $_ts = getDB()->prepare('SELECT year, month, target_revenue FROM sales_rep_targets
+                                 WHERE company_id = ? AND rep_name = ? AND year IN (?, ?)');
+        $_ts->execute([$cid, $_rep, $_fy - 1, $_fy]);
+        $_tm = [];
+        foreach ($_ts->fetchAll() as $_tr) { $_tm[(int)$_tr['year'] . '|' . (int)$_tr['month']] = (int)$_tr['target_revenue']; }
+        foreach ($_seq as $_i => $_ym) { $_tgts[$_i] = $_tm[$_ym['y'] . '|' . $_ym['m']] ?? 0; }
+    } catch (PDOException $e) { /* テーブル未作成時は0のまま */ }
+    echo json_encode(['ok' => true, 'fy' => $_fy, 'data' => $_pts, 'targets' => $_tgts], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $yearlyData  = getSalesRepReport($cid, $year,     $empFilter);
 $prevYearly  = getSalesRepReport($cid, $year - 1, $empFilter);
 $yearlyDataAll = $yearlyData; // 年間推移チャート用（フィルター前）
@@ -316,6 +350,11 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
         <div class="modal-content">
             <div class="modal-header py-2">
                 <h6 class="modal-title fw-bold" id="repDetailTitle"></h6>
+                <div class="d-flex align-items-center gap-2 ms-auto me-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.7rem" onclick="setRepFy(-1)" title="前年度">◀</button>
+                    <span class="fw-semibold text-nowrap" id="repFyLabel" style="font-size:.75rem;min-width:150px;text-align:center"></span>
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.7rem" onclick="setRepFy(1)" title="翌年度">▶</button>
+                </div>
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body pb-3">
@@ -336,9 +375,19 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
 <script>
 var REP_FISCAL_DATA   = <?= json_encode($fiscalChartData, JSON_UNESCAPED_UNICODE) ?>;
 var REP_TARGET_DATA   = <?= json_encode($repTargetData, JSON_UNESCAPED_UNICODE) ?>;
-var REP_FISCAL_YM     = <?= json_encode(array_map(fn($ym) => [$ym['y'], $ym['m']], $fiscalMonthSeq)) ?>;
+var REP_BASE_FY       = <?= (int)$year ?>;
 var REP_TGT_CSRF      = '<?= h(getCsrfToken()) ?>';
-var FISCAL_YEAR_LABEL = '<?= ($year-1) ?>年9月〜<?= $year ?>年8月';
+var _repFy            = REP_BASE_FY;   // 詳細モーダルで表示中の年度
+var _repFyLoading     = false;
+
+// 年度 fy の12ヶ月分 [年, 月]（9月〜翌8月）
+function repFiscalYm(fy) {
+    var out = [];
+    for (var i = 0; i < 4; i++)  out.push([fy - 1, 9 + i]);
+    for (var j = 1; j <= 8; j++) out.push([fy, j]);
+    return out;
+}
+function repFyLabel(fy) { return (fy - 1) + '年9月〜' + fy + '年8月'; }
 var _repChart    = null;
 var _repModalBs  = null;
 var _chartReady  = false;
@@ -368,25 +417,62 @@ function _ensureChartJs(cb) {
 }
 
 function openRepDetail(repName) {
+    _repFy = REP_BASE_FY;
     var data = REP_FISCAL_DATA[repName];
     // 売上0円で年間データがない担当者も全月0円として表示する
     if (!data) {
         data = [];
         for (var i = 0; i < 12; i++) data.push({revenue: 0, profit: 0, profitRate: null});
     }
-    document.getElementById('repDetailTitle').textContent = repName + '　年間推移（' + FISCAL_YEAR_LABEL + '）';
-    _curRepData = { name: repName, data: data };
+    var targets = (REP_TARGET_DATA[repName] || []).slice();
+    while (targets.length < 12) targets.push(0);
+    _setRepDetailHeader(repName, _repFy);
+    _curRepData = { name: repName, data: data, targets: targets, fy: _repFy };
     var modalEl = document.getElementById('repDetailModal');
     if (!_repModalBs) {
         _repModalBs = new bootstrap.Modal(modalEl);
         modalEl.addEventListener('shown.bs.modal', function() {
-            if (_curRepData) _ensureChartJs(function() { _drawRepChart(_curRepData.name, _curRepData.data); });
+            if (_curRepData) _ensureChartJs(function() {
+                _drawRepChart(_curRepData.name, _curRepData.data, _curRepData.targets, _curRepData.fy);
+            });
         });
     }
     _repModalBs.show();
 }
 
-function _drawRepChart(repName, data) {
+function _setRepDetailHeader(repName, fy) {
+    document.getElementById('repDetailTitle').textContent = repName + '　年間推移（' + repFyLabel(fy) + '）';
+    var lbl = document.getElementById('repFyLabel');
+    if (lbl) lbl.textContent = repFyLabel(fy);
+}
+
+// 年度切替（モーダル内のグラフ・表・タイトルのみ更新。画面はリロードしない）
+function setRepFy(delta) {
+    if (_repFyLoading || !_curRepData) return;
+    var newFy  = _repFy + delta;
+    var repName = _curRepData.name;
+    _repFyLoading = true;
+    var body = document.querySelector('#repDetailModal .modal-body');
+    if (body) body.style.opacity = '.5';
+    var url = location.pathname + '?ajax_rep_fy=1&fy=' + newFy + '&rep=' + encodeURIComponent(repName);
+    fetch(url, { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d || !d.ok) throw new Error('failed');
+            _repFy = d.fy;
+            _curRepData = { name: repName, data: d.data, targets: d.targets, fy: d.fy };
+            _setRepDetailHeader(repName, d.fy);
+            _ensureChartJs(function() { _drawRepChart(repName, d.data, d.targets, d.fy); });
+        })
+        .catch(function() { alert('年度データの取得に失敗しました'); })
+        .then(function() {
+            _repFyLoading = false;
+            if (body) body.style.opacity = '1';
+        });
+}
+
+function _drawRepChart(repName, data, targetsArg, fy) {
+    if (typeof fy === 'undefined' || !fy) fy = _repFy;
     var labels   = ['9月','10月','11月','12月','1月','2月','3月','4月','5月','6月','7月','8月'];
     var revenues = data.map(function(d) { return d.revenue; });
     var profits  = data.map(function(d) { return d.profit; });
@@ -506,8 +592,9 @@ function _drawRepChart(repName, data) {
         return v !== null ? '<span style="color:#d97706;font-weight:600">' + v + '%</span>' : '<span class="text-muted">-</span>';
     };
 
-    var targets = (REP_TARGET_DATA[repName] || []).slice();
+    var targets = (targetsArg || REP_TARGET_DATA[repName] || []).slice();
     while (targets.length < 12) targets.push(0);
+    var ymList = repFiscalYm(fy);
 
     var html = '';
     // 1. 売上目標（手入力）
@@ -558,9 +645,13 @@ function _drawRepChart(repName, data) {
             var idx = parseInt(inp.dataset.idx, 10);
             var val = targets[idx] || 0;
             inp.value = val > 0 ? val.toLocaleString() : '';
-            if (!REP_TARGET_DATA[repName]) REP_TARGET_DATA[repName] = targets.slice();
-            REP_TARGET_DATA[repName][idx] = val;
-            var ym = REP_FISCAL_YM[idx];
+            // 基準年度を表示中のときのみキャッシュを更新（他年度はAPIから都度取得）
+            if (fy === REP_BASE_FY) {
+                if (!REP_TARGET_DATA[repName]) REP_TARGET_DATA[repName] = targets.slice();
+                REP_TARGET_DATA[repName][idx] = val;
+            }
+            if (_curRepData && _curRepData.fy === fy) _curRepData.targets = targets.slice();
+            var ym = ymList[idx];
             var fd = new FormData();
             fd.append('action', 'save_rep_target');
             fd.append('csrf', REP_TGT_CSRF);

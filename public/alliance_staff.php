@@ -153,6 +153,21 @@ require_once __DIR__ . '/../includes/header.php';
 .as-staff-info .label { color: #94a3b8; font-size: .68rem; display: block; }
 .as-staff-info .value { font-weight: 500; color: #1e293b; }
 
+/* 最終稼働区分（稼働していないスタッフのみ。カードの高さを変えないよう店舗名の横に並べる） */
+.as-last-type {
+    display: inline-block;
+    margin-left: .35em;
+    padding: 0 .45em;
+    border-radius: 999px;
+    font-size: .62rem;
+    font-weight: 600;
+    line-height: 1.5;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.as-last-type-regular { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.as-last-type-event   { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+
 /* レスポンシブ */
 @media (max-width: 575px) {
     .as-staff-card { width: calc(50% - .5rem); }
@@ -218,12 +233,20 @@ require_once __DIR__ . '/../includes/header.php';
                 var lastDate  = s.last_work_date ? formatDate(s.last_work_date) : '—';
                 var lastStore = s.last_store || '—';
 
+                // 稼働していないスタッフのみ、最終稼働店舗の横に最終稼働区分（常勤/イベント）を表示
+                var lastTypeTag = '';
+                if (s.status === 'none' && (s.last_case_type === 'regular' || s.last_case_type === 'event')) {
+                    var isReg = s.last_case_type === 'regular';
+                    lastTypeTag = '<span class="as-last-type ' + (isReg ? 'as-last-type-regular' : 'as-last-type-event') + '">'
+                                + (isReg ? '常勤' : 'イベント') + '</span>';
+                }
+
                 html += '<div class="as-staff-card ' + statusClass + '">';
                 html += '<div><span class="as-status-badge ' + badgeClass + '">' + badgeLabel + '</span></div>';
                 html += '<div class="as-staff-name">' + escHtml(s.name) + '</div>';
                 html += '<div class="as-staff-info">';
                 html += '<span class="label">最終稼働店舗</span>';
-                html += '<span class="value">' + escHtml(lastStore) + '</span>';
+                html += '<span class="value">' + escHtml(lastStore) + lastTypeTag + '</span>';
                 html += '<span class="label mt-1">最終稼働日</span>';
                 html += '<span class="value">' + escHtml(lastDate) + '</span>';
                 html += '</div>';

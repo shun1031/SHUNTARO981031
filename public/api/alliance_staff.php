@@ -64,6 +64,8 @@ foreach ($rows as $row) {
         $grouped[$company][$staff] = [
             'name'            => $staff,
             'last_store'      => $row['store_name'] ?? '',
+            // 最終稼働区分: 最終稼働店舗と同じ最新案件の案件種別（regular=常勤 / event=イベント）
+            'last_case_type'  => $row['case_type'] ?? '',
             'last_work_date'  => $lastDate,
             'status'          => 'none',   // 後で判定
             '_cases'          => [],

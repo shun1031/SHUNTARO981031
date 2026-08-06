@@ -9,6 +9,27 @@ if (!$cid || !isAdmin()) { redirect(BASE_PATH . '/public/index.php'); }
 $pageTitle = 'アライアンス人員管理';
 $extraCss  = ['sales.css'];
 
+// 絞り込み用の会社名一覧（アライアンススタッフの案件が存在する会社のみ）
+$allianceNames = [];
+try {
+    $_anStmt = getDB()->prepare("
+        SELECT DISTINCT al.alliance_name
+        FROM sales_cases sc
+        JOIN sales_alliances al ON sc.alliance_id = al.id
+        WHERE sc.company_id = ?
+          AND sc.worker_type = 'アライアンス'
+          AND sc.alliance_id IS NOT NULL
+          AND sc.worker_name IS NOT NULL
+          AND TRIM(sc.worker_name) != ''
+          AND sc.status != 'cancelled'
+        ORDER BY al.alliance_name COLLATE utf8mb4_unicode_ci
+    ");
+    $_anStmt->execute([$cid]);
+    $allianceNames = $_anStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+} catch (PDOException $e) {
+    $allianceNames = [];
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -31,7 +52,12 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="row g-2 align-items-center">
                 <div class="col-md-4 col-sm-6">
                     <label class="form-label small mb-1 fw-medium">会社名で絞り込む</label>
-                    <input type="text" id="qCompany" class="form-control form-control-sm" placeholder="会社名を入力" oninput="asSearch()">
+                    <select id="qCompany" class="form-select form-select-sm" onchange="asSearch(true)">
+                        <option value="">すべての会社</option>
+                        <?php foreach ($allianceNames as $_an): ?>
+                        <option value="<?= h($_an) ?>"><?= h($_an) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-4 col-sm-6">
                     <label class="form-label small mb-1 fw-medium">スタッフ名で検索</label>
@@ -282,8 +308,10 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('qCompany').value.trim(),
         document.getElementById('qStaff').value.trim()
     ); };
-    window.asSearch = function () {
+    window.asSearch = function (immediate) {
         clearTimeout(searchTimer);
+        // 会社名の選択は即時、スタッフ名の入力は従来どおり300ms待って実行
+        if (immediate === true) { window.asLoad(); return; }
         searchTimer = setTimeout(window.asLoad, 300);
     };
 

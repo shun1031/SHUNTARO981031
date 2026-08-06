@@ -85,8 +85,8 @@ $today = date('Y-m-d');
 $companies = [];
 
 foreach ($grouped as $companyName => $staffMap) {
-    // 会社名フィルタ
-    if ($qCompany !== '' && mb_stripos($companyName, $qCompany) === false) {
+    // 会社名フィルタ（画面が選択式になったため完全一致で判定。似た社名の混在を防ぐ）
+    if ($qCompany !== '' && $companyName !== $qCompany) {
         continue;
     }
 

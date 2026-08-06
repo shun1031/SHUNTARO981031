@@ -478,6 +478,18 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     var profits  = data.map(function(d) { return d.profit; });
     var rates    = data.map(function(d) { return d.profitRate; });
 
+    var targets = (targetsArg || REP_TARGET_DATA[repName] || []).slice();
+    while (targets.length < 12) targets.push(0);
+    var ymList = repFiscalYm(fy);
+
+    // 目標が未入力(0)の月は線を引かない
+    function _tgtLine()  { return targets.map(function(t) { return t > 0 ? t : null; }); }
+    function _achvLine() {
+        return targets.map(function(t, i) {
+            return t > 0 ? Math.round((revenues[i] || 0) / t * 1000) / 10 : null;
+        });
+    }
+
     if (_repChart) { _repChart.destroy(); _repChart = null; }
     var ctx = document.getElementById('repDetailChart').getContext('2d');
 
@@ -532,6 +544,43 @@ function _drawRepChart(repName, data, targetsArg, fy) {
                         offset: 2,
                     },
                 },
+                {
+                    label: '売上目標',
+                    data: _tgtLine(),
+                    borderColor: '#9ca3af',
+                    backgroundColor: 'rgba(156,163,175,0.06)',
+                    borderDash: [6, 4],
+                    yAxisID: 'y',
+                    tension: 0,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    spanGaps: true,
+                    datalabels: { display: false },
+                },
+                {
+                    label: '売上達成率',
+                    data: _achvLine(),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5,150,105,0.06)',
+                    yAxisID: 'y2',
+                    tension: 0,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#059669',
+                    spanGaps: true,
+                    datalabels: {
+                        display: function(ctx) {
+                            var v = ctx.dataset.data[ctx.dataIndex];
+                            return v !== null && v !== undefined;
+                        },
+                        formatter: function(v) { return v + '%'; },
+                        color: '#047857',
+                        font: { size: 11, weight: 'bold' },
+                        anchor: 'start',
+                        align: 'bottom',
+                        offset: 2,
+                    },
+                },
             ],
         },
         options: {
@@ -545,7 +594,10 @@ function _drawRepChart(repName, data, targetsArg, fy) {
                     callbacks: {
                         label: function(ctx) {
                             var v = ctx.parsed.y;
-                            if (ctx.datasetIndex === 2) return ' 粗利率: ' + (v !== null ? v + '%' : '-');
+                            // 右軸（粗利率・売上達成率）は%、左軸（売上・粗利・売上目標）は円
+                            if (ctx.dataset.yAxisID === 'y2') {
+                                return ' ' + ctx.dataset.label + ': ' + (v !== null && v !== undefined ? v + '%' : '-');
+                            }
                             return ' ' + ctx.dataset.label + ': ' + (v ? v.toLocaleString() + '円' : '0円');
                         }
                     }
@@ -592,10 +644,6 @@ function _drawRepChart(repName, data, targetsArg, fy) {
         return v !== null ? '<span style="color:#d97706;font-weight:600">' + v + '%</span>' : '<span class="text-muted">-</span>';
     };
 
-    var targets = (targetsArg || REP_TARGET_DATA[repName] || []).slice();
-    while (targets.length < 12) targets.push(0);
-    var ymList = repFiscalYm(fy);
-
     var html = '';
     // 1. 売上目標（手入力）
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>';
@@ -634,12 +682,23 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     }
     for (var k = 0; k < 12; k++) _updateAchv(k);
 
+    // グラフの「売上目標」「売上達成率」を即時反映（再描画せずデータ差し替えのみ）
+    function _syncTargetSeries() {
+        if (!_repChart || !_repChart.data) return;
+        var ds = _repChart.data.datasets;
+        if (ds.length < 5) return;
+        ds[3].data = _tgtLine();
+        ds[4].data = _achvLine();
+        _repChart.update();
+    }
+
     // 売上目標の入力 → 達成率を即時再計算 → 非同期保存（画面リロードなし）
     tbody.querySelectorAll('.rep-tgt-inp').forEach(function(inp) {
         inp.addEventListener('input', function() {
             var idx = parseInt(inp.dataset.idx, 10);
             targets[idx] = Math.max(0, parseInt(String(inp.value).replace(/[^0-9]/g, ''), 10) || 0);
             _updateAchv(idx);
+            _syncTargetSeries();
         });
         inp.addEventListener('change', function() {
             var idx = parseInt(inp.dataset.idx, 10);

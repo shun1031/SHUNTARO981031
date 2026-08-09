@@ -208,6 +208,15 @@ $migrations = [
     // ---- sales_cases: 案件区分（1次/その他） ----
     "ALTER TABLE sales_cases ADD COLUMN case_division VARCHAR(20) DEFAULT NULL",
 
+    // ---- sales_clients: 取引先一覧（表記名・連絡先・契約書のGoogleドライブ紐付け） ----
+    "ALTER TABLE sales_clients ADD COLUMN display_name VARCHAR(100) DEFAULT NULL COMMENT '表記名（アプリ内表示名）'",
+    "ALTER TABLE sales_clients ADD COLUMN email VARCHAR(191) DEFAULT NULL COMMENT '担当者メールアドレス'",
+    "ALTER TABLE sales_clients ADD COLUMN contract_file_id VARCHAR(191) DEFAULT NULL COMMENT '契約書のGoogleドライブ ファイルID'",
+    "ALTER TABLE sales_clients ADD COLUMN contract_file_name VARCHAR(255) DEFAULT NULL COMMENT '契約書のファイル名（表示用）'",
+    "ALTER TABLE sales_clients ADD COLUMN contract_url VARCHAR(500) DEFAULT NULL COMMENT '契約書のURL（ファイルID未使用時のフォールバック）'",
+    // 表記名が未設定の既存データは会社名で初期化（表示崩れ防止）
+    "UPDATE sales_clients SET display_name = client_name WHERE display_name IS NULL OR display_name = ''",
+
     // ---- sales_rep_targets: 担当者別 月別売上目標テーブル ----
     "CREATE TABLE IF NOT EXISTS sales_rep_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, rep_name VARCHAR(100) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_revenue INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_srt (company_id, rep_name, year, month), INDEX idx_srt_company (company_id, year, month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

@@ -73,6 +73,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_shifts.php', 'bi-calendar3', 'シフト管理', $currentPage === 'sales_shifts') ?>
         <?= navLink(BASE_PATH . '/public/sales_daily_report.php', 'bi-journal-check', '日報管理', $currentPage === 'sales_daily_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_transport.php', 'bi-car-front', '交通費', $currentPage === 'sales_transport') ?>
+        <?= navLink(BASE_PATH . '/public/clients.php', 'bi-people-fill', '取引先一覧', $currentPage === 'clients') ?>
         <?= navLink(BASE_PATH . '/public/sales_client_report.php', 'bi-building', '取引先別売上', $currentPage === 'sales_client_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_rep_report.php', 'bi-person-badge', '担当者別売上', $currentPage === 'sales_rep_report') ?>
         <?= navLink(BASE_PATH . '/public/sales_rep_mom_report.php', 'bi-graph-up-arrow', '担当者別前月比', $currentPage === 'sales_rep_mom_report') ?>

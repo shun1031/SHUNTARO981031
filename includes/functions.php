@@ -9,6 +9,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/eval_functions.php';
 require_once __DIR__ . '/assessment_functions.php';
 require_once __DIR__ . '/sales_functions.php';
+require_once __DIR__ . '/google_drive.php';
 
 // ----------------------------------------------------------------
 // セッション

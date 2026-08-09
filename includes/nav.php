@@ -68,6 +68,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_dashboard_event.php', 'bi-calendar-event', 'イベントダッシュボード', $currentPage === 'sales_dashboard_event') ?>
         <?= navLink(BASE_PATH . '/public/sales_events.php', 'bi-calendar-event', 'イベント案件', $currentPage === 'sales_events') ?>
         <?= navLink(BASE_PATH . '/public/sales_regular.php', 'bi-person-workspace', '常勤案件', $currentPage === 'sales_regular') ?>
+        <?= navLink(BASE_PATH . '/public/case_stores.php', 'bi-shop', '案件店舗管理', $currentPage === 'case_stores') ?>
         <?= navLink(BASE_PATH . '/public/sales_event_calendar.php', 'bi-calendar-range', 'イベントカレンダー', $currentPage === 'sales_event_calendar') ?>
         <?= navLink(BASE_PATH . '/public/alliance_staff.php', 'bi-people', 'アライアンス人員管理', $currentPage === 'alliance_staff') ?>
         <?= navLink(BASE_PATH . '/public/sales_shifts.php', 'bi-calendar3', 'シフト管理', $currentPage === 'sales_shifts') ?>

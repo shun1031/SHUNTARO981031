@@ -45,7 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $per  = (int)($_GET['per'] ?? 20);
     if ($per < 1 || $per > 100) $per = 20;
 
-    $where  = 'company_id = ? AND is_active = 1';
+    // show=deleted で削除済み（is_active=0）の取引先を表示し、復元できるようにする
+    $show   = ($_GET['show'] ?? '') === 'deleted' ? 'deleted' : 'active';
+    $where  = 'company_id = ? AND is_active = ' . ($show === 'deleted' ? '0' : '1');
     $params = [$cid];
     if ($q !== '') {
         // 会社名・表記名・担当者名のいずれかに部分一致
@@ -67,8 +69,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         echo json_encode(['error' => 'データの取得に失敗しました']); exit;
     }
 
+    // 復元できる（削除済みの）取引先の件数
+    try {
+        $dStmt = $db->prepare('SELECT COUNT(*) FROM sales_clients WHERE company_id = ? AND is_active = 0');
+        $dStmt->execute([$cid]);
+        $deletedCount = (int)$dStmt->fetchColumn();
+    } catch (PDOException $e) { $deletedCount = 0; }
+
     echo json_encode([
         'ok'         => true,
+        'show'       => $show,
+        'deleted_count' => $deletedCount,
         'clients'    => $rows,
         'total'      => $total,
         'page'       => $page,
@@ -136,10 +147,37 @@ try {
 
     if ($action === 'delete') {
         if (!$id) { echo json_encode(['error' => '対象が見つかりません']); exit; }
+        // 案件で使用中の取引先は削除しない
+        // （案件画面の取引先プルダウンから消えてしまうため）
+        $u = $db->prepare("SELECT COUNT(*) FROM sales_cases
+                           WHERE company_id = ? AND client_id = ? AND status <> 'cancelled'");
+        $u->execute([$cid, $id]);
+        $used = (int)$u->fetchColumn();
+        if ($used > 0) {
+            echo json_encode([
+                'error' => "この取引先は案件で使用中のため削除できません（該当案件 {$used} 件）。\n案件側で取引先を変更してから削除してください。",
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         // 案件から参照されている可能性があるため物理削除はしない
         $db->prepare('UPDATE sales_clients SET is_active = 0, updated_at = NOW() WHERE id = ? AND company_id = ?')
            ->execute([$id, $cid]);
         echo json_encode(['ok' => true, 'deleted_id' => $id]);
+        exit;
+    }
+
+    // 削除済みの取引先を元に戻す（id指定。id=0 で削除済みを一括復元）
+    if ($action === 'restore') {
+        if ($id) {
+            $db->prepare('UPDATE sales_clients SET is_active = 1, updated_at = NOW() WHERE id = ? AND company_id = ?')
+               ->execute([$id, $cid]);
+            $restored = 1;
+        } else {
+            $st = $db->prepare('UPDATE sales_clients SET is_active = 1, updated_at = NOW() WHERE company_id = ? AND is_active = 0');
+            $st->execute([$cid]);
+            $restored = $st->rowCount();
+        }
+        echo json_encode(['ok' => true, 'restored' => $restored]);
         exit;
     }
 } catch (PDOException $e) {

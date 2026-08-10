@@ -32,12 +32,29 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card mb-3">
         <div class="card-body">
             <!-- 検索欄 -->
-            <div class="mb-3" style="max-width:420px">
-                <div class="input-group input-group-sm">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <div class="input-group input-group-sm" style="max-width:420px">
                     <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" id="clSearch" class="form-control border-start-0 ps-0"
                            placeholder="会社名・表記名・担当者名で検索" oninput="clSearchInput()">
                 </div>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-primary" id="clShowActive" onclick="clSetShow('active')">登録中</button>
+                    <button type="button" class="btn btn-outline-secondary" id="clShowDeleted" onclick="clSetShow('deleted')">
+                        削除済み <span class="badge bg-secondary ms-1" id="clDeletedBadge">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 削除済み表示時の一括復元 -->
+            <div class="alert alert-warning py-2 px-3 d-none align-items-center justify-content-between flex-wrap gap-2"
+                 id="clRestoreBar" style="font-size:.82rem">
+                <div>
+                    削除済みの取引先です。案件画面の取引先プルダウンには表示されません。
+                </div>
+                <button type="button" class="btn btn-warning btn-sm" onclick="clRestoreAll()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>すべて元に戻す
+                </button>
             </div>
 
             <!-- 一覧表 -->
@@ -159,7 +176,7 @@ var CL_CSRF = '{$csrf}';
 CLJS;
 $inlineJs .= <<<'CLJS2'
 
-var clPage = 1, clQuery = '', clTimer = null, clModalBs = null;
+var clPage = 1, clQuery = '', clTimer = null, clModalBs = null, clShow = 'active';
 
 function clEsc(s) {
     return String(s == null ? '' : s)
@@ -178,8 +195,20 @@ var CL_DRIVE_ICON =
     '<path fill="#ffba00" d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25L59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z"/>' +
     '</svg>';
 
+var clRowMap = {};   // id → 取引先データ（編集フォームの復元用）
+
 function clRender(d) {
     var tb = document.getElementById('clTbody');
+    clRowMap = {};
+    d.clients.forEach(function (c) { clRowMap[c.id] = c; });
+
+    // 表示切替の状態を反映
+    document.getElementById('clShowActive').className  = 'btn ' + (d.show === 'active'  ? 'btn-primary' : 'btn-outline-secondary');
+    document.getElementById('clShowDeleted').className = 'btn ' + (d.show === 'deleted' ? 'btn-primary' : 'btn-outline-secondary');
+    document.getElementById('clDeletedBadge').textContent = d.deleted_count;
+    var bar = document.getElementById('clRestoreBar');
+    if (d.show === 'deleted') { bar.classList.remove('d-none'); bar.classList.add('d-flex'); }
+    else { bar.classList.add('d-none'); bar.classList.remove('d-flex'); }
     if (!d.clients.length) {
         tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">'
                      + (clQuery ? '該当する取引先が見つかりません' : '取引先が登録されていません') + '</td></tr>';
@@ -197,9 +226,11 @@ function clRender(d) {
                  +  '<td>' + (c.email ? clEsc(c.email) : '<span class="text-muted">-</span>') + '</td>'
                  +  '<td>' + (c.phone ? clEsc(c.phone) : '<span class="text-muted">-</span>') + '</td>'
                  +  '<td>' + contract + '</td>'
-                 +  '<td class="text-end"><button type="button" class="btn btn-link p-0 text-secondary" title="編集"'
-                 +      ' onclick=\'clOpenForm(' + JSON.stringify(c).replace(/'/g, '&#39;') + ')\'><i class="bi bi-pencil"></i></button></td>'
-                 +  '</tr>';
+                 +  '<td class="text-end">'
+                 +  (clShow === 'deleted'
+                        ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 cl-restore-btn" data-id="' + c.id + '" style="font-size:.72rem">元に戻す</button>'
+                        : '<button type="button" class="btn btn-link p-0 text-secondary cl-edit-btn" data-id="' + c.id + '" title="編集"><i class="bi bi-pencil"></i></button>')
+                 +  '</td></tr>';
         });
         tb.innerHTML = html;
     }
@@ -222,7 +253,8 @@ function clRender(d) {
 
 // 一覧の取得（画面全体はリロードしない）
 function clLoad() {
-    var url = CL_API + '?page=' + clPage + (clQuery ? '&q=' + encodeURIComponent(clQuery) : '');
+    var url = CL_API + '?page=' + clPage + '&show=' + clShow
+            + (clQuery ? '&q=' + encodeURIComponent(clQuery) : '');
     fetch(url, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (d) {
@@ -240,6 +272,46 @@ function clGoPage(p) {
     clPage = p;
     clLoad();
 }
+
+// 登録中 / 削除済み の切替
+function clSetShow(s) {
+    if (clShow === s) return;
+    clShow = s;
+    clPage = 1;
+    clLoad();
+}
+
+// 削除済みの取引先を元に戻す
+function clRestore(id) {
+    var fd = new FormData();
+    fd.append('action', 'restore');
+    fd.append('csrf', CL_CSRF);
+    fd.append('id', id || 0);
+    fetch(CL_API, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (!d || !d.ok) { alert((d && d.error) || '復元に失敗しました'); return; }
+            clLoad();
+        })
+        .catch(function () { alert('通信エラーが発生しました'); });
+}
+
+function clRestoreAll() {
+    if (!confirm('削除済みの取引先をすべて元に戻しますか？')) return;
+    clRestore(0);
+}
+
+// 行内ボタン（編集・元に戻す）のクリック
+document.addEventListener('DOMContentLoaded', function () {
+    var tb = document.getElementById('clTbody');
+    if (!tb) return;
+    tb.addEventListener('click', function (e) {
+        var ed = e.target.closest('.cl-edit-btn');
+        if (ed) { clOpenForm(clRowMap[ed.dataset.id]); return; }
+        var rs = e.target.closest('.cl-restore-btn');
+        if (rs) { clRestore(rs.dataset.id); }
+    });
+});
 
 function clSearchInput() {
     clearTimeout(clTimer);

@@ -175,13 +175,22 @@ $areas = getSalesAreas($cid);
 $workers = getSalesWorkers($cid);
 
 // フィルタ用: 現在取引中（表示中の年月に有効な案件がある）取引先のみ
-$_acSql = "SELECT DISTINCT client_id FROM sales_cases WHERE company_id=? AND case_type='event' AND case_year=? AND status NOT IN ('cancelled','終了') AND client_id IS NOT NULL";
+// ※取引先マスタが無効(is_active=0)でも、案件が存在すればプルダウンに残す
+//   （マスタを無効化しただけで案件画面の絞り込みが使えなくなるのを防ぐ）
+$_acSql = "SELECT DISTINCT sc.client_id, cl.client_name
+           FROM sales_cases sc
+           JOIN sales_clients cl ON sc.client_id = cl.id
+           WHERE sc.company_id=? AND sc.case_type='event' AND sc.case_year=?
+             AND sc.status NOT IN ('cancelled','終了') AND sc.client_id IS NOT NULL";
 $_acParams = [$cid, $year];
-if ($month) { $_acSql .= ' AND case_month=?'; $_acParams[] = (int)$month; }
+if ($month) { $_acSql .= ' AND sc.case_month=?'; $_acParams[] = (int)$month; }
+$_acSql .= ' ORDER BY cl.client_name';
 $_acStmt = $db->prepare($_acSql);
 $_acStmt->execute($_acParams);
-$_activeClientIds = array_map('intval', $_acStmt->fetchAll(PDO::FETCH_COLUMN));
-$activeClients = array_values(array_filter($clients, fn($cl) => in_array((int)$cl['id'], $_activeClientIds, true)));
+$activeClients = array_map(
+    fn($r) => ['id' => (int)$r['client_id'], 'client_name' => $r['client_name']],
+    $_acStmt->fetchAll(PDO::FETCH_ASSOC)
+);
 
 // フィルタ用プルダウンHTML（初期表示・AJAX更新で共用）
 ob_start();

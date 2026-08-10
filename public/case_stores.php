@@ -247,6 +247,18 @@ function csToggle(name) {
     csRender(csLastData);
 }
 
+// クライアント行のクリックで開閉（tbodyに1つだけ登録し、再描画後も有効）
+function csBindToggle() {
+    var tb = document.getElementById('csTbody');
+    if (!tb || tb.dataset.csBound === '1') return;
+    tb.dataset.csBound = '1';
+    tb.addEventListener('click', function (e) {
+        var row = e.target.closest('.cs-client-row');
+        if (!row || !row.dataset.client) return;
+        csToggle(row.dataset.client);
+    });
+}
+
 function csRender(d) {
     if (!d) return;
     csLastData = d;
@@ -274,7 +286,8 @@ function csRender(d) {
     d.clients.forEach(function (c) {
         var open = !!csOpen[c.name];
         // クライアント行（折りたたみ時はサマリーを表示）
-        html += '<tr class="cs-client-row" onclick="csToggle(' + JSON.stringify(c.name).replace(/'/g, '&#39;') + ')">';
+        // 名前は data 属性で受け渡す（記号を含む社名でも壊れない）
+        html += '<tr class="cs-client-row" data-client="' + csEsc(c.name) + '">';
         html += '<td><span class="cs-caret' + (open ? ' open' : '') + '"><i class="bi bi-chevron-right"></i></span>'
              +  '<span class="cs-client-name">' + csEsc(c.name) + '</span>'
              +  '<span class="cs-store-badge">' + c.store_count + '店舗</span></td>';
@@ -368,7 +381,10 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 window.addEventListener('focus', csLoad);
 setInterval(csLoad, 60000);
 
-document.addEventListener('DOMContentLoaded', csLoad);
+document.addEventListener('DOMContentLoaded', function () {
+    csBindToggle();
+    csLoad();
+});
 CSJS2;
 require_once __DIR__ . '/../includes/footer.php';
 ?>

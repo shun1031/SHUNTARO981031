@@ -20,12 +20,16 @@ require_once __DIR__ . '/../includes/header.php';
             <div>
                 <div class="d-flex align-items-center gap-3 flex-wrap">
                     <h1 class="mb-0"><i class="bi bi-shop me-2"></i>案件店舗管理</h1>
+                    <div class="btn-group btn-group-sm cs-type-group" role="group">
+                        <button type="button" class="btn btn-success" id="csTypeRegular" onclick="csSetCaseType('regular')">常勤</button>
+                        <button type="button" class="btn btn-outline-secondary" id="csTypeEvent" onclick="csSetCaseType('event')">イベント</button>
+                    </div>
                     <div class="btn-group btn-group-sm cs-div-group" role="group">
                         <button type="button" class="btn btn-primary" id="csDivFirst" onclick="csSetDivision('first')">1次案件</button>
                         <button type="button" class="btn btn-outline-secondary" id="csDivOther" onclick="csSetDivision('other')">その他案件</button>
                     </div>
                 </div>
-                <p class="mb-0 mt-1">案件の区分を選択して、該当する案件のみを表示します。</p>
+                <p class="mb-0 mt-1">案件種別と区分を選択して、該当する案件のみを表示します。稼働状況は表示中の月を基準に判定します。</p>
             </div>
             <div class="d-flex flex-column align-items-end gap-2">
                 <div class="d-flex align-items-center gap-2">
@@ -77,7 +81,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-6 col-md-6 col-xl">
             <div class="card h-100"><div class="card-body d-flex align-items-center gap-2 py-3">
                 <div class="cs-ico" style="background:#fef3c7;color:#d97706"><i class="bi bi-currency-yen"></i></div>
-                <div><div class="cs-ico-label">平均単価</div>
+                <div><div class="cs-ico-label"><span id="csAvgPriceLabel">平均単価（月額）</span></div>
                      <div class="cs-ico-val" id="csAvgPrice">¥0</div></div>
             </div></div>
         </div>
@@ -191,7 +195,7 @@ var CS_API = {$csApi};
 CSJS;
 $inlineJs .= <<<'CSJS2'
 
-var csDivision = 'first', csYear = 0, csMonth = 0, csTimer = null;
+var csDivision = 'first', csCaseType = 'regular', csYear = 0, csMonth = 0, csTimer = null;
 var csOpen = {};          // クライアントごとの開閉状態
 var csLastData = null;
 
@@ -215,6 +219,18 @@ function csSetDivision(d) {
     document.getElementById('csDivFirst').className = 'btn ' + (d === 'first' ? 'btn-primary' : 'btn-outline-secondary');
     document.getElementById('csDivOther').className = 'btn ' + (d === 'other' ? 'btn-primary' : 'btn-outline-secondary');
     csOpen = {};
+    csLoad();
+}
+
+// 常勤 / イベントの切替（案件種別で完全に分けて表示・集計する）
+function csSetCaseType(t) {
+    if (csCaseType === t) return;
+    csCaseType = t;
+    document.getElementById('csTypeRegular').className = 'btn ' + (t === 'regular' ? 'btn-success' : 'btn-outline-secondary');
+    document.getElementById('csTypeEvent').className   = 'btn ' + (t === 'event'   ? 'btn-success' : 'btn-outline-secondary');
+    csOpen = {};
+    // 種別ごとにデータのある月が異なるため、最新月を再取得させる
+    csYear = 0; csMonth = 0;
     csLoad();
 }
 
@@ -244,6 +260,9 @@ function csRender(d) {
     document.getElementById('csWorkerCount').textContent = s.worker_count;
     document.getElementById('csAvgPrice').textContent    = csYen(s.avg_price);
     document.getElementById('csActiveCount').textContent = s.active_store_count;
+    // 常勤は月額、イベントは日額のため単位を明示
+    document.getElementById('csAvgPriceLabel').textContent =
+        (d.case_type === 'event') ? '平均単価（日額）' : '平均単価（月額）';
 
     var tb = document.getElementById('csTbody');
     if (!d.clients.length) {
@@ -295,6 +314,7 @@ function csRender(d) {
 function csLoad() {
     var p = new URLSearchParams();
     p.set('division', csDivision);
+    p.set('case_type', csCaseType);
     if (csYear && csMonth) { p.set('year', csYear); p.set('month', csMonth); }
     var q = document.getElementById('csSearch').value.trim();
     if (q) p.set('q', q);

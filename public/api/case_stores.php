@@ -20,17 +20,21 @@ session_write_close();
 
 $db       = getDB();
 $division = ($_GET['division'] ?? 'first') === 'other' ? 'other' : 'first';
+// 案件種別: regular=常勤 / event=イベント（常勤とイベントを分けて表示する）
+$caseType = $_GET['case_type'] ?? 'regular';
+if (!in_array($caseType, ['regular', 'event'], true)) $caseType = 'regular';
 $year     = (int)($_GET['year']  ?? 0);
 $month    = (int)($_GET['month'] ?? 0);
 $q        = trim($_GET['q'] ?? '');
 $statusF  = trim($_GET['status'] ?? '');
 $activeOnly = ($_GET['active_only'] ?? '') === '1';
 
-// 年月未指定なら、データがある最新月にフォールバック
+// 年月未指定なら、選択中の案件種別でデータがある最新月にフォールバック
 if (!$year || !$month) {
     $lStmt = $db->prepare("SELECT case_year, case_month FROM sales_cases
-                           WHERE company_id = ? ORDER BY case_year DESC, case_month DESC LIMIT 1");
-    $lStmt->execute([$cid]);
+                           WHERE company_id = ? AND case_type = ?
+                           ORDER BY case_year DESC, case_month DESC LIMIT 1");
+    $lStmt->execute([$cid, $caseType]);
     $l = $lStmt->fetch(PDO::FETCH_ASSOC);
     $year  = $l ? (int)$l['case_year']  : (int)date('Y');
     $month = $l ? (int)$l['case_month'] : (int)date('n');
@@ -39,16 +43,26 @@ if (!$year || !$month) {
 /**
  * 既存の案件データからステータスを判定する
  * （新しいステータス項目は作らず、status と稼働期間から導出）
+ *
+ * 判定の基準は「今日」ではなく【表示中の月】。
+ * 表示月の月初〜月末と案件の稼働期間が重なっていれば「稼働中」とする。
+ * これにより過去月を表示しても、その月の稼働状況をそのまま確認できる。
+ *
+ * @param string $monthStart 表示月の月初 (Y-m-d)
+ * @param string $monthEnd   表示月の月末 (Y-m-d)
  */
-function caseStoreStatus(array $c, string $today): string {
+function caseStoreStatus(array $c, string $monthStart, string $monthEnd): string {
     $st = $c['status'] ?? '';
     if ($st === 'cancelled') return '稼働終了';
     if ($st === 'draft')     return '準備中';
     $s = $c['start_date'] ?? null;
     $e = $c['end_date']   ?? null;
-    if ($e && $e < $today) return '稼働終了';
-    if ($s && $s > $today) return '調整中';
-    if ($s && $s <= $today && ($e === null || $e >= $today)) return '稼働中';
+    // 表示月より前に終了している
+    if ($e && $e < $monthStart) return '稼働終了';
+    // 表示月より後に開始する
+    if ($s && $s > $monthEnd)   return '調整中';
+    // 表示月と稼働期間が重なっている
+    if ($s && $s <= $monthEnd && ($e === null || $e >= $monthStart)) return '稼働中';
     return '調整中';
 }
 
@@ -65,22 +79,24 @@ try {
                cl.client_name, cl.display_name
         FROM sales_cases sc
         LEFT JOIN sales_clients cl ON sc.client_id = cl.id
-        WHERE sc.company_id = ? AND sc.case_year = ? AND sc.case_month = ?
+        WHERE sc.company_id = ? AND sc.case_type = ? AND sc.case_year = ? AND sc.case_month = ?
           $divWhere
         ORDER BY cl.client_name, sc.store_name, sc.worker_name
     ");
-    $stmt->execute([$cid, $year, $month]);
+    $stmt->execute([$cid, $caseType, $year, $month]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     echo json_encode(['error' => 'データの取得に失敗しました']); exit;
 }
 
-$today = date('Y-m-d');
+// 判定基準は表示中の月（月初〜月末）
+$monthStart = sprintf('%04d-%02d-01', $year, $month);
+$monthEnd   = date('Y-m-t', strtotime($monthStart));
 
 // ── 絞り込み（検索 / ステータス / 稼働中のみ）──
 $filtered = [];
 foreach ($rows as $r) {
-    $r['_status'] = caseStoreStatus($r, $today);
+    $r['_status'] = caseStoreStatus($r, $monthStart, $monthEnd);
     // 表記名があればそちらを優先（取引先一覧のアプリ内表示名）
     $r['_client'] = trim((string)($r['display_name'] ?? '')) !== ''
         ? (string)$r['display_name']
@@ -148,10 +164,11 @@ foreach ($clients as $ck => $c) {
 }
 
 echo json_encode([
-    'ok'       => true,
-    'division' => $division,
-    'year'     => $year,
-    'month'    => $month,
+    'ok'        => true,
+    'division'  => $division,
+    'case_type' => $caseType,
+    'year'      => $year,
+    'month'     => $month,
     'clients'  => $out,
     'summary'  => [
         'client_count'       => count($out),

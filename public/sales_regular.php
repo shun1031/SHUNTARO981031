@@ -554,6 +554,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php
+$_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['client_name']], $clients)));
 $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
 $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= 'var pageYear = ' . (int)$dispYear . '; var pageMonth = ' . (int)$dispMonth . ';';

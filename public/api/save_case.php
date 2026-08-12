@@ -21,8 +21,11 @@ if ($action === 'create' || $action === 'update') {
     $_clientNameInput = trim($data['client_name_input'] ?? '');
     if (!$_clientId && $_clientNameInput) {
         $db = getDB();
-        $cs = $db->prepare('SELECT id FROM sales_clients WHERE company_id = ? AND client_name = ? LIMIT 1');
-        $cs->execute([$cid, $_clientNameInput]);
+        // 表記名・会社名のどちらで入力されても既存の取引先に紐づける（二重登録の防止）
+        $cs = $db->prepare('SELECT id FROM sales_clients
+                            WHERE company_id = ? AND (client_name = ? OR display_name = ?)
+                            ORDER BY (client_name = ?) DESC LIMIT 1');
+        $cs->execute([$cid, $_clientNameInput, $_clientNameInput, $_clientNameInput]);
         $existingCid = $cs->fetchColumn();
         $_clientId = $existingCid ? (int)$existingCid : createSalesClient($cid, ['client_name' => $_clientNameInput]);
     }

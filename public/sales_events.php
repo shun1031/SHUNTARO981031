@@ -50,8 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
         $_clientNameInput = trim($_POST['client_name_input'] ?? '');
         if (!$_clientId && $_clientNameInput) {
             $_cdb = getDB();
-            $_cs = $_cdb->prepare('SELECT id FROM sales_clients WHERE company_id = ? AND client_name = ? LIMIT 1');
-            $_cs->execute([$cid, $_clientNameInput]);
+            // 表記名・会社名のどちらで入力されても既存の取引先に紐づける（二重登録の防止）
+            $_cs = $_cdb->prepare('SELECT id FROM sales_clients
+                                   WHERE company_id = ? AND (client_name = ? OR display_name = ?)
+                                   ORDER BY (client_name = ?) DESC LIMIT 1');
+            $_cs->execute([$cid, $_clientNameInput, $_clientNameInput, $_clientNameInput]);
             $_existingCid = $_cs->fetchColumn();
             $_clientId = $_existingCid ? (int)$_existingCid : createSalesClient($cid, ['client_name' => $_clientNameInput]);
         }
@@ -477,7 +480,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="hidden" name="client_name_input" id="f_client_name_hidden" value="">
                         <datalist id="clientDatalist">
                             <?php foreach ($clients as $cl): ?>
-                            <option value="<?= h($cl['client_name']) ?>"></option>
+                            <option value="<?= h(($cl['display_name'] ?? '') !== '' ? $cl['display_name'] : $cl['client_name']) ?>"></option>
                             <?php endforeach; ?>
                         </datalist>
                     </div>
@@ -600,7 +603,12 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php
-$_clientsJson = json_encode(array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['client_name']], $clients)));
+// name=表記名（表示・入力候補用） / real=会社名（既存データとの照合用）
+$_clientsJson = json_encode(array_values(array_map(fn($c) => [
+    'id'   => $c['id'],
+    'name' => ($c['display_name'] ?? '') !== '' ? $c['display_name'] : $c['client_name'],
+    'real' => $c['client_name'],
+], $clients)), JSON_UNESCAPED_UNICODE);
 $inlineJs = 'var clientsData = ' . $_clientsJson . ';';
 $inlineJs .= 'var csrfToken = ' . json_encode($csrf) . ';';
 $inlineJs .= 'var pageYear = ' . (int)$dispYear . '; var pageMonth = ' . (int)$dispMonth . ';';
@@ -795,13 +803,23 @@ function applyDays(id) {
         });
 }
 
+// 取引先IDから表示用の名前（表記名。なければ会社名）を返す
+function clientLabelById(id, fallback) {
+    if (id) {
+        var m = clientsData.find(function(c) { return String(c.id) === String(id); });
+        if (m) return m.name;
+    }
+    return fallback || '';
+}
+
 // 取引先 datalist 選択/入力ハンドラ
 (function() {
     var inp = document.getElementById('f_client_name_input');
     if (!inp) return;
     inp.addEventListener('input', function() {
         var name = this.value.trim();
-        var match = clientsData.find(function(c) { return c.name === name; });
+        // 表記名・会社名のどちらで入力しても既存の取引先に紐づける（二重登録の防止）
+        var match = clientsData.find(function(c) { return c.name === name || c.real === name; });
         document.getElementById('f_client_id').value = match ? match.id : '';
         document.getElementById('f_client_name_hidden').value = name;
     });
@@ -862,7 +880,7 @@ function editCase(c) {
     document.getElementById('form_id').value = c.id;
     document.getElementById('modalTitle').textContent = 'イベント案件編集 #' + c.id;
     document.getElementById('submitBtn').textContent = '更新';
-    document.getElementById('f_client_name_input').value = c.client_name || '';
+    document.getElementById('f_client_name_input').value = clientLabelById(c.client_id, c.client_name);
     document.getElementById('f_client_id').value = c.client_id || '';
     document.getElementById('f_client_name_hidden').value = c.client_name || '';
     document.getElementById('f_start_date').value = c.start_date || '';

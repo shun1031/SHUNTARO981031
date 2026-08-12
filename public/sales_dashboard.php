@@ -103,6 +103,26 @@ $fyRevMap = [];
 foreach ($fyCasesStmt->fetchAll() as $r) {
     $fyRevMap[$r['case_year']][$r['case_month']] = ['rev' => (int)$r['rev'], 'profit' => (int)$r['profit']];
 }
+// 案件データが無い月は、手入力の実績（売上・粗利）で補完する
+// （総合は常勤+イベントの合計。案件がある月は案件データを優先）
+$manualActualMap = [];
+try {
+    $_maStmt = $fyDb->prepare("
+        SELECT year, month, SUM(revenue) AS rev, SUM(profit) AS profit
+        FROM sales_prev_year_revenues
+        WHERE company_id = ?" . ($caseTypeFilter ? " AND case_type = ?" : "") . "
+          AND ((year = ? AND month >= 9) OR (year = ? AND month <= 8))
+        GROUP BY year, month
+    ");
+    $_maStmt->execute($caseTypeFilter ? [$cid, $caseTypeFilter, $fyYear-1, $fyYear] : [$cid, $fyYear-1, $fyYear]);
+    foreach ($_maStmt->fetchAll() as $r) {
+        $_y = (int)$r['year']; $_m = (int)$r['month'];
+        $manualActualMap[$_y][$_m] = ['rev' => (int)$r['rev'], 'profit' => (int)$r['profit']];
+        if (empty($fyRevMap[$_y][$_m]['rev'])) {
+            $fyRevMap[$_y][$_m] = ['rev' => (int)$r['rev'], 'profit' => (int)$r['profit']];
+        }
+    }
+} catch (PDOException $e) { /* カラム未追加時は無視 */ }
 // 前年同月売上（前年度 Sep(Y-2)〜Aug(Y-1)）
 // 各ダッシュボードで表示中の売上と同じ絞り込み（常勤/イベント/総合）を適用し整合させる
 $fyPrevRevMap = [];
@@ -151,6 +171,21 @@ foreach ($fyTypeStmt->fetchAll() as $r) {
         'rev' => (int)$r['rev'], 'profit' => (int)$r['profit'],
     ];
 }
+// 常勤/イベント別も、案件データが無い月は手入力の実績で補完（グラフの内訳用）
+try {
+    $_mtStmt = $fyDb->prepare("
+        SELECT year, month, case_type, revenue, profit
+        FROM sales_prev_year_revenues
+        WHERE company_id = ? AND ((year = ? AND month >= 9) OR (year = ? AND month <= 8))
+    ");
+    $_mtStmt->execute([$cid, $fyYear-1, $fyYear]);
+    foreach ($_mtStmt->fetchAll() as $r) {
+        $_y = (int)$r['year']; $_m = (int)$r['month']; $_t = $r['case_type'];
+        if (empty($fyTypeRevMap[$_y][$_m][$_t]['rev'])) {
+            $fyTypeRevMap[$_y][$_m][$_t] = ['rev' => (int)$r['revenue'], 'profit' => (int)$r['profit']];
+        }
+    }
+} catch (PDOException $e) { /* カラム未追加時は無視 */ }
 // 月別目標（常勤/イベントは各タイプ、総合はregular+eventの合計）
 $fyTgtMap = [];
 $_tgtType = $caseTypeFilter ?: null;
@@ -208,6 +243,18 @@ if (empty($kpis['prev_year_revenue'])) {
             $kpis['yoy_change'] = round(((int)$kpis['revenue'] - $_prevYearRev) / $_prevYearRev * 100, 1);
         }
     } catch (PDOException $e) { /* テーブル未作成時は無視 */ }
+}
+// 表示中の月に案件データが無い場合は、手入力の実績でKPIカードを補完する
+if (empty($kpis['revenue']) && isset($manualActualMap[$year][$month])) {
+    $_ma = $manualActualMap[$year][$month];
+    if ($_ma['rev'] > 0) {
+        $kpis['revenue'] = $_ma['rev'];
+        $kpis['profit']  = $_ma['profit'];
+        $kpis['margin']  = round($_ma['profit'] / $_ma['rev'] * 100, 1);
+        if (!empty($kpis['prev_year_revenue'])) {
+            $kpis['yoy_change'] = round(($_ma['rev'] - $kpis['prev_year_revenue']) / $kpis['prev_year_revenue'] * 100, 1);
+        }
+    }
 }
 $trend = getSalesRevenueTrendFiltered($cid, $year, $salesRep);
 $clientTop = getSalesRevenueByClientFiltered($cid, $year, $month, $salesRep);

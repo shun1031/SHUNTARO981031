@@ -143,6 +143,18 @@ $migrations = [
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'regular', 2025, 7, 17839699 FROM sales_cases",
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'event',   2025, 7, 12890700 FROM sales_cases",
 
+    // ---- sales_prev_year_revenues: 粗利も保存できるようにする ----
+    "ALTER TABLE sales_prev_year_revenues ADD COLUMN profit BIGINT NOT NULL DEFAULT 0 AFTER revenue",
+    // 2025-2026年度 9〜12月の実績（案件データが無いため手入力値として登録）
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2025,  9, 17213272,  5473866 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2025,  9, 13035800,  4092740 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2025, 10, 17033505,  5548442 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2025, 10,  8952795,  1172435 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2025, 11, 16991004,  5805130 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2025, 11,  8474890,  1288352 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2025, 12, 16574851,  4959614 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2025, 12,  3141000, -4008182 FROM sales_cases",
+
     // ---- salary_regular_overrides: 常勤案件売上(7割)の手入力上書きテーブル ----
     // 保存された行がある月・スタッフのみ自動計算を上書きする（行がなければ従来どおり自動計算）
     "CREATE TABLE IF NOT EXISTS salary_regular_overrides (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, pay_year INT NOT NULL, pay_month INT NOT NULL, worker_name VARCHAR(100) NOT NULL, amount INT NOT NULL DEFAULT 0, note VARCHAR(255) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sro (company_id, pay_year, pay_month, worker_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",

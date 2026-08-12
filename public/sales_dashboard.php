@@ -84,15 +84,8 @@ $fyMonths = [
     ['y' => $fyYear,   'm' => 5],  ['y' => $fyYear,   'm' => 6],
     ['y' => $fyYear,   'm' => 7],  ['y' => $fyYear,   'm' => 8],
 ];
-// 月別枠数テーブルは従来どおり表示中の年度（$year）に固定
-$fyMonthsFrame = [
-    ['y' => $year-1, 'm' => 9],  ['y' => $year-1, 'm' => 10],
-    ['y' => $year-1, 'm' => 11], ['y' => $year-1, 'm' => 12],
-    ['y' => $year,   'm' => 1],  ['y' => $year,   'm' => 2],
-    ['y' => $year,   'm' => 3],  ['y' => $year,   'm' => 4],
-    ['y' => $year,   'm' => 5],  ['y' => $year,   'm' => 6],
-    ['y' => $year,   'm' => 7],  ['y' => $year,   'm' => 8],
-];
+// 月別枠数テーブルも年度切替に連動させる（売上推移・年度月別売上と同じ年度）
+$fyMonthsFrame = $fyMonths;
 // 月別売上・粗利
 $fyDb = getDB();
 $_fyTypeWhere = $caseTypeFilter ? "AND case_type = ?" : "";
@@ -461,14 +454,14 @@ if ($caseTypeFilter) {
     try {
         try { $_sDb->exec("ALTER TABLE sales_frame_targets ADD COLUMN target_second_frame INT NOT NULL DEFAULT 0 AFTER target_first_frame"); } catch (PDOException $e) {}
         $_ftStmt = $_sDb->prepare("SELECT year, month, target_first_frame, target_second_frame FROM sales_frame_targets WHERE company_id=? AND case_type=? AND ((year=? AND month>=9) OR (year=? AND month<=8))");
-        $_ftStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
+        $_ftStmt->execute([$cid, $caseTypeFilter, $fyYear-1, $fyYear]);
         foreach ($_ftStmt->fetchAll() as $_r) {
             $frameTargetMap[(int)$_r['year']][(int)$_r['month']]  = (int)$_r['target_first_frame'];
             $frameTarget2Map[(int)$_r['year']][(int)$_r['month']] = (int)$_r['target_second_frame'];
         }
         // 区分別 実績件数（1次 / 二次以降）
         $_faStmt = $_sDb->prepare("SELECT case_year, case_month, case_division, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division IN ('1次','2次以降') AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month, case_division");
-        $_faStmt->execute([$cid, $caseTypeFilter, $year-1, $year]);
+        $_faStmt->execute([$cid, $caseTypeFilter, $fyYear-1, $fyYear]);
         foreach ($_faStmt->fetchAll() as $_r) {
             if ($_r['case_division'] === '1次') {
                 $frameActualMap[(int)$_r['case_year']][(int)$_r['case_month']] = (int)$_r['cnt'];
@@ -788,28 +781,9 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
-    <?php
-    // ▲ 年度切替の対象範囲ここまで
-    $fySectionsHtml = ob_get_clean();
-    echo $fySectionsHtml;
-    if ($FY_ONLY) {
-        // ヘッダー等の出力を破棄し、該当セクションのHTMLとチャートデータのみ返す
-        while (ob_get_level() > 0) { ob_end_clean(); }
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'ok'      => true,
-            'html'    => $fySectionsHtml,
-            'trend'   => $trendData,
-            'targets' => $trendTargets,
-            'fy_year' => $fyYear,
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-    ?>
-    </div><!-- /#fySectionsWrap -->
 
     <?php if ($caseTypeFilter): ?>
-    <!-- 月別枠数テーブル（常勤/イベントのみ） -->
+    <!-- 月別枠数テーブル（常勤/イベントのみ。年度切替に連動） -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -918,6 +892,25 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
     <?php endif; ?>
+    <?php
+    // ▲ 年度切替の対象範囲ここまで（売上推移チャート／年度月別売上／月別枠数）
+    $fySectionsHtml = ob_get_clean();
+    echo $fySectionsHtml;
+    if ($FY_ONLY) {
+        // ヘッダー等の出力を破棄し、該当セクションのHTMLとチャートデータのみ返す
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok'      => true,
+            'html'    => $fySectionsHtml,
+            'trend'   => $trendData,
+            'targets' => $trendTargets,
+            'fy_year' => $fyYear,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    ?>
+    </div><!-- /#fySectionsWrap -->
 
     <style>
     /* 詳細ビューのランキング表: 横スクロールなしで収まるようコンパクト表示 */
@@ -1495,41 +1488,38 @@ TAXJS;
 
 $inlineJs .= <<<'FRAMEJS'
 // 月別枠数目標: 自動保存（1次 / 2次以降を区別）
-(function() {
-    const inputs = document.querySelectorAll('.fy-frame-tgt-input');
-    if (!inputs.length) return;
-    const csrf = document.getElementById('fycsrf') ? document.getElementById('fycsrf').value : '';
-    const saveUrl = window.location.pathname;
-    function recalcTgtTotal() {
-        let sum1 = 0, sum2 = 0;
-        inputs.forEach(inp => {
-            const v = parseInt(inp.value) || 0;
-            if (inp.dataset.frame === 'second') sum2 += v; else sum1 += v;
-        });
-        const el1 = document.getElementById('fyFrameTgtTotal');  if (el1) el1.textContent = sum1 || 0;
-        const el2 = document.getElementById('fyFrameTgt2Total'); if (el2) el2.textContent = sum2 || 0;
-    }
-    inputs.forEach(function(inp) {
-        inp.addEventListener('change', function() {
-            const yr = inp.dataset.year;
-            const mo = inp.dataset.month;
-            const frame = inp.dataset.frame || 'first';
-            const val = Math.max(0, parseInt(inp.value) || 0);
-            inp.value = val;
-            recalcTgtTotal();
-            const fd = new FormData();
-            fd.append('action', 'save_frame_target');
-            fd.append('csrf', csrf);
-            fd.append('frame_type', frame);
-            fd.append('t_year', yr);
-            fd.append('t_month', mo);
-            fd.append('t_value', val);
-            fetch(saveUrl, { method: 'POST', body: fd })
-                .then(r => r.json())
-                .catch(() => {});
-        });
+// 年度切替でテーブルが差し替わっても効くよう、documentへの委譲で受ける
+function recalcFrameTgtTotal() {
+    let sum1 = 0, sum2 = 0;
+    document.querySelectorAll('.fy-frame-tgt-input').forEach(inp => {
+        const v = parseInt(inp.value) || 0;
+        if (inp.dataset.frame === 'second') sum2 += v; else sum1 += v;
     });
-})();
+    const el1 = document.getElementById('fyFrameTgtTotal');  if (el1) el1.textContent = sum1 || 0;
+    const el2 = document.getElementById('fyFrameTgt2Total'); if (el2) el2.textContent = sum2 || 0;
+}
+document.addEventListener('change', function(e) {
+    const inp = e.target.closest ? e.target.closest('.fy-frame-tgt-input') : null;
+    if (!inp) return;
+    // 保存先の年月は入力欄の data 属性から取るため、年度切替後も正しい年度に保存される
+    const yr    = inp.dataset.year;
+    const mo    = inp.dataset.month;
+    const frame = inp.dataset.frame || 'first';
+    const val   = Math.max(0, parseInt(inp.value) || 0);
+    inp.value = val;
+    recalcFrameTgtTotal();
+    const csrfEl = document.getElementById('fycsrf');
+    const fd = new FormData();
+    fd.append('action', 'save_frame_target');
+    fd.append('csrf', csrfEl ? csrfEl.value : '');
+    fd.append('frame_type', frame);
+    fd.append('t_year', yr);
+    fd.append('t_month', mo);
+    fd.append('t_value', val);
+    fetch(window.location.pathname, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .catch(() => {});
+});
 FRAMEJS;
 
 $inlineJs .= <<<'JSEOF2'

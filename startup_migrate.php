@@ -126,6 +126,17 @@ $migrations = [
     // ---- sales_shifts: 追加稼働フラグ ----
     "ALTER TABLE sales_shifts ADD COLUMN is_additional TINYINT(1) NOT NULL DEFAULT 0 COMMENT '追加稼働フラグ'",
 
+    // ---- sales_prev_year_revenues: 前年同月売上の手入力テーブル ----
+    // 案件データが無い過去月の売上を記録し、前年同月比の算出に使う（案件データは作らない）
+    "CREATE TABLE IF NOT EXISTS sales_prev_year_revenues (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, revenue BIGINT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_spyr (company_id, case_type, year, month), INDEX idx_spyr (company_id, year, month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    // 2024-2025年度 5〜7月の実績（案件データが無いため手入力値として登録）
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'regular', 2025, 5, 16943313 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'event',   2025, 5,  9372500 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'regular', 2025, 6, 20055184 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'event',   2025, 6, 11851500 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'regular', 2025, 7, 17839699 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'event',   2025, 7, 12890700 FROM sales_cases",
+
     // ---- salary_regular_overrides: 常勤案件売上(7割)の手入力上書きテーブル ----
     // 保存された行がある月・スタッフのみ自動計算を上書きする（行がなければ従来どおり自動計算）
     "CREATE TABLE IF NOT EXISTS salary_regular_overrides (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, pay_year INT NOT NULL, pay_month INT NOT NULL, worker_name VARCHAR(100) NOT NULL, amount INT NOT NULL DEFAULT 0, note VARCHAR(255) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sro (company_id, pay_year, pay_month, worker_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",

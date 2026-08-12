@@ -126,6 +126,22 @@ $fyPrevStmt->execute($_fyPrevParams);
 foreach ($fyPrevStmt->fetchAll() as $r) {
     $fyPrevRevMap[$r['case_year']][$r['case_month']] = (int)$r['rev'];
 }
+// 案件データが無い過去月は、手入力の前年実績で補完する
+// （総合は常勤+イベントの合計。案件がある月は案件データを優先）
+try {
+    $_pyStmt = $fyDb->prepare("
+        SELECT year, month, SUM(revenue) AS rev
+        FROM sales_prev_year_revenues
+        WHERE company_id = ?" . ($caseTypeFilter ? " AND case_type = ?" : "") . "
+          AND ((year = ? AND month >= 9) OR (year = ? AND month <= 8))
+        GROUP BY year, month
+    ");
+    $_pyStmt->execute($caseTypeFilter ? [$cid, $caseTypeFilter, $fyYear-2, $fyYear-1] : [$cid, $fyYear-2, $fyYear-1]);
+    foreach ($_pyStmt->fetchAll() as $r) {
+        $_y = (int)$r['year']; $_m = (int)$r['month'];
+        if (empty($fyPrevRevMap[$_y][$_m])) { $fyPrevRevMap[$_y][$_m] = (int)$r['rev']; }
+    }
+} catch (PDOException $e) { /* テーブル未作成時は無視 */ }
 // 月別売上・粗利（常勤/イベント別）
 $fyTypeStmt = $fyDb->prepare("
     SELECT case_year, case_month, case_type,
@@ -187,6 +203,19 @@ $fyAch    = $fyTotalTarget > 0 ? round($fyTotalRev / $fyTotalTarget * 100, 1) : 
 $fyAchColor = $fyAch >= 100 ? '#059669' : ($fyAch >= 80 ? '#3b82f6' : ($fyAch >= 50 ? '#f59e0b' : '#ef4444'));
 
 $kpis = getSalesDashboardKPIsFiltered($cid, $year, $month, $salesRep, $caseTypeFilter);
+// 前年同月に案件データが無い場合は、手入力の前年実績でKPIカードを補完する
+if (empty($kpis['prev_year_revenue'])) {
+    try {
+        $_kStmt = getDB()->prepare("SELECT COALESCE(SUM(revenue),0) FROM sales_prev_year_revenues
+            WHERE company_id = ?" . ($caseTypeFilter ? " AND case_type = ?" : "") . " AND year = ? AND month = ?");
+        $_kStmt->execute($caseTypeFilter ? [$cid, $caseTypeFilter, $year-1, $month] : [$cid, $year-1, $month]);
+        $_prevYearRev = (int)$_kStmt->fetchColumn();
+        if ($_prevYearRev > 0) {
+            $kpis['prev_year_revenue'] = $_prevYearRev;
+            $kpis['yoy_change'] = round(((int)$kpis['revenue'] - $_prevYearRev) / $_prevYearRev * 100, 1);
+        }
+    } catch (PDOException $e) { /* テーブル未作成時は無視 */ }
+}
 $trend = getSalesRevenueTrendFiltered($cid, $year, $salesRep);
 $clientTop = getSalesRevenueByClientFiltered($cid, $year, $month, $salesRep);
 $workerBreakdown = getSalesWorkerBreakdownFiltered($cid, $year, $month, $salesRep, $caseTypeFilter);

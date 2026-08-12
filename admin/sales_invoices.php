@@ -123,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-end"><?= number_format($inv['social_insurance']) ?></td>
                             <td class="text-end fw-bold" style="color:#059669"><?= number_format($inv['invoice_amount']) ?></td>
                             <td>
-                                <button class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:.6rem" onclick='editInv(<?= json_encode($inv) ?>)'><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:.6rem" onclick='editInv(<?= json_encode($inv, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'><i class="bi bi-pencil"></i></button>
                                 <form method="post" style="display:inline" onsubmit="return confirm('削除しますか？')">
                                     <input type="hidden" name="csrf" value="<?= getCsrfToken() ?>">
                                     <input type="hidden" name="action" value="delete">

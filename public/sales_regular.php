@@ -254,7 +254,7 @@ else { foreach ($cases as $c):
     </td>
     <td style="white-space:nowrap">
         <div class="d-flex gap-1 justify-content-end">
-            <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c) ?>)' title="編集"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)' title="編集"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= $c['id'] ?>)" title="削除"><i class="bi bi-trash"></i></button>
             <button class="btn btn-sm btn-outline-success" onclick="applyDays(<?= $c['id'] ?>)" title="金額反映"><i class="bi bi-arrow-repeat"></i></button>
         </div>

@@ -196,7 +196,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick='editClient(<?= json_encode($item) ?>)'>
+                            <button class="btn btn-sm btn-outline-primary" onclick='editClient(<?= json_encode($item, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'>
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <form method="post" class="d-inline" onsubmit="return confirm('状態を変更しますか？')">
@@ -278,7 +278,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td><?= $item['sort_order'] ?></td>
                         <td class="text-center"><?= $item['is_active'] ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>' ?></td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick='editAlliance(<?= json_encode($item) ?>)'><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick='editAlliance(<?= json_encode($item, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'><i class="bi bi-pencil"></i></button>
                             <form method="post" class="d-inline" onsubmit="return confirm('状態を変更しますか？')">
                                 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $item['id'] ?>">
                                 <button class="btn btn-sm btn-outline-<?= $item['is_active'] ? 'warning' : 'success' ?>"><i class="bi bi-<?= $item['is_active'] ? 'eye-slash' : 'eye' ?>"></i></button>
@@ -338,7 +338,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td><?= $item['sort_order'] ?></td>
                         <td class="text-center"><?= $item['is_active'] ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>' ?></td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick='editBrand(<?= json_encode($item) ?>)'><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick='editBrand(<?= json_encode($item, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'><i class="bi bi-pencil"></i></button>
                             <form method="post" class="d-inline" onsubmit="return confirm('状態を変更しますか？')">
                                 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $item['id'] ?>">
                                 <button class="btn btn-sm btn-outline-<?= $item['is_active'] ? 'warning' : 'success' ?>"><i class="bi bi-<?= $item['is_active'] ? 'eye-slash' : 'eye' ?>"></i></button>
@@ -394,7 +394,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td><?= $item['sort_order'] ?></td>
                         <td class="text-center"><?= $item['is_active'] ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>' ?></td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick='editArea(<?= json_encode($item) ?>)'><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick='editArea(<?= json_encode($item, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'><i class="bi bi-pencil"></i></button>
                             <form method="post" class="d-inline" onsubmit="return confirm('状態を変更しますか？')">
                                 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $item['id'] ?>">
                                 <button class="btn btn-sm btn-outline-<?= $item['is_active'] ? 'warning' : 'success' ?>"><i class="bi bi-<?= $item['is_active'] ? 'eye-slash' : 'eye' ?>"></i></button>
@@ -456,7 +456,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td><?= h($item['alliance_name'] ?? '-') ?></td>
                         <td class="text-center"><?= $item['is_active'] ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>' ?></td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick='editWorker(<?= json_encode($item) ?>)'><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick='editWorker(<?= json_encode($item, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'><i class="bi bi-pencil"></i></button>
                             <form method="post" class="d-inline" onsubmit="return confirm('状態を変更しますか？')">
                                 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $item['id'] ?>">
                                 <button class="btn btn-sm btn-outline-<?= $item['is_active'] ? 'warning' : 'success' ?>"><i class="bi bi-<?= $item['is_active'] ? 'eye-slash' : 'eye' ?>"></i></button>

@@ -154,6 +154,15 @@ $migrations = [
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2025, 11,  8474890,  1288352 FROM sales_cases",
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2025, 12, 16574851,  4959614 FROM sales_cases",
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2025, 12,  3141000, -4008182 FROM sales_cases",
+    // 2025-2026年度 1〜4月の実績（案件データが無いため手入力値として登録）
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2026,  1, 17187726,  4558660 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2026,  1,  5074000,   926659 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2026,  2, 20587735,  6804018 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2026,  2,  4254518,  1054418 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2026,  3, 20929270,  7360169 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2026,  3,  6941418,   947700 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'regular', 2026,  4, 15671732,  4356922 FROM sales_cases",
+    "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue, profit) SELECT DISTINCT company_id, 'event',   2026,  4,  1574000,    58000 FROM sales_cases",
 
     // ---- salary_regular_overrides: 常勤案件売上(7割)の手入力上書きテーブル ----
     // 保存された行がある月・スタッフのみ自動計算を上書きする（行がなければ従来どおり自動計算）

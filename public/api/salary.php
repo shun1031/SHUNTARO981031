@@ -112,11 +112,12 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
     // 追加支給を読み込む
     $addMap = [];
     try {
-        $addStmt = $db->prepare("SELECT worker_name, amount, reason FROM salary_additional_payments
-            WHERE company_id = ? AND pay_year = ? AND pay_month = ?");
+        // 1人に複数明細を持てる（id順に並べる）
+        $addStmt = $db->prepare("SELECT id, worker_name, amount, reason FROM salary_additional_payments
+            WHERE company_id = ? AND pay_year = ? AND pay_month = ? ORDER BY id");
         $addStmt->execute([$companyId, $payYear, $payMonth]);
         foreach ($addStmt->fetchAll() as $r) {
-            $addMap[$r['worker_name']] = ['amount' => (int)$r['amount'], 'reason' => $r['reason'] ?? ''];
+            $addMap[$r['worker_name']][] = ['amount' => (int)$r['amount'], 'reason' => $r['reason'] ?? ''];
         }
     } catch (PDOException $e) { /* テーブル未作成時は無視 */ }
 
@@ -164,8 +165,20 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
         $rate        = getIncentiveRate($name);
         $splitProfit = $incProfitMap[$name] ?? 0;
         $incentive   = ($rate > 0 && $splitProfit > 0) ? (int)round($splitProfit * $rate) : 0;
-        $add         = $addMap[$name] ?? ['amount' => 0, 'reason' => ''];
-        $additional  = $add['amount'];
+        // 追加支給: 複数明細の合計。理由は一覧用に要約、出力用に連結
+        $addItems   = $addMap[$name] ?? [];
+        $additional = 0;
+        $addReasons = [];
+        foreach ($addItems as $it) {
+            $additional += $it['amount'];
+            if (trim($it['reason']) !== '') $addReasons[] = $it['reason'];
+        }
+        $addReasonFirst = $addReasons[0] ?? '';
+        $addReasonLabel = $addReasonFirst;                       // 一覧用「交通費 他1件」
+        if (count($addReasons) > 1) {
+            $addReasonLabel .= ' 他' . (count($addReasons) - 1) . '件';
+        }
+        $addReasonJoined = implode('・', $addReasons);           // CSV/Excel用
 
         // 常勤案件売上(7割): 手入力があればそちらを優先（自動計算値も併せて返す）
         $autoRegular = $s['regular_salary'];
@@ -179,7 +192,9 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
             'regular_override'   => $isOverride,    // 手入力で上書きされているか
             'incentive'          => $incentive,
             'additional'         => $additional,
-            'additional_reason'  => $add['reason'],
+            'additional_reason'  => $addReasonLabel,    // 一覧表示用（要約）
+            'additional_reasons' => $addReasonJoined,   // CSV/Excel用（連結）
+            'additional_items'   => array_values($addItems), // 明細（詳細画面・編集用）
             'total'              => $total,
             'incentive_detail'   => [
                 'split_profit' => $splitProfit,
@@ -227,17 +242,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $py         = (int)($input['pay_year']    ?? 0);
         $pm         = (int)($input['pay_month']   ?? 0);
         $workerName = trim($input['worker_name']  ?? '');
-        $amount     = max(0, (int)($input['amount'] ?? 0));
-        $reason     = trim($input['reason']       ?? '');
         if (!$py || !$pm || $workerName === '') {
             echo json_encode(['error' => 'invalid']); exit;
         }
+        // 明細（複数行）をまとめて保存。旧形式（amount/reason 単体）も受け付ける
+        $items = $input['items'] ?? null;
+        if (!is_array($items)) {
+            $items = [['amount' => $input['amount'] ?? 0, 'reason' => $input['reason'] ?? '']];
+        }
+        $clean = [];
+        foreach ($items as $it) {
+            $amt = max(0, (int)($it['amount'] ?? 0));
+            $rsn = trim((string)($it['reason'] ?? ''));
+            if ($amt === 0 && $rsn === '') continue;   // 空行は保存しない
+            $clean[] = ['amount' => $amt, 'reason' => $rsn];
+        }
         $db = getDB();
-        $stmt = $db->prepare("INSERT INTO salary_additional_payments
-            (company_id, pay_year, pay_month, worker_name, amount, reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE amount = VALUES(amount), reason = VALUES(reason)");
-        $stmt->execute([$cid, $py, $pm, $workerName, $amount, $reason]);
+        try {
+            // 該当スタッフの明細を入れ替える（既存を削除してから登録）
+            $db->beginTransaction();
+            $db->prepare("DELETE FROM salary_additional_payments
+                WHERE company_id = ? AND pay_year = ? AND pay_month = ? AND worker_name = ?")
+               ->execute([$cid, $py, $pm, $workerName]);
+            if ($clean) {
+                $ins = $db->prepare("INSERT INTO salary_additional_payments
+                    (company_id, pay_year, pay_month, worker_name, amount, reason)
+                    VALUES (?, ?, ?, ?, ?, ?)");
+                foreach ($clean as $it) {
+                    $ins->execute([$cid, $py, $pm, $workerName, $it['amount'], $it['reason']]);
+                }
+            }
+            $db->commit();
+        } catch (PDOException $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            echo json_encode(['error' => 'db']); exit;
+        }
         echo json_encode(['ok' => true]); exit;
     }
 
@@ -304,7 +343,7 @@ if ($export === 'csv' || $export === 'excel') {
                    '常勤案件売上（7割）', '追加支給', '追加支給理由', 'インセンティブ費用', '総支給額']);
     foreach ($data['staff'] as $s) {
         fputcsv($out, [$label, $workLabel, $incLabel, $s['worker_name'], $s['case_count'],
-                       $s['regular_salary'], $s['additional'] ?? 0, $s['additional_reason'] ?? '',
+                       $s['regular_salary'], $s['additional'] ?? 0, $s['additional_reasons'] ?? ($s['additional_reason'] ?? ''),
                        $s['incentive'], $s['total']]);
     }
     fputcsv($out, ['合計', '', '', '',
@@ -349,7 +388,7 @@ if ($export === 'excel_xml') {
         foreach ([$s['case_count'], $s['regular_salary'], $s['additional'] ?? 0] as $v) {
             echo '<Cell><Data ss:Type="Number">' . (int)$v . '</Data></Cell>';
         }
-        echo '<Cell><Data ss:Type="String">' . htmlspecialchars($s['additional_reason'] ?? '', ENT_XML1) . '</Data></Cell>';
+        echo '<Cell><Data ss:Type="String">' . htmlspecialchars($s['additional_reasons'] ?? ($s['additional_reason'] ?? ''), ENT_XML1) . '</Data></Cell>';
         foreach ([$s['incentive'], $s['total']] as $v) {
             echo '<Cell><Data ss:Type="Number">' . (int)$v . '</Data></Cell>';
         }

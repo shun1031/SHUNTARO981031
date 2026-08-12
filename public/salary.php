@@ -337,20 +337,28 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- 追加支給編集モーダル -->
 <div class="modal fade" id="additionalModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header py-2">
                 <h6 class="modal-title" id="additionalModalTitle">追加支給の編集</h6>
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label form-label-sm fw-semibold">金額（円）</label>
-                    <input type="number" id="addAmount" class="form-control form-control-sm" min="0" step="1" placeholder="0">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label form-label-sm fw-semibold">支給理由</label>
-                    <input type="text" id="addReason" class="form-control form-control-sm" placeholder="例：特別手当・資格手当" maxlength="100">
+                <table class="table table-sm mb-2" style="font-size:.82rem">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:45%">支給理由</th>
+                            <th style="width:40%">金額（円）</th>
+                            <th style="width:15%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="addItemsBody"></tbody>
+                </table>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addItemRow()">
+                    <i class="bi bi-plus-lg me-1"></i>項目を追加
+                </button>
+                <div class="text-end mt-2 fw-semibold" style="font-size:.85rem">
+                    合計：<span id="addItemsTotal" style="color:#059669">¥0</span>
                 </div>
             </div>
             <div class="modal-footer py-2">
@@ -582,11 +590,18 @@ function showDetail(rank) {
     if ((s.additional || 0) > 0 || (s.additional_reason || '')) {
         html += '<h6 class="fw-bold mb-2">追加支給</h6>';
         html += '<div class="table-responsive mb-3"><table class="table table-sm detail-table mb-0"><tbody>';
-        html += '<tr class="fw-bold" style="background:#f0fdf4"><td style="color:#059669">追加支給金額</td>';
-        html += '<td class="text-end" style="color:#059669">' + yen(s.additional || 0) + '</td></tr>';
-        if (s.additional_reason) {
+        // 明細を1行ずつ表示
+        var addItems = s.additional_items || [];
+        if (addItems.length) {
+            addItems.forEach(function(it) {
+                html += '<tr><td>' + h(it.reason || '（理由なし）') + '</td>'
+                     +  '<td class="text-end">' + yen(it.amount || 0) + '</td></tr>';
+            });
+        } else if (s.additional_reason) {
             html += '<tr><td>支給理由</td><td class="text-end">' + h(s.additional_reason) + '</td></tr>';
         }
+        html += '<tr class="fw-bold" style="background:#f0fdf4"><td style="color:#059669">追加支給 合計</td>';
+        html += '<td class="text-end" style="color:#059669">' + yen(s.additional || 0) + '</td></tr>';
         html += '</tbody></table></div>';
     }
 
@@ -676,21 +691,63 @@ function submitRegular(clear) {
     });
 }
 
+// 明細を1行追加（理由・金額）
+function addItemRow(reason, amount) {
+    var tb = document.getElementById('addItemsBody');
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td><input type="text" class="form-control form-control-sm add-reason" maxlength="100" placeholder="例：交通費・資格手当"></td>'
+      + '<td><input type="number" class="form-control form-control-sm add-amount text-end" min="0" step="1" placeholder="0" oninput="recalcAddItems()"></td>'
+      + '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removeItemRow(this)" title="削除">×</button></td>';
+    tb.appendChild(tr);
+    tr.querySelector('.add-reason').value = reason || '';
+    tr.querySelector('.add-amount').value = (amount != null && amount !== 0) ? amount : '';
+    recalcAddItems();
+}
+
+function removeItemRow(btn) {
+    var tr = btn.closest('tr');
+    if (tr) tr.remove();
+    if (!document.querySelectorAll('#addItemsBody tr').length) addItemRow();
+    recalcAddItems();
+}
+
+function recalcAddItems() {
+    var sum = 0;
+    document.querySelectorAll('#addItemsBody .add-amount').forEach(function(el) {
+        sum += Math.max(0, parseInt(el.value) || 0);
+    });
+    document.getElementById('addItemsTotal').textContent = yen(sum);
+}
+
 function openAdditionalModal(idx) {
     var s = allStaff[idx];
     if (!s) return;
     currentAdditionalIdx = idx;
     document.getElementById('additionalModalTitle').textContent = s.worker_name + ' の追加支給';
-    document.getElementById('addAmount').value = s.additional || 0;
-    document.getElementById('addReason').value = s.additional_reason || '';
+    var tb = document.getElementById('addItemsBody');
+    tb.innerHTML = '';
+    var items = s.additional_items || [];
+    if (items.length) {
+        items.forEach(function(it) { addItemRow(it.reason, it.amount); });
+    } else {
+        addItemRow();
+    }
+    recalcAddItems();
     new bootstrap.Modal(document.getElementById('additionalModal')).show();
 }
 
 function submitAdditional() {
     var s = allStaff[currentAdditionalIdx];
     if (!s) return;
-    var amount = Math.max(0, parseInt(document.getElementById('addAmount').value) || 0);
-    var reason = document.getElementById('addReason').value.trim();
+    // 入力欄から明細を集める（金額0かつ理由空の行は除外）
+    var items = [];
+    document.querySelectorAll('#addItemsBody tr').forEach(function(tr) {
+        var amt = Math.max(0, parseInt(tr.querySelector('.add-amount').value) || 0);
+        var rsn = tr.querySelector('.add-reason').value.trim();
+        if (amt === 0 && rsn === '') return;
+        items.push({amount: amt, reason: rsn});
+    });
     var btn = document.getElementById('additionalSaveBtn');
     btn.disabled = true;
     btn.textContent = '保存中...';
@@ -704,18 +761,21 @@ function submitAdditional() {
             pay_year:    currentPayYear,
             pay_month:   currentPayMonth,
             worker_name: s.worker_name,
-            amount:      amount,
-            reason:      reason,
+            items:       items,
         })
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {
         btn.disabled = false; btn.textContent = '保存';
         if (!res.ok) { alert('保存に失敗しました'); return; }
-        // allStaff を更新して再描画
-        s.additional        = amount;
-        s.additional_reason = reason;
-        s.total             = s.regular_salary + s.additional + s.incentive;
+        // allStaff を更新して再描画（画面全体はリロードしない）
+        var sum = 0, reasons = [];
+        items.forEach(function(it) { sum += it.amount; if (it.reason) reasons.push(it.reason); });
+        s.additional_items   = items;
+        s.additional         = sum;
+        s.additional_reason  = reasons.length > 1 ? (reasons[0] + ' 他' + (reasons.length - 1) + '件') : (reasons[0] || '');
+        s.additional_reasons = reasons.join('・');
+        s.total              = s.regular_salary + s.additional + s.incentive;
         bootstrap.Modal.getInstance(document.getElementById('additionalModal')).hide();
         rerenderCurrentPage();
     })

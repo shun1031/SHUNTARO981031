@@ -126,6 +126,12 @@ $migrations = [
     // ---- sales_shifts: 追加稼働フラグ ----
     "ALTER TABLE sales_shifts ADD COLUMN is_additional TINYINT(1) NOT NULL DEFAULT 0 COMMENT '追加稼働フラグ'",
 
+    // ---- salary_additional_payments: 1人につき複数明細を登録できるようにする ----
+    // 旧: UNIQUE(company_id, pay_year, pay_month, worker_name) で1人1件のみ
+    // 新: 制約を外して複数行を許可（既存データは1件目の明細としてそのまま残る）
+    "ALTER TABLE salary_additional_payments DROP INDEX uk_sap",
+    "ALTER TABLE salary_additional_payments ADD INDEX idx_sap (company_id, pay_year, pay_month, worker_name)",
+
     // ---- sales_prev_year_revenues: 前年同月売上の手入力テーブル ----
     // 案件データが無い過去月の売上を記録し、前年同月比の算出に使う（案件データは作らない）
     "CREATE TABLE IF NOT EXISTS sales_prev_year_revenues (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, revenue BIGINT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_spyr (company_id, case_type, year, month), INDEX idx_spyr (company_id, year, month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -140,6 +146,11 @@ $migrations = [
     // ---- salary_regular_overrides: 常勤案件売上(7割)の手入力上書きテーブル ----
     // 保存された行がある月・スタッフのみ自動計算を上書きする（行がなければ従来どおり自動計算）
     "CREATE TABLE IF NOT EXISTS salary_regular_overrides (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, pay_year INT NOT NULL, pay_month INT NOT NULL, worker_name VARCHAR(100) NOT NULL, amount INT NOT NULL DEFAULT 0, note VARCHAR(255) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sro (company_id, pay_year, pay_month, worker_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- salary_additional_payments: 1人1件の制約を外し複数明細を許可 ----
+    // 既存データは1件目の明細としてそのまま残る
+    "ALTER TABLE salary_additional_payments DROP INDEX uk_sap",
+    "ALTER TABLE salary_additional_payments ADD INDEX idx_sap (company_id, pay_year, pay_month, worker_name)",
 
     // ---- salary_additional_payments: 追加支給テーブル ----
     "CREATE TABLE IF NOT EXISTS salary_additional_payments (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, pay_year INT NOT NULL, pay_month INT NOT NULL, worker_name VARCHAR(100) NOT NULL, amount INT NOT NULL DEFAULT 0, reason VARCHAR(255) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sap (company_id, pay_year, pay_month, worker_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",

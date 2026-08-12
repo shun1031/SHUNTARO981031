@@ -35,7 +35,7 @@ if (!empty($_GET['store_name'])) { $where[] = 'sc.store_name LIKE ?'; $params[] 
 if (!empty($_GET['worker_name'])){ $where[] = 'sc.worker_name LIKE ?'; $params[] = '%'.$_GET['worker_name'].'%'; }
 
 $stmt = $db->prepare("SELECT sc.id,sc.worker_name,sc.revenue,sc.gross_profit,
-    cl.client_name, sc.store_name, sc.carrier, sc.sales_rep
+    COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name, sc.store_name, sc.carrier, sc.sales_rep
     FROM sales_cases sc LEFT JOIN sales_clients cl ON sc.client_id=cl.id
     WHERE ".implode(' AND ',$where)." ORDER BY sc.worker_name,sc.id");
 $stmt->execute($params);

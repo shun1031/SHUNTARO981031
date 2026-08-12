@@ -6,6 +6,27 @@
 // 直接 require しないでください (sales_functions.php 経由で参照する)
 
 // ----------------------------------------------------------------
+// 取引先の表示名
+// ----------------------------------------------------------------
+
+/**
+ * ポータル内で表示する取引先名を返す（表記名 → なければ会社名）
+ * CSV・請求書など社外向けは会社名(client_name)をそのまま使うこと
+ *
+ * @param array $row client_name / display_name（または client_display_name）を含む行
+ */
+function clientLabel(array $row): string {
+    $disp = trim((string)($row['display_name'] ?? $row['client_display_name'] ?? ''));
+    if ($disp !== '') return $disp;
+    return trim((string)($row['client_name'] ?? ''));
+}
+
+/** SQL用: 表記名があれば表記名、なければ会社名を返す式 */
+function clientLabelSql(string $alias = 'cl'): string {
+    return "COALESCE(NULLIF(TRIM({$alias}.display_name), ''), {$alias}.client_name)";
+}
+
+// ----------------------------------------------------------------
 // マスタ取得
 // ----------------------------------------------------------------
 
@@ -109,8 +130,17 @@ function getSalesWorker(int $id, int $companyId): array|false {
 
 function createSalesClient(int $companyId, array $data): int {
     $db = getDB();
-    $stmt = $db->prepare('INSERT INTO sales_clients (company_id, client_name, client_code, contact_person, phone, note, sort_order) VALUES (?,?,?,?,?,?,?)');
-    $stmt->execute([$companyId, $data['client_name'], $data['client_code'] ?? null, $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0)]);
+    // 表記名は未指定なら会社名と同じ値を入れる（画面表示が空欄になるのを防ぐ）
+    $display = trim((string)($data['display_name'] ?? '')) !== ''
+        ? $data['display_name'] : $data['client_name'];
+    try {
+        $stmt = $db->prepare('INSERT INTO sales_clients (company_id, client_name, display_name, client_code, contact_person, phone, note, sort_order) VALUES (?,?,?,?,?,?,?,?)');
+        $stmt->execute([$companyId, $data['client_name'], $display, $data['client_code'] ?? null, $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0)]);
+    } catch (PDOException $e) {
+        // display_name カラム未追加の環境でも動作するようフォールバック
+        $stmt = $db->prepare('INSERT INTO sales_clients (company_id, client_name, client_code, contact_person, phone, note, sort_order) VALUES (?,?,?,?,?,?,?)');
+        $stmt->execute([$companyId, $data['client_name'], $data['client_code'] ?? null, $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0)]);
+    }
     return (int)$db->lastInsertId();
 }
 

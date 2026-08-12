@@ -14,7 +14,7 @@ function getEventCalendar(int $companyId, int $year, int $month, ?int $clientId 
     $startDate = sprintf('%04d-%02d-01', $year, $month);
     $endDate = date('Y-m-t', strtotime($startDate));
 
-    $sql = "SELECT sc.*, cl.client_name, COALESCE(sw.worker_name, sc.worker_name) as resolved_worker_name
+    $sql = "SELECT sc.*, COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name, COALESCE(sw.worker_name, sc.worker_name) as resolved_worker_name
     FROM sales_cases sc
     LEFT JOIN sales_clients cl ON sc.client_id = cl.id
     LEFT JOIN sales_workers sw ON sc.worker_id = sw.id
@@ -23,7 +23,7 @@ function getEventCalendar(int $companyId, int $year, int $month, ?int $clientId 
     $params = [$companyId, $endDate, $startDate];
     if ($clientId) { $sql .= " AND sc.client_id = ?"; $params[] = $clientId; }
     if ($employeeName !== null) { $sql .= " AND (sc.worker_name = ? OR sw.worker_name = ? OR sc.sales_rep = ?)"; $params[] = $employeeName; $params[] = $employeeName; $params[] = $employeeName; }
-    $sql .= " ORDER BY sc.start_date, cl.client_name";
+    $sql .= " ORDER BY sc.start_date, client_name";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $cases = $stmt->fetchAll();

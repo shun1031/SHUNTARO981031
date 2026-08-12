@@ -97,10 +97,8 @@ $monthEnd   = date('Y-m-t', strtotime($monthStart));
 $filtered = [];
 foreach ($rows as $r) {
     $r['_status'] = caseStoreStatus($r, $monthStart, $monthEnd);
-    // 表記名があればそちらを優先（取引先一覧のアプリ内表示名）
-    $r['_client'] = trim((string)($r['display_name'] ?? '')) !== ''
-        ? (string)$r['display_name']
-        : (trim((string)($r['client_name'] ?? '')) !== '' ? (string)$r['client_name'] : '未設定');
+    // 案件店舗管理は「会社名（正式名称）」で表示する（表記名は使わない）
+    $r['_client'] = trim((string)($r['client_name'] ?? '')) !== '' ? (string)$r['client_name'] : '未設定';
     $r['_store']  = trim((string)($r['store_name'] ?? '')) !== '' ? (string)$r['store_name'] : '未設定';
 
     if ($q !== '' && mb_stripos($r['_client'], $q) === false && mb_stripos($r['_store'], $q) === false) continue;

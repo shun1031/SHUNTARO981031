@@ -105,7 +105,7 @@ require_once __DIR__ . '/../includes/header.php';
         </select>
         <select name="client_id" class="form-select" onchange="this.form.submit()">
             <option value="">全取引先</option>
-            <?php foreach ($clients as $cl): ?><option value="<?= $cl['id'] ?>" <?= ($_GET['client_id'] ?? '') == $cl['id'] ? 'selected' : '' ?>><?= h($cl['client_name']) ?></option><?php endforeach; ?>
+            <?php foreach ($clients as $cl): ?><option value="<?= $cl['id'] ?>" <?= ($_GET['client_id'] ?? '') == $cl['id'] ? 'selected' : '' ?>><?= h(clientLabel($cl)) ?></option><?php endforeach; ?>
         </select>
         <select name="status" class="form-select" onchange="this.form.submit()">
             <option value="">確定のみ</option>
@@ -155,7 +155,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="small text-muted"><?= $c['id'] ?></td>
                             <td><span class="badge bg-<?= $c['case_type'] === 'event' ? 'purple' : 'info' ?>" style="<?= $c['case_type'] === 'event' ? 'background:#8b5cf6!important' : '' ?>"><?= $c['case_type'] === 'event' ? 'EV' : '常勤' ?></span></td>
                             <td class="small"><?= $c['case_year'] ?>/<?= $c['case_month'] ?></td>
-                            <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
+                            <td class="fw-medium"><?= h(clientLabel($c)) ?></td>
                             <td class="small"><?= h($c['sales_rep']) ?></td>
                             <td><span class="wt-badge wt-<?= h($c['worker_type']) ?>"><?= h($c['worker_type']) ?></span></td>
                             <td><?= h($c['worker_name']) ?></td>

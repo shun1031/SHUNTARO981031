@@ -52,7 +52,7 @@ $empFilter    = getEmployeeNameFilter();
 // 確定イベントカレンダー（詳細フィールド付き独自クエリ）
 $_startDate = sprintf('%04d-%02d-01', $year, $month);
 $_endDate   = date('Y-m-t', strtotime($_startDate));
-$_cSql = "SELECT sc.id, cl.client_name, sc.store_name, sc.worker_name, sc.worker_type,
+$_cSql = "SELECT sc.id, COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name, sc.store_name, sc.worker_name, sc.worker_type,
                  al.alliance_name, sc.start_date, sc.end_date
           FROM sales_cases sc
           LEFT JOIN sales_clients cl ON sc.client_id = cl.id
@@ -62,7 +62,7 @@ $_cSql = "SELECT sc.id, cl.client_name, sc.store_name, sc.worker_name, sc.worker
 $_cParams = [$cid, $_endDate, $_startDate];
 if ($clientFilter) { $_cSql .= " AND sc.client_id=?"; $_cParams[] = $clientFilter; }
 if ($empFilter)    { $_cSql .= " AND sc.worker_name=?"; $_cParams[] = $empFilter; }
-$_cSql .= " ORDER BY sc.start_date, cl.client_name";
+$_cSql .= " ORDER BY sc.start_date, client_name";
 $_cStmt = $db->prepare($_cSql);
 $_cStmt->execute($_cParams);
 

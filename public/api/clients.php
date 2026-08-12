@@ -114,6 +114,24 @@ if ($action === 'create' || $action === 'update') {
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         echo json_encode(['error' => 'メールアドレスの形式が正しくありません']); exit;
     }
+    // 表記名の重複を禁止（別会社に同じ表記名が付くと案件が誤って紐づくため）
+    // ※空欄は対象外。編集時は自分自身を除外する
+    try {
+        $dupSql = 'SELECT client_name FROM sales_clients
+                   WHERE company_id = ? AND TRIM(display_name) = ? AND TRIM(display_name) <> \'\'';
+        $dupPar = [$cid, $display];
+        if ($action === 'update' && $id) { $dupSql .= ' AND id <> ?'; $dupPar[] = $id; }
+        $dupSql .= ' LIMIT 1';
+        $dupStmt = $db->prepare($dupSql);
+        $dupStmt->execute($dupPar);
+        $dupName = $dupStmt->fetchColumn();
+        if ($dupName !== false) {
+            echo json_encode([
+                'error' => "表記名「{$display}」はすでに「{$dupName}」で使われています。\n別の表記名を入力してください。",
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    } catch (PDOException $e) { /* 判定できない場合は保存を妨げない */ }
 }
 
 try {

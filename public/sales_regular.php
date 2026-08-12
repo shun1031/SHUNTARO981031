@@ -155,18 +155,18 @@ $workers = getSalesWorkers($cid);
 // フィルタ用: 現在取引中（表示中の年月に有効な案件がある）取引先のみ
 // ※取引先マスタが無効(is_active=0)でも、案件が存在すればプルダウンに残す
 //   （マスタを無効化しただけで案件画面の絞り込みが使えなくなるのを防ぐ）
-$_acSql = "SELECT DISTINCT sc.client_id, cl.client_name
+$_acSql = "SELECT DISTINCT sc.client_id, cl.client_name, cl.display_name
            FROM sales_cases sc
            JOIN sales_clients cl ON sc.client_id = cl.id
            WHERE sc.company_id=? AND sc.case_type='regular' AND sc.case_year=?
              AND sc.status NOT IN ('cancelled','終了') AND sc.client_id IS NOT NULL";
 $_acParams = [$cid, $year];
 if ($month) { $_acSql .= ' AND sc.case_month=?'; $_acParams[] = (int)$month; }
-$_acSql .= ' ORDER BY cl.client_name';
+$_acSql .= ' ORDER BY ' . clientLabelSql('cl');
 $_acStmt = $db->prepare($_acSql);
 $_acStmt->execute($_acParams);
 $activeClients = array_map(
-    fn($r) => ['id' => (int)$r['client_id'], 'client_name' => $r['client_name']],
+    fn($r) => ['id' => (int)$r['client_id'], 'client_name' => clientLabel($r)],
     $_acStmt->fetchAll(PDO::FETCH_ASSOC)
 );
 
@@ -230,7 +230,7 @@ else { foreach ($cases as $c):
         $otPro   = $c['gross_profit'] - $repPro;
     }
 ?><tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" data-price-in="<?= (int)$c['unit_price_in'] ?>" data-price-out="<?= (int)$c['unit_price_out'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
-    <td class="fw-medium"><?= h($c['client_name'] ?? '') ?></td>
+    <td class="fw-medium"><?= h(clientLabel($c)) ?></td>
     <td class="small"><?= h($c['sales_rep']) ?></td>
     <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
     <td class="fw-medium"><?= h($c['worker_name']) ?></td>

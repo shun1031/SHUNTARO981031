@@ -31,7 +31,7 @@ $baseParams = [$cid, $allianceId, $year, $month];
 
 // 常勤案件
 $regStmt = $db->prepare("
-    SELECT sc.*, cl.client_name
+    SELECT sc.*, COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name
     FROM sales_cases sc
     LEFT JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE $baseWhere AND sc.case_type = 'regular'
@@ -42,7 +42,7 @@ $regularCases = $regStmt->fetchAll();
 
 // イベント案件
 $evStmt = $db->prepare("
-    SELECT sc.*, cl.client_name
+    SELECT sc.*, COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name
     FROM sales_cases sc
     LEFT JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE $baseWhere AND sc.case_type = 'event'

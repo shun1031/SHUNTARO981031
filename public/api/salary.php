@@ -96,7 +96,7 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
                    sc.unit_price_in, sc.unit_price_out, sc.days_worked,
                    sc.revenue, sc.cost, sc.gross_profit, sc.status,
                    sc.sales_rep,
-                   cl.client_name
+                   COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name
             FROM sales_cases sc
             LEFT JOIN sales_clients cl ON sc.client_id = cl.id
             WHERE " . implode(' AND ', $where) . "

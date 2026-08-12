@@ -77,7 +77,7 @@ function getSalesClientReport(int $companyId, int $year, ?string $employeeName =
     $params = [$companyId, $year];
     if ($employeeName !== null) { $where .= " AND (sc.sales_rep = ? OR sc.worker_name = ?)"; $params[] = $employeeName; $params[] = $employeeName; }
     $stmt = $db->prepare("SELECT
-        cl.id as client_id, cl.client_name,
+        cl.id as client_id, COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name,
         sc.case_month,
         COALESCE(SUM(sc.revenue),0) as revenue,
         COALESCE(SUM(sc.gross_profit),0) as profit,
@@ -85,8 +85,8 @@ function getSalesClientReport(int $companyId, int $year, ?string $employeeName =
     FROM sales_cases sc
     JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE $where
-    GROUP BY cl.id, cl.client_name, sc.case_month
-    ORDER BY cl.client_name, sc.case_month");
+    GROUP BY cl.id, client_name, sc.case_month
+    ORDER BY client_name, sc.case_month");
     $stmt->execute($params);
 
     $result = [];
@@ -270,14 +270,14 @@ function getSalesRevenueTrend(int $companyId, int $year): array {
 function getSalesRevenueByClient(int $companyId, int $year, int $month): array {
     $db = getDB();
     $stmt = $db->prepare("SELECT
-        cl.client_name,
+        COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name,
         COALESCE(SUM(sc.revenue),0) as revenue,
         COALESCE(SUM(sc.gross_profit),0) as profit,
         COUNT(*) as case_count
     FROM sales_cases sc
     JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE sc.company_id = ? AND sc.case_year = ? AND sc.case_month = ? AND sc.status = 'confirmed'
-    GROUP BY cl.id, cl.client_name
+    GROUP BY cl.id, client_name
     ORDER BY revenue DESC
     LIMIT 10");
     $stmt->execute([$companyId, $year, $month]);
@@ -300,6 +300,7 @@ function exportSalesCasesCsv(int $companyId, array $filters = []): void {
         fputcsv($out, [
             $c['id'], $c['case_type'] === 'event' ? 'イベント' : '常勤',
             $c['case_year'], $c['case_month'],
+            // 取引先は社外提出用のため「会社名（正式名称）」を出力する（表記名は使わない）
             $c['client_name'] ?? '', $c['sales_rep'], $c['manager'], $c['recruiter'],
             $c['worker_type'], $c['alliance_name'] ?? '', $c['worker_name'],
             $c['brand_name'] ?? '', $c['area_name'] ?? '', $c['store_name'],
@@ -520,13 +521,13 @@ function getSalesRevenueByClientFiltered(int $companyId, int $year, int $month, 
     if (!$salesRep) return getSalesRevenueByClient($companyId, $year, $month);
 
     $db = getDB();
-    $stmt = $db->prepare("SELECT cl.client_name,
+    $stmt = $db->prepare("SELECT COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name,
         COALESCE(SUM(sc.revenue),0) as revenue,
         COALESCE(SUM(sc.gross_profit),0) as profit,
         COUNT(*) as case_count
     FROM sales_cases sc JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE sc.company_id = ? AND sc.case_year = ? AND sc.case_month = ? AND sc.status = 'confirmed' AND sc.sales_rep = ?
-    GROUP BY cl.id, cl.client_name ORDER BY revenue DESC LIMIT 10");
+    GROUP BY cl.id, client_name ORDER BY revenue DESC LIMIT 10");
     $stmt->execute([$companyId, $year, $month, $salesRep]);
     return $stmt->fetchAll();
 }

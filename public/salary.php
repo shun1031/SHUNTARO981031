@@ -181,7 +181,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <select id="f_client" class="form-select form-select-sm" style="min-width:110px">
                         <option value="">すべて</option>
                         <?php foreach ($clients as $cl): ?>
-                        <option value="<?= $cl['id'] ?>"><?= h($cl['client_name']) ?></option>
+                        <option value="<?= $cl['id'] ?>"><?= h(clientLabel($cl)) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

@@ -337,13 +337,13 @@ $_ctf2 = $caseTypeFilter ? " AND case_type = ?"    : "";
 $_ctp  = $caseTypeFilter ? [$caseTypeFilter] : [];
 // クライアント別売上（年度）
 $_clientFySql = "
-    SELECT cl.client_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
+    SELECT COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
     FROM sales_cases sc
     JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
       AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
       $_ctf
-    GROUP BY cl.id, cl.client_name ORDER BY revenue DESC";
+    GROUP BY cl.id, name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_clientFySql);
 $_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
 $clientFyRows = $_s->fetchAll();

@@ -61,8 +61,18 @@ foreach ($rows as $r) {
     $staffMap[$n]['case_count']++;
     $staffMap[$n]['regular_salary'] += (int)round($r['revenue']*0.7);
 }
+// 常勤案件売上(7割)の手入力上書き（給与一覧と同じ値を印刷するため）
+$ovrMapP = [];
+try {
+    $_op = getDB()->prepare("SELECT worker_name, amount FROM salary_regular_overrides
+        WHERE company_id = ? AND pay_year = ? AND pay_month = ?");
+    $_op->execute([$cid, $payYear, $payMonth]);
+    foreach ($_op->fetchAll() as $_r) { $ovrMapP[$_r['worker_name']] = (int)$_r['amount']; }
+} catch (PDOException $e) { /* テーブル未作成時は無視 */ }
+
 $staffList = [];
 foreach ($staffMap as $n => $s) {
+    if (array_key_exists($n, $ovrMapP)) { $s['regular_salary'] = $ovrMapP[$n]; }
     $rate = getIncRateP($n);
     $sp   = $incMap[$n] ?? 0;
     $inc  = ($rate>0 && $sp>0) ? (int)round($sp*$rate) : 0;

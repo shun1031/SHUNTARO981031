@@ -120,6 +120,17 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
         }
     } catch (PDOException $e) { /* テーブル未作成時は無視 */ }
 
+    // 常勤案件売上(7割)の手入力上書きを読み込む
+    $ovrMap = [];
+    try {
+        $ovrStmt = $db->prepare("SELECT worker_name, amount FROM salary_regular_overrides
+            WHERE company_id = ? AND pay_year = ? AND pay_month = ?");
+        $ovrStmt->execute([$companyId, $payYear, $payMonth]);
+        foreach ($ovrStmt->fetchAll() as $r) {
+            $ovrMap[$r['worker_name']] = (int)$r['amount'];
+        }
+    } catch (PDOException $e) { /* テーブル未作成時は無視 */ }
+
     // スタッフ別に集計
     $staffMap = [];
     foreach ($rows as $r) {
@@ -155,9 +166,17 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
         $incentive   = ($rate > 0 && $splitProfit > 0) ? (int)round($splitProfit * $rate) : 0;
         $add         = $addMap[$name] ?? ['amount' => 0, 'reason' => ''];
         $additional  = $add['amount'];
+
+        // 常勤案件売上(7割): 手入力があればそちらを優先（自動計算値も併せて返す）
+        $autoRegular = $s['regular_salary'];
+        $isOverride  = array_key_exists($name, $ovrMap);
+        if ($isOverride) { $s['regular_salary'] = $ovrMap[$name]; }
+
         $total       = $s['regular_salary'] + $additional + $incentive;
 
         $staffList[] = array_merge($s, [
+            'regular_auto'       => $autoRegular,   // 自動計算だった金額（併記用）
+            'regular_override'   => $isOverride,    // 手入力で上書きされているか
             'incentive'          => $incentive,
             'additional'         => $additional,
             'additional_reason'  => $add['reason'],
@@ -221,6 +240,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$cid, $py, $pm, $workerName, $amount, $reason]);
         echo json_encode(['ok' => true]); exit;
     }
+
+    // 常勤案件売上(7割)の手入力上書き（clear=1 で自動計算に戻す）
+    if (($input['action'] ?? '') === 'save_regular_override') {
+        $py         = (int)($input['pay_year']   ?? 0);
+        $pm         = (int)($input['pay_month']  ?? 0);
+        $workerName = trim($input['worker_name'] ?? '');
+        $clear      = !empty($input['clear']);
+        $amount     = max(0, (int)($input['amount'] ?? 0));
+        if (!$py || !$pm || $workerName === '') {
+            echo json_encode(['error' => 'invalid']); exit;
+        }
+        $db = getDB();
+        try {
+            if ($clear) {
+                // 保存済みの上書きを削除 → 次回から自動計算に戻る
+                $db->prepare("DELETE FROM salary_regular_overrides
+                    WHERE company_id = ? AND pay_year = ? AND pay_month = ? AND worker_name = ?")
+                   ->execute([$cid, $py, $pm, $workerName]);
+            } else {
+                $db->prepare("INSERT INTO salary_regular_overrides
+                    (company_id, pay_year, pay_month, worker_name, amount)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE amount = VALUES(amount)")
+                   ->execute([$cid, $py, $pm, $workerName, $amount]);
+            }
+        } catch (PDOException $e) {
+            echo json_encode(['error' => 'db']); exit;
+        }
+        echo json_encode(['ok' => true]); exit;
+    }
+
     echo json_encode(['error' => 'unknown_action']); exit;
 }
 

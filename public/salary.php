@@ -308,6 +308,33 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
 </div>
 
+<!-- 常勤案件売上（7割）編集モーダル -->
+<div class="modal fade" id="regularModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="regularModalTitle">常勤案件売上（7割）の編集</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label form-label-sm fw-semibold">金額（円）</label>
+                    <input type="number" id="regAmount" class="form-control form-control-sm" min="0" step="1" placeholder="0">
+                </div>
+                <div class="text-muted" style="font-size:.75rem">
+                    自動計算：<span id="regAutoLabel" class="fw-semibold">¥0</span><br>
+                    手入力した金額は総支給額・合計・出力にも反映されます。
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm me-auto" id="regResetBtn" onclick="submitRegular(true)">自動計算に戻す</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-success btn-sm" id="regularSaveBtn" onclick="submitRegular(false)">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 追加支給編集モーダル -->
 <div class="modal fade" id="additionalModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
@@ -448,7 +475,15 @@ function renderPage(summary, wy, wm, iy, im, py, pm) {
         html += '<tr>';
         html += '<td class="fw-medium">' + h(s.worker_name) + '</td>';
         html += '<td class="text-center">' + s.case_count + '件</td>';
-        html += '<td class="text-end">' + yen(s.regular_salary) + '</td>';
+        // 常勤案件売上(7割): 手入力で上書き中は色を変え、自動計算値を併記
+        var regCell = '<div class="d-flex align-items-center justify-content-end gap-1">'
+            + '<span' + (s.regular_override ? ' style="color:#7c3aed;font-weight:600"' : '') + '>' + yen(s.regular_salary) + '</span>'
+            + '<button class="btn btn-xs btn-outline-secondary" onclick="openRegularModal(' + absIdx + ')" title="常勤案件売上（7割）を編集"><i class="bi bi-pencil" style="font-size:.65rem"></i></button>'
+            + '</div>'
+            + (s.regular_override
+                ? '<div class="text-muted text-end" style="font-size:.7rem">手入力（自動計算 ' + yen(s.regular_auto) + '）</div>'
+                : '');
+        html += '<td class="text-end">' + regCell + '</td>';
         html += '<td class="text-end">' + addCell + '</td>';
         html += '<td class="text-end amount-orange">' + (s.incentive > 0 ? yen(s.incentive) : '<span class="text-muted">¥0</span>') + '</td>';
         html += '<td class="text-end amount-blue">' + yen(s.total) + '</td>';
@@ -582,6 +617,64 @@ function showDetail(rank) {
 }
 
 var currentAdditionalIdx = -1;
+
+// ── 常勤案件売上（7割）の手入力 ──
+var currentRegularIdx = null;
+
+function openRegularModal(idx) {
+    var s = allStaff[idx];
+    if (!s) return;
+    currentRegularIdx = idx;
+    document.getElementById('regularModalTitle').textContent = s.worker_name + ' の常勤案件売上（7割）';
+    document.getElementById('regAmount').value = s.regular_salary || 0;
+    document.getElementById('regAutoLabel').textContent = yen(s.regular_auto != null ? s.regular_auto : s.regular_salary);
+    document.getElementById('regResetBtn').style.display = s.regular_override ? '' : 'none';
+    new bootstrap.Modal(document.getElementById('regularModal')).show();
+}
+
+function submitRegular(clear) {
+    var s = allStaff[currentRegularIdx];
+    if (!s) return;
+    var amount = Math.max(0, parseInt(document.getElementById('regAmount').value) || 0);
+    var btn = document.getElementById(clear ? 'regResetBtn' : 'regularSaveBtn');
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '処理中...';
+
+    fetch(SALARY_API, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            action:      'save_regular_override',
+            csrf:        CSRF_TOKEN,
+            pay_year:    currentPayYear,
+            pay_month:   currentPayMonth,
+            worker_name: s.worker_name,
+            amount:      amount,
+            clear:       clear ? 1 : 0,
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        btn.disabled = false; btn.textContent = label;
+        if (!res.ok) { alert('保存に失敗しました'); return; }
+        // allStaff を更新して再描画（画面全体はリロードしない）
+        if (clear) {
+            s.regular_salary   = s.regular_auto != null ? s.regular_auto : s.regular_salary;
+            s.regular_override = false;
+        } else {
+            s.regular_salary   = amount;
+            s.regular_override = true;
+        }
+        s.total = s.regular_salary + s.additional + s.incentive;
+        bootstrap.Modal.getInstance(document.getElementById('regularModal')).hide();
+        rerenderCurrentPage();
+    })
+    .catch(function(e) {
+        btn.disabled = false; btn.textContent = label;
+        alert('通信エラー: ' + e.message);
+    });
+}
 
 function openAdditionalModal(idx) {
     var s = allStaff[idx];

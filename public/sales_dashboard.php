@@ -1023,7 +1023,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP3</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1082,7 +1082,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1145,7 +1145,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1204,7 +1204,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1998,17 +1998,19 @@ function togglePieView(btn,pieWrapId,tableWrapId){
     if(!pieWrap)return;
     var showing=btn.dataset.pie==='1';
     if(showing){
+        // 表を表示 → 白背景・青文字
         pieWrap.style.display='none';
         if(tableWrap)tableWrap.style.display='';
         btn.dataset.pie='0';
-        btn.classList.remove('btn-info');
-        btn.classList.add('btn-outline-info');
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary');
     }else{
+        // 円グラフを表示 → 青背景・白文字
         if(tableWrap)tableWrap.style.display='none';
         pieWrap.style.display='';
         btn.dataset.pie='1';
-        btn.classList.remove('btn-outline-info');
-        btn.classList.add('btn-info');
+        btn.classList.remove('btn-outline-primary');
+        btn.classList.add('btn-primary');
         var cardkey=pieWrap.dataset.cardkey;
         var card=btn.closest?btn.closest('.card'):null;
         var taxIncl=card?card.querySelector('.summary-tax-incl.active')!==null:false;

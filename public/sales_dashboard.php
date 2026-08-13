@@ -411,6 +411,45 @@ $regularAlliance = $_caseDetail['regular']['alliance'] ?? 0;
 $eventInhouse    = $_caseDetail['event']['inhouse']    ?? 0;
 $eventAlliance   = $_caseDetail['event']['alliance']   ?? 0;
 
+// 案件区分別売上（年度累計 9月〜翌8月・売上金額ベース）
+// 左: 1次 / 2次以降   右: 1次の内訳（キャリア常勤・代理店常勤・イベント）
+// ※常勤の1次で予算区分が未入力のものは「未設定」に集約し、内訳の合計が1次合計と一致するようにする
+$divRev = ['first' => 0, 'second' => 0, 'carrier' => 0, 'agency' => 0, 'event' => 0, 'unset' => 0];
+$divCnt = $divRev;
+if (!$caseTypeFilter) {
+    try {
+        $_dvStmt = $db->prepare("
+            SELECT case_division, case_type, budget_division,
+                   COALESCE(SUM(revenue),0) AS rev, COUNT(*) AS cnt
+            FROM sales_cases
+            WHERE company_id = ? AND status = 'confirmed'
+              AND case_division IN ('1次','2次以降')
+              AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+            GROUP BY case_division, case_type, budget_division
+        ");
+        $_dvStmt->execute([$cid, $fyYear - 1, $fyYear]);
+        foreach ($_dvStmt->fetchAll() as $_r) {
+            $_rev = (int)$_r['rev'];
+            $_cnt = (int)$_r['cnt'];
+            if ($_r['case_division'] !== '1次') {
+                $divRev['second'] += $_rev; $divCnt['second'] += $_cnt;
+                continue;
+            }
+            $divRev['first'] += $_rev; $divCnt['first'] += $_cnt;
+            if ($_r['case_type'] === 'event')                  $_key = 'event';
+            elseif ($_r['budget_division'] === 'キャリア予算')  $_key = 'carrier';
+            elseif ($_r['budget_division'] === '代理店予算')    $_key = 'agency';
+            else                                               $_key = 'unset';
+            $divRev[$_key] += $_rev; $divCnt[$_key] += $_cnt;
+        }
+    } catch (PDOException $_e) { /* budget_division 未追加の環境では集計しない */ }
+}
+// 構成比（売上金額ベース）
+$_divPct = function (int $part, int $total): float {
+    return $total > 0 ? round($part / $total * 100, 1) : 0.0;
+};
+$divFirstTotal = $divRev['first'] + $divRev['second'];
+
 $fmtYoy = function($cur, $prev, $unit = '') {
     if ($prev <= 0) return '<span class="text-muted small">前年データなし</span>';
     $diff = $cur - $prev;
@@ -1334,6 +1373,51 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <!-- 案件区分分析（総合ダッシュボードのみ表示・年度累計・売上金額ベース） -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-pie-chart me-1" style="color:#3b82f6"></i>案件区分分析
+                        <small class="text-muted ms-1"><?= $fyYear-1 ?>-<?= $fyYear ?>年度累計</small></span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start justify-content-center">
+                        <!-- ① 1次 / 2次以降 -->
+                        <div class="col-md-6 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">区分別売上（1次・2次以降）</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="caseDivisionChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
+                                <div><span style="color:#3b82f6">●</span> 1次 <strong><?= number_format($divRev['first']) ?>円</strong>
+                                    （<?= $_divPct($divRev['first'], $divFirstTotal) ?>%）<span class="text-muted"><?= $divCnt['first'] ?>件</span></div>
+                                <div><span style="color:#059669">●</span> 2次以降 <strong><?= number_format($divRev['second']) ?>円</strong>
+                                    （<?= $_divPct($divRev['second'], $divFirstTotal) ?>%）<span class="text-muted"><?= $divCnt['second'] ?>件</span></div>
+                            </div>
+                        </div>
+                        <!-- ② 1次の内訳 -->
+                        <div class="col-md-6 text-center">
+                            <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">1次の内訳</div>
+                            <div class="sales-chart-wrap" style="height:130px"><canvas id="firstBudgetChart"></canvas></div>
+                            <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
+                                <div><span style="color:#3b82f6">●</span> キャリア常勤 <strong><?= number_format($divRev['carrier']) ?>円</strong>
+                                    （<?= $_divPct($divRev['carrier'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['carrier'] ?>件</span></div>
+                                <div><span style="color:#059669">●</span> 代理店常勤 <strong><?= number_format($divRev['agency']) ?>円</strong>
+                                    （<?= $_divPct($divRev['agency'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['agency'] ?>件</span></div>
+                                <div><span style="color:#f59e0b">●</span> イベント <strong><?= number_format($divRev['event']) ?>円</strong>
+                                    （<?= $_divPct($divRev['event'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['event'] ?>件</span></div>
+                                <?php if ($divRev['unset'] > 0 || $divCnt['unset'] > 0): ?>
+                                <!-- 予算区分が未入力の常勤1次。入力が済めば自動的に消える -->
+                                <div><span style="color:#9ca3af">●</span> 未設定 <strong><?= number_format($divRev['unset']) ?>円</strong>
+                                    （<?= $_divPct($divRev['unset'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['unset'] ?>件</span></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
 
     <!-- 交通費提出フォームは交通費ページに移動しました -->
@@ -1542,6 +1626,22 @@ $_pieLabels = ['自社', 'アライアンス'];
 $_pieColors = ['#3b82f6', '#059669'];
 $inlineJs .= 'salesDrawDonutChart("regularStaffChart", ' . json_encode($_pieLabels) . ', ' . json_encode([$regularInhouse, $regularAlliance]) . ', ' . json_encode($_pieColors) . ');';
 $inlineJs .= 'salesDrawDonutChart("eventStaffChart", '   . json_encode($_pieLabels) . ', ' . json_encode([$eventInhouse,   $eventAlliance])   . ', ' . json_encode($_pieColors) . ');';
+// 案件区分分析（総合ダッシュボードのみ・年度累計・売上金額ベース）
+if (!$caseTypeFilter) {
+    $_divLabels  = ['1次', '2次以降'];
+    $_divColors  = ['#3b82f6', '#059669'];
+    $inlineJs .= 'salesDrawDonutChart("caseDivisionChart", ' . json_encode($_divLabels, JSON_UNESCAPED_UNICODE) . ', '
+               . json_encode([$divRev['first'], $divRev['second']]) . ', ' . json_encode($_divColors) . ');';
+    // 予算区分が未入力の常勤1次がある間だけ「未設定」を表示する
+    $_bdLabels = ['キャリア常勤', '代理店常勤', 'イベント'];
+    $_bdValues = [$divRev['carrier'], $divRev['agency'], $divRev['event']];
+    $_bdColors = ['#3b82f6', '#059669', '#f59e0b'];
+    if ($divRev['unset'] > 0 || $divCnt['unset'] > 0) {
+        $_bdLabels[] = '未設定'; $_bdValues[] = $divRev['unset']; $_bdColors[] = '#9ca3af';
+    }
+    $inlineJs .= 'salesDrawDonutChart("firstBudgetChart", ' . json_encode($_bdLabels, JSON_UNESCAPED_UNICODE) . ', '
+               . json_encode($_bdValues) . ', ' . json_encode($_bdColors) . ');';
+}
 $inlineJs .= <<<'TAXJS'
 
 let taxIncluded = false;

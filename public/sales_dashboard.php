@@ -69,9 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 // ── 年度データ（9月始まり）: year Y = Sep(Y-1)〜Aug(Y) ──
-// 売上推移チャート・月別売上テーブルのみ、月ナビとは独立に年度を切り替えできる（?fy=）
-$fyYear = (int)($_GET['fy'] ?? $year);
-if ($fyYear < 2000 || $fyYear > 2100) $fyYear = $year;
+// 売上推移チャート・月別売上テーブル・月別枠数は、?fy= で年度を明示指定できる。
+// 未指定のときは月ナビの年月から年度を判定する（9〜12月は翌年度になる）
+$_fyDefault = $month >= 9 ? $year + 1 : $year;
+$fyYear = (int)($_GET['fy'] ?? $_fyDefault);
+if ($fyYear < 2000 || $fyYear > 2100) $fyYear = $_fyDefault;
 // 年度切替のAJAX（該当2セクションのみを描画して返す）
 $FY_ONLY = ($_GET['fy_only'] ?? '') === '1';
 if ($FY_ONLY) { ob_start(); } // ヘッダー等の出力を捨てるための外側バッファ

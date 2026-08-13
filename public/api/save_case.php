@@ -59,6 +59,10 @@ if ($action === 'create' || $action === 'update') {
         'status'         => $data['status'] ?? 'confirmed',
         'note'           => trim($data['notes'] ?? ''),
         'case_division'  => ($data['case_division'] ?? '') ?: null,
+        // 予算区分: 常勤の1次案件のみ保持。それ以外は必ずクリアする
+        'budget_division' => ($caseType === 'regular' && ($data['case_division'] ?? '') === '1次')
+                             ? (trim($data['budget_division'] ?? '') ?: null)
+                             : null,
     ];
     if ($caseType === 'regular') {
         $caseData['gross_profit_direct'] = $caseData['unit_price_in'] - $caseData['unit_price_out'];

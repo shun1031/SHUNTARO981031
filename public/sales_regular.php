@@ -106,6 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
         $prevStmt->execute([$cid, $prevYear, $prevMonth]);
         $copied = 0;
         foreach ($prevStmt->fetchAll() as $pc) {
+            // 区分・予算区分も前月のまま引き継ぐ（予算区分は1次案件のみ保持のルールを維持）
+            $_cpDivision = $pc['case_division'] ?? '';
+            $_cpBudget   = $_cpDivision === '1次' ? ($pc['budget_division'] ?? '') : '';
             createSalesCase($cid, [
                 'case_type' => 'regular', 'client_id' => $pc['client_id'],
                 'start_date' => $curYear . '-' . str_pad($curMonth, 2, '0', STR_PAD_LEFT) . '-01',
@@ -117,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 'store_name' => $pc['store_name'], 'unit_price_in' => $pc['unit_price_in'],
                 'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
                 'status' => $pc['status'], 'note' => $pc['note'],
+                'case_division' => $_cpDivision, 'budget_division' => $_cpBudget,
                 'gross_profit_direct' => (int)$pc['unit_price_in'] - (int)$pc['unit_price_out'],
             ]);
             $copied++;
@@ -460,15 +464,24 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label fw-medium">採用者</label>
                         <input type="text" name="recruiter_name" id="f_recruiter_name" class="form-control">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-medium">区分 <span class="text-danger">*</span></label>
-                        <select name="case_division" id="f_case_division" class="form-select" required>
+                        <select name="case_division" id="f_case_division" class="form-select" onchange="toggleBudgetDivision()" required>
                             <option value="">-- 選択してください --</option>
                             <option value="1次">1次</option>
                             <option value="2次以降">2次以降</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <!-- 予算区分: 区分が「1次」のときのみ表示・必須 -->
+                    <div class="col-md-3" id="budget_division_group" style="display:none">
+                        <label class="form-label fw-medium">予算区分 <span class="text-danger">*</span></label>
+                        <select name="budget_division" id="f_budget_division" class="form-select">
+                            <option value="">-- 選択してください --</option>
+                            <option value="キャリア予算">キャリア予算</option>
+                            <option value="代理店予算">代理店予算</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label fw-medium">スタッフ区分</label>
                         <select name="worker_type" id="worker_type" class="form-select" onchange="toggleAllianceGroup()">
                             <option value="正社員">正社員</option>
@@ -478,7 +491,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <option value="アルバイト">アルバイト</option>
                         </select>
                     </div>
-                    <div class="col-md-4" id="alliance_group" style="display:none">
+                    <div class="col-md-3" id="alliance_group" style="display:none">
                         <label class="form-label fw-medium">外注先</label>
                         <select name="alliance_id" id="f_alliance_id" class="form-select">
                             <option value="">-- 選択 --</option>
@@ -487,7 +500,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-medium">スタッフ名</label>
                         <input type="text" name="worker_name" id="f_worker_name" class="form-control">
                     </div>
@@ -828,6 +841,23 @@ function toggleAllianceGroup() {
     if (ag) ag.style.display = wt === 'アライアンス' ? 'block' : 'none';
 }
 
+// 予算区分: 区分が「1次」のときのみ表示して必須にする
+// （非表示のまま required を残すとブラウザ検証が効かず送信できなくなるため、属性ごと切り替える）
+function toggleBudgetDivision() {
+    var div = document.getElementById('f_case_division');
+    var grp = document.getElementById('budget_division_group');
+    var sel = document.getElementById('f_budget_division');
+    if (!div || !grp || !sel) return;
+    if (div.value === '1次') {
+        grp.style.display = '';
+        sel.required = true;
+    } else {
+        grp.style.display = 'none';
+        sel.required = false;
+        sel.value = '';
+    }
+}
+
 function resetCaseForm() {
     document.getElementById('form_action').value = 'create';
     document.getElementById('form_id').value = '';
@@ -842,6 +872,8 @@ function resetCaseForm() {
     document.getElementById('f_manager_name').value = '';
     document.getElementById('f_recruiter_name').value = '';
     document.getElementById('f_case_division').value = '';
+    document.getElementById('f_budget_division').value = '';
+    toggleBudgetDivision();
     document.getElementById('worker_type').value = '正社員';
     document.getElementById('f_alliance_id').value = '';
     document.getElementById('f_worker_name').value = '';
@@ -871,6 +903,8 @@ function editCase(c) {
     document.getElementById('f_manager_name').value = c.manager || '';
     document.getElementById('f_recruiter_name').value = c.recruiter || '';
     document.getElementById('f_case_division').value = c.case_division || '';
+    document.getElementById('f_budget_division').value = c.budget_division || '';
+    toggleBudgetDivision();
     document.getElementById('worker_type').value = c.worker_type || '正社員';
     document.getElementById('f_alliance_id').value = c.alliance_id || '';
     document.getElementById('f_worker_name').value = c.worker_name || '';

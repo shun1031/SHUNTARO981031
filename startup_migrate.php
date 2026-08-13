@@ -261,6 +261,9 @@ $migrations = [
     // ---- sales_cases: 案件区分（1次/その他） ----
     "ALTER TABLE sales_cases ADD COLUMN case_division VARCHAR(20) DEFAULT NULL",
 
+    // ---- sales_cases: 予算区分（キャリア予算/代理店予算。常勤の1次案件のみ入力） ----
+    "ALTER TABLE sales_cases ADD COLUMN budget_division VARCHAR(20) DEFAULT NULL AFTER case_division",
+
     // ---- sales_clients: 取引先一覧（表記名・連絡先・契約書のGoogleドライブ紐付け） ----
     "ALTER TABLE sales_clients ADD COLUMN display_name VARCHAR(100) DEFAULT NULL COMMENT '表記名（アプリ内表示名）'",
     "ALTER TABLE sales_clients ADD COLUMN email VARCHAR(191) DEFAULT NULL COMMENT '担当者メールアドレス'",

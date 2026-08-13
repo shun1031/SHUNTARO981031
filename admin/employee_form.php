@@ -66,9 +66,8 @@ if (!$adminUserAccount && $id && ($employee['name'] ?? '')) {
     }
 }
 
-// 管理者アカウントがない場合、候補ユーザーIDを事前生成
-$adminCandidateUsername = '';
-if ($id && !$adminUserAccount) {
+// ログインID候補の生成（重複しない英数字10文字。紛らわしい l・o・0・1 は除外）
+function generateUniqueLoginId(PDO $db): string {
     $chars = 'abcdefghijkmnpqrstuvwxyz23456789';
     do {
         $cand = '';
@@ -76,8 +75,24 @@ if ($id && !$adminUserAccount) {
         $ck = $db->prepare('SELECT id FROM users WHERE username = ?');
         $ck->execute([$cand]);
     } while ($ck->fetch());
-    $adminCandidateUsername = $cand;
+    return $cand;
 }
+
+// 初期パスワードの生成（ユーザーIDと同じ文字種）
+function generateInitialPassword(int $len = 10): string {
+    $chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+    $pw = '';
+    for ($i = 0; $i < $len; $i++) $pw .= $chars[random_int(0, strlen($chars) - 1)];
+    return $pw;
+}
+
+// 管理者アカウントがない場合、候補ユーザーIDを事前生成
+$adminCandidateUsername = ($id && !$adminUserAccount) ? generateUniqueLoginId($db) : '';
+// 一般アカウントがない場合も同様に事前生成（新規社員登録でも発行できるよう $id は条件にしない）
+$empCandidateUsername   = !$empUserAccount ? generateUniqueLoginId($db) : '';
+// 初期パスワードは「新規社員登録」のときだけ自動生成する。
+// 既存社員の編集で入れてしまうと、開いて保存しただけで意図せずログインアカウントが作られるため。
+$empInitialPassword     = (!$id && !$empUserAccount) ? generateInitialPassword() : '';
 
 $pageTitle = $id ? ($employee['name'] ?? '') . ' 編集' : '新規社員登録';
 $error     = '';
@@ -386,7 +401,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if ($activeTab === 'basic'): ?>
     <div class="card">
         <div class="card-body">
-            <form method="POST">
+            <form method="POST" autocomplete="off">
                 <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="action" value="save_basic">
 
@@ -548,26 +563,37 @@ require_once __DIR__ . '/../includes/header.php';
 
                 <!-- 一般アカウント（一般画面用） -->
                 <div class="border rounded p-3 mb-3" style="border-color:#d1fae5 !important;background:#f0fdf4">
-                    <div class="fw-semibold small mb-2" style="color:#065f46"><i class="bi bi-person me-1"></i>一般アカウント（一般画面ログイン用）</div>
+                    <div class="fw-semibold small mb-2" style="color:#065f46"><i class="bi bi-person me-1"></i>一般アカウント（一般画面ログイン用）<span class="badge bg-success ms-2" style="font-size:9px">ユーザーID自動生成</span></div>
                     <div class="row g-3">
                         <div class="col-md-5">
                             <label class="form-label small">ユーザーID</label>
-                            <input type="text" name="emp_username" class="form-control"
-                                   pattern="[a-zA-Z0-9_\-]{3,50}" placeholder="半角英数字（3〜50文字）"
-                                   value="<?= h($empUserAccount['username'] ?? '') ?>">
+                            <!-- 自動生成のみ（手入力不可）。ブラウザのオートフィルで別人のIDが混入するのを防ぐ -->
+                            <input type="text" class="form-control bg-light" readonly
+                                   value="<?= h($empUserAccount['username'] ?? $empCandidateUsername) ?>">
+                            <input type="hidden" name="emp_username" value="<?= h($empUserAccount['username'] ?? $empCandidateUsername) ?>">
                             <?php if ($empUserAccount): ?>
                             <div class="form-text text-success"><i class="bi bi-check-circle me-1"></i>作成済み<?php if ($empUserAccount['last_login_at']): ?>（最終: <?= date('Y/m/d H:i', strtotime($empUserAccount['last_login_at'])) ?>）<?php endif; ?></div>
                             <?php else: ?>
-                            <div class="form-text text-muted">IDとパスワードを入力すると自動作成されます</div>
+                            <div class="form-text text-muted"><i class="bi bi-info-circle me-1"></i>自動生成済み（変更不可）。パスワードを入力して保存するとアカウントが作成されます</div>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-5">
                             <label class="form-label small">パスワード</label>
                             <div class="input-group">
+                                <?php if ($empInitialPassword): ?>
+                                <!-- 新規社員登録: 自動生成した初期パスワードを控えられるよう平文で表示する -->
+                                <input type="text" name="emp_password" class="form-control bg-light" id="empPwField"
+                                       autocomplete="new-password" readonly value="<?= h($empInitialPassword) ?>">
+                                <?php else: ?>
                                 <input type="password" name="emp_password" class="form-control" id="empPwField"
+                                       autocomplete="new-password"
                                        placeholder="<?= $empUserAccount ? '変更時のみ入力' : '新規作成時は必須' ?>">
-                                <button type="button" class="btn btn-outline-secondary" onclick="genPw('empPwField')"><i class="bi bi-shuffle"></i></button>
+                                <?php endif; ?>
+                                <button type="button" class="btn btn-outline-secondary" onclick="genPw('empPwField')" title="別のパスワードを生成"><i class="bi bi-shuffle"></i></button>
                             </div>
+                            <?php if ($empInitialPassword): ?>
+                            <div class="form-text text-danger"><i class="bi bi-exclamation-triangle me-1"></i>保存後は二度と表示できません。控えてから保存してください</div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -596,6 +622,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <label class="form-label small">パスワード<?= !$adminUserAccount ? ' <span class="text-muted" style="font-size:11px">（入力すると管理者アカウントを作成）</span>' : '' ?></label>
                             <div class="input-group">
                                 <input type="password" name="admin_password" class="form-control" id="adminPwField"
+                                       autocomplete="new-password"
                                        placeholder="<?= $adminUserAccount ? '変更時のみ入力' : 'パスワードを設定して保存' ?>">
                                 <button type="button" class="btn btn-outline-secondary" onclick="genPw('adminPwField')"><i class="bi bi-shuffle"></i></button>
                             </div>

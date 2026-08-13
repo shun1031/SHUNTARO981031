@@ -404,29 +404,31 @@ $_sDb = getDB();
 $_ctf  = $caseTypeFilter ? " AND sc.case_type = ?" : "";
 $_ctf2 = $caseTypeFilter ? " AND case_type = ?"    : "";
 $_ctp  = $caseTypeFilter ? [$caseTypeFilter] : [];
-// クライアント別売上（年度）
+// クライアント別売上（当月。営業マン別売上と期間を統一）
 $_clientFySql = "
     SELECT COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
     FROM sales_cases sc
     JOIN sales_clients cl ON sc.client_id = cl.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
-      AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
+      AND sc.case_year = ? AND sc.case_month = ?
       $_ctf
     GROUP BY cl.id, name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_clientFySql);
-$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
+$_s->execute(array_merge([$cid, $year, $month], $_ctp));
 $clientFyRows = $_s->fetchAll();
 // アライアンス別売上（年度）
+// アライアンス別売上（当月。営業マン別売上と期間を統一）
+// ※会社名クリックで開く実績詳細は従来どおり年度（9月〜翌8月）集計のまま
 $_allianceFySql = "
     SELECT al.id AS alliance_id, al.alliance_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
     FROM sales_cases sc
     JOIN sales_alliances al ON sc.alliance_id = al.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
-      AND ((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))
+      AND sc.case_year = ? AND sc.case_month = ?
       $_ctf
     GROUP BY al.id, al.alliance_name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_allianceFySql);
-$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
+$_s->execute(array_merge([$cid, $year, $month], $_ctp));
 $allianceFyRows = $_s->fetchAll();
 // 営業マン別売上（当月）: 担当者別売上レポートと同じ50%分割で集計
 // ※粗利0円稼働者（zero_profit_flag=1）の案件は売上は50/50のまま、粗利のみ直営業100%
@@ -481,15 +483,16 @@ $_ds->execute(array_merge([$cid, $year, $month], $_ctp));
 $_dr = $_ds->fetch();
 $repFyRows[] = ['name' => '直営業', 'revenue' => (int)($_dr['revenue'] ?? 0), 'profit' => (int)($_dr['profit'] ?? 0)];
 // キャリア別売上（年度）
+// キャリア別売上（当月。営業マン別売上と期間を統一）
 $_carrierFySql = "
     SELECT carrier AS name, COALESCE(SUM(revenue),0) AS revenue, COALESCE(SUM(gross_profit),0) AS profit
     FROM sales_cases
     WHERE company_id = ? AND status = 'confirmed' AND carrier IS NOT NULL AND carrier != ''
-      AND ((case_year = ? AND case_month >= 9) OR (case_year = ? AND case_month <= 8))
+      AND case_year = ? AND case_month = ?
       $_ctf2
     GROUP BY carrier ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_carrierFySql);
-$_s->execute(array_merge([$cid, $year-1, $year], $_ctp));
+$_s->execute(array_merge([$cid, $year, $month], $_ctp));
 $carrierFyRows = $_s->fetchAll();
 
 // 月別枠数目標・実績（常勤/イベントのみ。区分ごとに集計、相互に混在しない）
@@ -969,7 +972,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1">TOP3</small></span>
+                    <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP3</small></span>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
@@ -1101,7 +1104,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1">TOP5</small></span>
+                    <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
@@ -1165,7 +1168,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1">TOP5</small></span>
+                    <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" class="btn btn-outline-info btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">

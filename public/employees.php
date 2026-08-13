@@ -112,6 +112,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <h1><i class="bi bi-person-lines-fill me-2"></i>社員一覧</h1>
                 <p><?= count($employees) ?>名の社員情報</p>
             </div>
+            <!-- 社員追加: 社員数に関わらず常に表示（この画面自体が管理者限定） -->
+            <a href="<?= BASE_PATH ?>/admin/employee_form.php" class="btn btn-primary">
+                <i class="bi bi-person-plus me-1"></i>社員を追加
+            </a>
         </div>
     </div>
 

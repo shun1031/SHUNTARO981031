@@ -2,7 +2,7 @@
 /**
  * ログイン（単一テナント運用 / KLG専用）
  * 通常: 個人ログイン（会社IDはKLG固定、会社ID入力ステップは廃止）
- * SA用: ?admin=1
+ * ※システム管理者ログイン（?admin=1）は廃止済み
  */
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -55,45 +55,9 @@ function clearLoginRateLimit(string $key): void {
     unset($_SESSION['_login_attempts'][$key]);
 }
 
-// --- SA管理者ログインモード ---
-if (isset($_GET['admin'])) {
-    $step = 'admin';
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $rateLimitKey = 'admin_' . $username;
-
-        if (!checkLoginRateLimit($rateLimitKey)) {
-            $error = 'ログイン試行回数が上限を超えました。15分後に再度お試しください。';
-        } elseif ($username && $password) {
-            $stmt = $db->prepare('SELECT * FROM users WHERE username = ? AND company_id IS NULL AND role = ? AND is_active = 1 LIMIT 1');
-            $stmt->execute([$username, 'super_admin']);
-            $user = $stmt->fetch();
-
-            if ($user && password_verify($password, $user['password_hash'])) {
-                session_regenerate_id(true);
-                clearLoginRateLimit($rateLimitKey);
-                $_SESSION['user_id']      = $user['id'];
-                $_SESSION['user_role']    = $user['role'];
-                $_SESSION['company_id']   = null;
-                $_SESSION['employee_id']  = $user['employee_id'];
-                $_SESSION['display_name'] = $user['display_name'] ?? $user['username'];
-                $_SESSION['company_name'] = '';
-                $_SESSION['company_login_id'] = '';
-                $_SESSION['_last_activity'] = time();
-                $db->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([$user['id']]);
-                redirect(BASE_PATH . '/admin/companies.php');
-            } else {
-                $error = 'ユーザーIDまたはパスワードが正しくありません';
-            }
-        } else {
-            $error = '入力してください';
-        }
-    }
-
 // --- 個人ログイン（単一テナント運用: 会社IDはKLG固定） ---
-} else {
+// ※システム管理者ログイン（?admin=1）は廃止。URLを直接開かれても通常のログイン画面を表示する
+{
     $companyLoginId = DEFAULT_COMPANY_LOGIN_ID;
     $stmt = $db->prepare('SELECT id, company_name, login_id, logo_path FROM companies WHERE login_id = ? AND is_active = 1 LIMIT 1');
     $stmt->execute([$companyLoginId]);
@@ -264,57 +228,6 @@ if (isset($_GET['admin'])) {
                 <div class="text-center mt-3">
                     <a href="<?= h(BASE_PATH) ?>/find_id.php" class="text-muted small text-decoration-none">
                         <i class="bi bi-question-circle me-1"></i>ユーザーIDを忘れた方はこちら
-                    </a>
-                </div>
-
-                <div class="text-center mt-3">
-                    <a href="<?= h(BASE_PATH) ?>/register.php" class="btn btn-outline-success w-100 py-2">
-                        <i class="bi bi-person-plus me-2"></i>新規ユーザー登録
-                    </a>
-                </div>
-
-                <div class="text-center mt-4">
-                    <a href="?admin=1" class="text-muted small text-decoration-none">
-                        <i class="bi bi-shield-lock me-1"></i>システム管理者はこちら
-                    </a>
-                </div>
-
-<?php elseif ($step === 'admin'): ?>
-                <!-- ===== SA管理者ログイン ===== -->
-                <div class="text-center mb-4">
-                    <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 4px 14px rgba(239,68,68,.2)"><i class="bi bi-shield-lock-fill"></i></div>
-                    <h2 class="mt-3 mb-0 fw-bold" style="font-size:1.3rem;color:#111827">システム管理者</h2>
-                    <p class="text-muted mt-1" style="font-size:.8rem"><?= h(APP_NAME) ?></p>
-                </div>
-
-                <?php if ($error): ?>
-                <div class="alert alert-danger py-2 small"><?= h($error) ?></div>
-                <?php endif; ?>
-
-                <form method="POST" action="<?= h(BASE_PATH) ?>/login.php?admin=1">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">管理者ID</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-person-gear"></i></span>
-                            <input type="text" name="username" class="form-control" required autofocus
-                                   value="<?= h($_POST['username'] ?? '') ?>">
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label small fw-semibold">パスワード</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                            <input type="password" name="password" class="form-control" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-danger w-100 py-2">
-                        <i class="bi bi-shield-check me-2"></i>管理者ログイン
-                    </button>
-                </form>
-
-                <div class="text-center mt-3">
-                    <a href="<?= BASE_PATH ?>/login.php" class="text-muted small text-decoration-none">
-                        <i class="bi bi-arrow-left me-1"></i>会社ログインに戻る
                     </a>
                 </div>
 

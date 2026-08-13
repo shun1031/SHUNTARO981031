@@ -1,8 +1,8 @@
 <?php
 /**
- * 新規ユーザー登録（単一テナント運用 / KLG専用）
+ * 新規ユーザー登録（会社管理者専用）
  * 入力されたプロフィールを employees に、ログイン情報を users に登録する。
- * ユーザーIDは自動生成（英数字10文字）。
+ * 登録先はログイン中の管理者の所属会社。ユーザーIDは自動生成（英数字10文字）。
  */
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -12,11 +12,23 @@ header('Pragma: no-cache');
 
 startSession();
 
+// 管理者専用: ログイン画面からの一般公開登録は廃止したため、
+// URLを直接開かれても会社管理者以外は登録できないようにする
+requireRole('super_admin', 'company_admin');
+
 $db = getDB();
-define('DEFAULT_COMPANY_LOGIN_ID', 'KLG');
-$stmt = $db->prepare('SELECT id, company_name, logo_path FROM companies WHERE login_id = ? AND is_active = 1 LIMIT 1');
-$stmt->execute([DEFAULT_COMPANY_LOGIN_ID]);
-$company = $stmt->fetch();
+// 登録先の会社: ログイン中の管理者の所属会社を使う（KLG固定をやめ、複数会社に対応）
+// スーパー管理者はセッションに会社を持たないため company_id で対象会社を受け取る
+$registerCid = getCompanyId();
+if (!$registerCid && isSuperAdmin()) {
+    $registerCid = (int)($_GET['company_id'] ?? $_POST['company_id'] ?? 0);
+}
+$company = null;
+if ($registerCid) {
+    $stmt = $db->prepare('SELECT id, company_name, logo_path FROM companies WHERE id = ? AND is_active = 1 LIMIT 1');
+    $stmt->execute([$registerCid]);
+    $company = $stmt->fetch() ?: null;
+}
 
 // PRG: 登録完了後の表示（セッションフラッシュから読む。リロードしても再登録されない）
 $successInfo = null;
@@ -210,8 +222,8 @@ $csrf = getCsrfToken();
             <div class="alert alert-warning py-2 small">
                 <i class="bi bi-exclamation-triangle me-1"></i>このユーザーIDは今後のログインに必要です。必ず控えてください。
             </div>
-            <a href="<?= h(BASE_PATH) ?>/login.php" class="btn btn-success w-100 py-2">
-                <i class="bi bi-box-arrow-in-right me-2"></i>ログイン画面へ
+            <a href="<?= h(BASE_PATH) ?>/public/employees.php" class="btn btn-success w-100 py-2">
+                <i class="bi bi-person-lines-fill me-2"></i>社員一覧へ戻る
             </a>
 
 <?php else: ?>
@@ -228,6 +240,9 @@ $csrf = getCsrfToken();
 
             <form method="POST" action="<?= h(BASE_PATH) ?>/register.php" novalidate>
                 <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+                <?php if (isSuperAdmin() && $registerCid): ?>
+                <input type="hidden" name="company_id" value="<?= (int)$registerCid ?>">
+                <?php endif; ?>
 
                 <div class="row g-3 mb-1">
                     <div class="col-md-6">
@@ -291,8 +306,8 @@ $csrf = getCsrfToken();
             </form>
 
             <div class="text-center mt-4">
-                <a href="<?= h(BASE_PATH) ?>/login.php" class="text-muted small text-decoration-none">
-                    <i class="bi bi-arrow-left me-1"></i>ログイン画面に戻る
+                <a href="<?= h(BASE_PATH) ?>/public/employees.php" class="text-muted small text-decoration-none">
+                    <i class="bi bi-arrow-left me-1"></i>社員一覧に戻る
                 </a>
             </div>
 <?php endif; ?>

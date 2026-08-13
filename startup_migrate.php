@@ -143,6 +143,12 @@ $migrations = [
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'regular', 2025, 7, 17839699 FROM sales_cases",
     "INSERT IGNORE INTO sales_prev_year_revenues (company_id, case_type, year, month, revenue) SELECT DISTINCT company_id, 'event',   2025, 7, 12890700 FROM sales_cases",
 
+    // ---- sales_cases: キャリアの表記ゆれを統一（選択式化に伴う） ----
+    "UPDATE sales_cases SET carrier='docomo' WHERE carrier IN ('ドコモ','ドコモ ','ﾄﾞｺﾓ','DOCOMO','Docomo')",
+    "UPDATE sales_cases SET carrier='SB' WHERE carrier IN ('ソフトバンク','softbank','SoftBank','SOFTBANK','sb')",
+    "UPDATE sales_cases SET carrier='au' WHERE carrier IN ('AU','Au','ａｕ')",
+    "UPDATE sales_cases SET carrier='楽天' WHERE carrier IN ('楽天モバイル','rakuten','Rakuten')",
+
     // ---- sales_prev_year_revenues: 粗利も保存できるようにする ----
     "ALTER TABLE sales_prev_year_revenues ADD COLUMN profit BIGINT NOT NULL DEFAULT 0 AFTER revenue",
     // 2025-2026年度 9〜12月の実績（案件データが無いため手入力値として登録）

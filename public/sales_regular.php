@@ -494,10 +494,17 @@ require_once __DIR__ . '/../includes/header.php';
                     <!-- キャリア -->
                     <div class="col-md-4">
                         <label class="form-label fw-medium">キャリア <span class="text-danger">*</span></label>
-                        <input type="text" name="carrier" id="f_carrier" class="form-control" placeholder="選択または入力" list="carrierList" autocomplete="off">
-                        <datalist id="carrierList">
-                            <option value="ドコモ"><option value="au"><option value="SB"><option value="楽天"><option value="コミュファ"><option value="CATV">
-                        </datalist>
+                        <select id="f_carrier_select" class="form-select" onchange="carrierSelectChanged()">
+                            <option value="">-- 選択してください --</option>
+                            <option value="docomo">docomo</option>
+                            <option value="au">au</option>
+                            <option value="SB">SB</option>
+                            <option value="楽天">楽天</option>
+                            <option value="CATV">CATV</option>
+                            <option value="コミュファ">コミュファ</option>
+                            <option value="__other__">手入力</option>
+                        </select>
+                        <input type="text" name="carrier" id="f_carrier" class="form-control mt-1" placeholder="キャリアを入力" autocomplete="off" style="display:none">
                     </div>
                     <!-- 屋号 -->
                     <div class="col-md-4">
@@ -786,6 +793,35 @@ function clientLabelById(id, fallback) {
     });
 })();
 
+// キャリア: 選択式と手入力の連動
+function carrierSelectChanged() {
+    var sel = document.getElementById('f_carrier_select');
+    var inp = document.getElementById('f_carrier');
+    if (!sel || !inp) return;
+    if (sel.value === '__other__') {
+        inp.style.display = '';      // 手入力欄を表示
+        inp.value = '';
+        inp.focus();
+    } else {
+        inp.style.display = 'none';  // 選択値をそのまま保存値にする
+        inp.value = sel.value;
+    }
+}
+
+// 保存済みの値から選択/手入力を復元（候補にない値は「手入力」に切り替える）
+function setCarrierValue(v) {
+    var sel = document.getElementById('f_carrier_select');
+    var inp = document.getElementById('f_carrier');
+    if (!sel || !inp) return;
+    v = v || '';
+    var known = Array.from(sel.options).some(function(o) {
+        return o.value === v && o.value !== '' && o.value !== '__other__';
+    });
+    inp.value = v;
+    if (v === '') { sel.value = ''; inp.style.display = 'none'; }
+    else if (known)   { sel.value = v;  inp.style.display = 'none'; }
+    else              { sel.value = '__other__'; inp.style.display = ''; }
+}
 function toggleAllianceGroup() {
     var wt = document.getElementById('worker_type').value;
     var ag = document.getElementById('alliance_group');
@@ -810,6 +846,7 @@ function resetCaseForm() {
     document.getElementById('f_alliance_id').value = '';
     document.getElementById('f_worker_name').value = '';
     document.getElementById('f_carrier').value = '';
+    setCarrierValue('');
     document.getElementById('f_trade_name').value = '';
     document.getElementById('f_store_name').value = '';
     document.getElementById('unit_price_in').value = 0;
@@ -837,7 +874,7 @@ function editCase(c) {
     document.getElementById('worker_type').value = c.worker_type || '正社員';
     document.getElementById('f_alliance_id').value = c.alliance_id || '';
     document.getElementById('f_worker_name').value = c.worker_name || '';
-    document.getElementById('f_carrier').value = c.carrier || '';
+    setCarrierValue(c.carrier || '');
     document.getElementById('f_trade_name').value = c.trade_name || '';
     document.getElementById('f_store_name').value = c.store_name || '';
     document.getElementById('unit_price_in').value = c.unit_price_in || 0;

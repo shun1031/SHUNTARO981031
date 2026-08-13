@@ -669,7 +669,9 @@ $inlineJs .= <<<'JS2'
 function genPw(fieldId) {
     var c = 'abcdefghijkmnpqrstuvwxyz23456789', p = '';
     for (var i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)];
-    document.getElementById(fieldId).value = p;
+    var el = document.getElementById(fieldId);
+    el.value = p;
+    el.type = 'text'; // 生成した値を控えられるよう伏せ字を解除（手入力時は伏せ字のまま）
 }
 function toggleDepSendBtn() {
     var btn = document.getElementById('depSendBtn');

@@ -1260,7 +1260,8 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <!-- スタッフ分析（全幅）→ 売上ランキング表の下に移動 -->
+    <?php if (!$caseTypeFilter): ?>
+    <!-- スタッフ分析（総合ダッシュボードのみ表示） -->
     <div class="row g-4 mb-4">
         <div class="col-12">
             <div class="card">
@@ -1308,6 +1309,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- 交通費提出フォームは交通費ページに移動しました -->
     <div class="row g-4 mb-4" style="display:none!important">

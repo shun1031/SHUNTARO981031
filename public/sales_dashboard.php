@@ -1049,12 +1049,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                             </div>
                         </div>
-                        <div class="text-center mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'carrierPieWrap','carrierFyTableWrap')">
-                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
-                            </button>
-                        </div>
-                    </div>
+</div>
                 </div>
             </div>
         </div>
@@ -1113,12 +1108,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                             </div>
                         </div>
-                        <div class="text-center mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'repPieWrap','repFyTableWrap')">
-                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
-                            </button>
-                        </div>
-                    </div>
+</div>
                 </div>
             </div>
         </div>
@@ -1181,12 +1171,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                             </div>
                         </div>
-                        <div class="text-center mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'clientPieWrap','clientFyTableWrap')">
-                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
-                            </button>
-                        </div>
-                    </div>
+</div>
                 </div>
             </div>
         </div>
@@ -1245,12 +1230,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                             </div>
                         </div>
-                        <div class="text-center mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closePieView(this,'alliancePieWrap','allianceFyTableWrap')">
-                                <i class="bi bi-list-ul me-1"></i>一覧へ戻る
-                            </button>
-                        </div>
-                    </div>
+</div>
                 </div>
             </div>
         </div>
@@ -2010,22 +1990,6 @@ function togglePieView(btn,pieWrapId,tableWrapId){
     }
 }
 
-function closePieView(backBtn,pieWrapId,tableWrapId){
-    var pieWrap=document.getElementById(pieWrapId);
-    var tableWrap=document.getElementById(tableWrapId);
-    if(!pieWrap)return;
-    pieWrap.style.display='none';
-    if(tableWrap)tableWrap.style.display='';
-    var card=backBtn.closest?backBtn.closest('.card'):null;
-    if(card){
-        var detailBtn=card.querySelector('[data-pie]');
-        if(detailBtn){
-            detailBtn.dataset.pie='0';
-            detailBtn.classList.remove('btn-info');
-            detailBtn.classList.add('btn-outline-info');
-        }
-    }
-}
 
 var _pieMetric={}; // cardkey → 'revenue' | 'profit'
 

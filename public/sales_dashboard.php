@@ -981,7 +981,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     }
                                     $sumColor = $last === null ? '' : ' style="color:' . ($last >= 0 ? '#059669' : '#dc2626') . '"';
                                     $sumText  = $last === null ? '-' : (($last > 0 ? '+' : '') . $last);
-                                    echo '<tr class="fy-prog-row"><td class="fy-label fw-semibold" style="color:#8b5cf6">' . $label . '</td>' . $cells
+                                    echo '<tr class="fy-prog-row"><td class="fy-label fw-semibold">' . $label . '</td>' . $cells
                                        . '<td class="text-center table-secondary fw-bold"' . $sumColor . '>' . $sumText . '</td></tr>';
                                 };
                                 $_renderFrameProgress('1次進捗',     'fy-prog-first',  $frameTargetMap,  $frameActualMap);

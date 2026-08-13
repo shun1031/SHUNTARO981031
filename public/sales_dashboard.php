@@ -881,7 +881,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <tbody>
                                 <!-- 目標1次枠数（手打ち） -->
                                 <tr>
-                                    <td class="fy-label">目標1次枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#6366f1">目標1次枠数</td>
                                     <?php
                                     $fyFrameTgtTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
@@ -902,20 +902,20 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                                 <!-- 1次枠数（自動集計） -->
                                 <tr>
-                                    <td class="fy-label">1次枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#059669">1次枠数</td>
                                     <?php
                                     $fyFirstFrameTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
                                         $ffv = $frameActualMap[$fm['y']][$fm['m']] ?? 0;
                                         $fyFirstFrameTotal += $ffv;
                                     ?>
-                                    <td class="text-center fy-first-actual" data-val="<?= $ffv ?>"><?= $ffv ?: '-' ?></td>
+                                    <td class="text-center fy-first-actual" data-val="<?= $ffv ?>" style="color:<?= $ffv ? "#059669" : "" ?>"><?= $ffv ?: "-" ?></td>
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold"><?= $fyFirstFrameTotal ?: '-' ?></td>
                                 </tr>
                                 <!-- 目標2次以降枠数（手打ち） -->
                                 <tr>
-                                    <td class="fy-label">目標2次以降枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#6366f1">目標2次以降枠数</td>
                                     <?php
                                     $fyFrameTgt2Total = 0;
                                     foreach ($fyMonthsFrame as $fm):
@@ -936,27 +936,27 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                                 <!-- 2次以降枠数（自動集計） -->
                                 <tr>
-                                    <td class="fy-label">2次以降枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#059669">2次以降枠数</td>
                                     <?php
                                     $fySecondFrameTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
                                         $sfv = $frameActual2Map[$fm['y']][$fm['m']] ?? 0;
                                         $fySecondFrameTotal += $sfv;
                                     ?>
-                                    <td class="text-center fy-second-actual" data-val="<?= $sfv ?>"><?= $sfv ?: '-' ?></td>
+                                    <td class="text-center fy-second-actual" data-val="<?= $sfv ?>" style="color:<?= $sfv ? "#059669" : "" ?>"><?= $sfv ?: "-" ?></td>
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold"><?= $fySecondFrameTotal ?: '-' ?></td>
                                 </tr>
                                 <!-- 合計枠数（1次＋二次以降を自動計算） -->
                                 <tr>
-                                    <td class="fy-label">合計枠数</td>
+                                    <td class="fy-label fw-bold" style="color:#3b82f6">合計枠数</td>
                                     <?php
                                     $fyTotalFrameTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
                                         $ftotal = ($frameActualMap[$fm['y']][$fm['m']] ?? 0) + ($frameActual2Map[$fm['y']][$fm['m']] ?? 0);
                                         $fyTotalFrameTotal += $ftotal;
                                     ?>
-                                    <td class="text-center fy-total-frame"><?= $ftotal ?: '-' ?></td>
+                                    <td class="text-center fw-semibold fy-total-frame" style="color:<?= $ftotal ? "#3b82f6" : "" ?>"><?= $ftotal ?: "-" ?></td>
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold" id="fyTotalFrameSum"><?= $fyTotalFrameTotal ?: '-' ?></td>
                                 </tr>
@@ -977,8 +977,8 @@ require_once __DIR__ . '/../includes/header.php';
                                     }
                                     $sumColor = $last === null ? '' : ' style="color:' . ($last >= 0 ? '#059669' : '#dc2626') . '"';
                                     $sumText  = $last === null ? '-' : (($last > 0 ? '+' : '') . $last);
-                                    echo '<tr><td class="fy-label">' . $label . '</td>' . $cells
-                                       . '<td class="text-center table-secondary fw-semibold"' . $sumColor . '>' . $sumText . '</td></tr>';
+                                    echo '<tr class="fy-prog-row"><td class="fy-label fw-semibold" style="color:#8b5cf6">' . $label . '</td>' . $cells
+                                       . '<td class="text-center table-secondary fw-bold"' . $sumColor . '>' . $sumText . '</td></tr>';
                                 };
                                 $_renderFrameProgress('1次進捗',     'fy-prog-first',  $frameTargetMap,  $frameActualMap);
                                 $_renderFrameProgress('2次以降進捗', 'fy-prog-second', $frameTarget2Map, $frameActual2Map);

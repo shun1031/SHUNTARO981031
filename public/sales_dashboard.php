@@ -816,13 +816,13 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                         <!-- 達成率 -->
                         <tr>
-                            <td class="fw-semibold fy-label">売上達成率</td>
+                            <td class="fy-label">売上達成率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i];
                                 $achCls = $d['ach'] === null ? 'text-muted' : ($d['ach'] >= 100 ? 'text-primary' : 'text-danger');
                             ?>
-                            <td class="text-end <?= $achCls ?> fw-semibold"><?= $d['ach'] !== null ? $d['ach'] . '%' : '-' ?></td>
+                            <td class="text-end <?= $achCls ?>"><?= $d['ach'] !== null ? $d['ach'] . '%' : '-' ?></td>
                             <?php endforeach; ?>
-                            <td class="text-end fw-bold table-secondary <?= $fyAch <= 0 ? 'text-muted' : ($fyAch >= 100 ? 'text-primary' : 'text-danger') ?>"><?= $fyAch > 0 ? $fyAch . '%' : '-' ?></td>
+                            <td class="text-end table-secondary <?= $fyAch <= 0 ? 'text-muted' : ($fyAch >= 100 ? 'text-primary' : 'text-danger') ?>"><?= $fyAch > 0 ? $fyAch . '%' : '-' ?></td>
                         </tr>
                         <?php
                         // 前年同月売上・前年同月比（全ダッシュボード。売上と同じ絞り込みで整合）
@@ -848,9 +848,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 $prevRev = $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0;
                                 $yoy = ($prevRev > 0 && $d['rev'] > 0) ? round($d['rev'] / $prevRev * 100, 1) : null;
                             ?>
-                            <td class="text-end fw-semibold <?= fyYoyClass($yoy, $fyYoyBase) ?>"><?= $yoy !== null ? $yoy . '%' : '-' ?></td>
+                            <td class="text-end <?= fyYoyClass($yoy, $fyYoyBase) ?>"><?= $yoy !== null ? $yoy . '%' : '-' ?></td>
                             <?php endforeach; ?>
-                            <td class="text-end table-secondary fw-semibold <?= fyYoyClass($fyTotalYoy, $fyYoyBase) ?>"><?= $fyTotalYoy !== null ? $fyTotalYoy . '%' : '-' ?></td>
+                            <td class="text-end table-secondary <?= fyYoyClass($fyTotalYoy, $fyYoyBase) ?>"><?= $fyTotalYoy !== null ? $fyTotalYoy . '%' : '-' ?></td>
                         </tr>
                     </tbody>
                 </table>
@@ -976,13 +976,13 @@ require_once __DIR__ . '/../includes/header.php';
                                         $cum += $act - ($tgtMap[$fm['y']][$fm['m']] ?? 0);
                                         $last = $cum;
                                         $color = $cum >= 0 ? '#059669' : '#dc2626';
-                                        $cells .= '<td class="text-center fw-semibold ' . $cls . '" style="color:' . $color . '">'
+                                        $cells .= '<td class="text-center ' . $cls . '" style="color:' . $color . '">'
                                                 . ($cum > 0 ? '+' : '') . $cum . '</td>';
                                     }
                                     $sumColor = $last === null ? '' : ' style="color:' . ($last >= 0 ? '#059669' : '#dc2626') . '"';
                                     $sumText  = $last === null ? '-' : (($last > 0 ? '+' : '') . $last);
-                                    echo '<tr class="fy-prog-row"><td class="fy-label fw-semibold">' . $label . '</td>' . $cells
-                                       . '<td class="text-center table-secondary fw-bold"' . $sumColor . '>' . $sumText . '</td></tr>';
+                                    echo '<tr class="fy-prog-row"><td class="fy-label">' . $label . '</td>' . $cells
+                                       . '<td class="text-center table-secondary"' . $sumColor . '>' . $sumText . '</td></tr>';
                                 };
                                 $_renderFrameProgress('1次進捗',     'fy-prog-first',  $frameTargetMap,  $frameActualMap);
                                 $_renderFrameProgress('2次以降進捗', 'fy-prog-second', $frameTarget2Map, $frameActual2Map);
@@ -1631,7 +1631,7 @@ function recalcFrameProgress() {
             cum += act - tgt;
             last = cum;
             cell.textContent = (cum > 0 ? '+' : '') + cum;
-            cell.className = 'text-center fw-semibold ' + set[2].slice(1);
+            cell.className = 'text-center ' + set[2].slice(1);
             cell.style.color = cum >= 0 ? '#059669' : '#dc2626';
         });
         // 合計欄は最終月の累計と一致する

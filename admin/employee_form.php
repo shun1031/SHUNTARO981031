@@ -111,14 +111,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- 基本情報保存 ---
     if ($action === 'save_basic') {
         $skillsRaw = $_POST['skills'] ?? [];
+        // ランク・営業担当は正社員/自社外注のみ保持。他の雇用形態に変更したら必ずクリアする
+        $_postEmpType   = trim($_POST['employment_type'] ?? '');
+        $_rankApplies   = in_array($_postEmpType, ['正社員', '自社外注'], true);
         $fields = [
             'name'               => trim($_POST['name'] ?? ''),
+            'name_kana'          => trim($_POST['name_kana'] ?? ''),
             'phone'              => trim($_POST['phone'] ?? ''),
             'email'              => trim($_POST['email'] ?? ''),
             'hire_date'          => $_POST['hire_date'] ?: null,
-            'employment_type'    => trim($_POST['employment_type'] ?? ''),
+            'employment_type'    => $_postEmpType,
             'employment_subtype' => trim($_POST['employment_subtype'] ?? ''),
             'work_style'         => trim($_POST['work_style'] ?? ''),
+            'staff_rank'         => $_rankApplies ? (trim($_POST['staff_rank'] ?? '') ?: null) : null,
+            'sales_rep_flag'     => ($_rankApplies && !empty($_POST['sales_rep_flag'])) ? 1 : 0,
             'departure_report_flag' => !empty($_POST['departure_report_flag']) ? 1 : 0,
             'zero_profit_flag'      => !empty($_POST['zero_profit_flag']) ? 1 : 0,
             'retirement_date'    => $_POST['retirement_date'] ?: null,
@@ -401,7 +407,16 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if ($activeTab === 'basic'): ?>
     <div class="card">
         <div class="card-body">
-            <form method="POST" autocomplete="off">
+            <style>
+            /* 基本情報フォーム: 項目を一回り小さくして一覧性を上げる */
+            .emp-basic-form .form-label { font-size: .78rem; margin-bottom: .15rem; }
+            .emp-basic-form .form-control,
+            .emp-basic-form .form-select { font-size: .82rem; padding: .28rem .55rem; }
+            .emp-basic-form .form-check-label { font-size: .76rem; }
+            .emp-basic-form .form-text { font-size: .7rem; }
+            .emp-basic-form .row > [class^="col-"] { margin-bottom: .1rem; }
+            </style>
+            <form method="POST" autocomplete="off" class="emp-basic-form">
                 <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="action" value="save_basic">
 
@@ -427,13 +442,19 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php endif; ?>
 
                     <!-- 氏名 -->
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label fw-semibold">氏名 <span class="text-danger">*</span></label>
                         <input type="text" name="name" class="form-control" required value="<?= h($employee['name'] ?? '') ?>">
                     </div>
 
+                    <!-- フリガナ -->
+                    <div class="col-md-4">
+                        <label class="form-label">フリガナ</label>
+                        <input type="text" name="name_kana" class="form-control" value="<?= h($employee['name_kana'] ?? '') ?>">
+                    </div>
+
                     <!-- 電話番号 -->
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label">電話番号</label>
                         <input type="text" name="phone" class="form-control" value="<?= h($employee['phone'] ?? '') ?>">
                     </div>
@@ -465,7 +486,7 @@ require_once __DIR__ . '/../includes/header.php';
                             $empType = $empSubtype === '外注' ? '自社外注' : ($empSubtype === 'アルバイト' ? 'アルバイト' : '正社員');
                         }
                         ?>
-                        <select name="employment_type" id="empType" class="form-select">
+                        <select name="employment_type" id="empType" class="form-select" onchange="toggleRankFields()">
                             <option value="">未選択</option>
                             <option value="正社員" <?= $empType === '正社員' ? 'selected' : '' ?>>正社員</option>
                             <option value="自社外注" <?= $empType === '自社外注' ? 'selected' : '' ?>>自社外注</option>
@@ -476,13 +497,35 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <!-- 勤務形態 -->
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">勤務形態</label>
                         <select name="work_style" class="form-select">
                             <option value="">未選択</option>
                             <option value="常勤" <?= ($employee['work_style'] ?? '') === '常勤' ? 'selected' : '' ?>>常勤</option>
                             <option value="イベント" <?= ($employee['work_style'] ?? '') === 'イベント' ? 'selected' : '' ?>>イベント</option>
                         </select>
+                    </div>
+
+                    <!-- ランク（正社員・自社外注のみ表示） -->
+                    <div class="col-md-2" id="rankGroup">
+                        <label class="form-label">ランク</label>
+                        <?php $_rank = $employee['staff_rank'] ?? ''; ?>
+                        <select name="staff_rank" class="form-select">
+                            <option value="">未選択</option>
+                            <?php foreach (['ブロンズ', 'シルバー', 'ゴールド'] as $_rk): ?>
+                            <option value="<?= h($_rk) ?>" <?= $_rank === $_rk ? 'selected' : '' ?>><?= h($_rk) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- 営業担当（正社員・自社外注のみ表示） -->
+                    <div class="col-md-2" id="salesRepGroup">
+                        <label class="form-label">営業担当</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="sales_rep_flag" value="1" id="salesRepFlag"
+                                   <?= !empty($employee['sales_rep_flag']) ? 'checked' : '' ?>>
+                            <label class="form-check-label small" for="salesRepFlag">営業担当</label>
+                        </div>
                     </div>
 
                     <!-- 対象フラグ -->
@@ -673,6 +716,18 @@ function genPw(fieldId) {
     el.value = p;
     el.type = 'text'; // 生成した値を控えられるよう伏せ字を解除（手入力時は伏せ字のまま）
 }
+// ランク・営業担当は雇用形態が「正社員」「自社外注」のときだけ表示する
+function toggleRankFields() {
+    var sel = document.getElementById('empType');
+    if (!sel) return;
+    var show = (sel.value === '正社員' || sel.value === '自社外注');
+    ['rankGroup', 'salesRepGroup'].forEach(function(gid) {
+        var g = document.getElementById(gid);
+        if (g) g.style.display = show ? '' : 'none';
+    });
+}
+document.addEventListener('DOMContentLoaded', toggleRankFields);
+
 function toggleDepSendBtn() {
     var btn = document.getElementById('depSendBtn');
     var chk = document.getElementById('depReportFlag');

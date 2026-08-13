@@ -860,11 +860,15 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php if ($caseTypeFilter): ?>
     <!-- 月別枠数テーブル（常勤/イベントのみ。年度切替に連動） -->
+    <?php
+    // 項目名の単位: 常勤は「枠数」、イベントは「コマ数」
+    $frameUnit = $caseTypeFilter === 'event' ? 'コマ数' : '枠数';
+    ?>
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-grid-3x3-gap me-1" style="color:#8b5cf6"></i>月別枠数</span>
+                    <span><i class="bi bi-grid-3x3-gap me-1" style="color:#8b5cf6"></i>月別<?= $frameUnit ?></span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -881,7 +885,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <tbody>
                                 <!-- 目標1次枠数（手打ち） -->
                                 <tr>
-                                    <td class="fy-label fw-semibold" style="color:#6366f1">目標1次枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#6366f1">目標1次<?= $frameUnit ?></td>
                                     <?php
                                     $fyFrameTgtTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
@@ -902,7 +906,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                                 <!-- 1次枠数（自動集計） -->
                                 <tr>
-                                    <td class="fy-label fw-semibold" style="color:#059669">1次枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#059669">1次<?= $frameUnit ?></td>
                                     <?php
                                     $fyFirstFrameTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
@@ -915,7 +919,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                                 <!-- 目標2次以降枠数（手打ち） -->
                                 <tr>
-                                    <td class="fy-label fw-semibold" style="color:#6366f1">目標2次以降枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#6366f1">目標2次以降<?= $frameUnit ?></td>
                                     <?php
                                     $fyFrameTgt2Total = 0;
                                     foreach ($fyMonthsFrame as $fm):
@@ -936,7 +940,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                                 <!-- 2次以降枠数（自動集計） -->
                                 <tr>
-                                    <td class="fy-label fw-semibold" style="color:#059669">2次以降枠数</td>
+                                    <td class="fy-label fw-semibold" style="color:#059669">2次以降<?= $frameUnit ?></td>
                                     <?php
                                     $fySecondFrameTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):
@@ -949,7 +953,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                                 <!-- 合計枠数（1次＋二次以降を自動計算） -->
                                 <tr>
-                                    <td class="fy-label fw-bold" style="color:#3b82f6">合計枠数</td>
+                                    <td class="fy-label fw-bold" style="color:#3b82f6">合計<?= $frameUnit ?></td>
                                     <?php
                                     $fyTotalFrameTotal = 0;
                                     foreach ($fyMonthsFrame as $fm):

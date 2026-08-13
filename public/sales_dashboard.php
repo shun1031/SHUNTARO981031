@@ -816,7 +816,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                         <!-- 達成率 -->
                         <tr>
-                            <td class="fw-semibold fy-label">達成率</td>
+                            <td class="fw-semibold fy-label">売上達成率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i];
                                 $achCls = $d['ach'] === null ? 'text-muted' : ($d['ach'] >= 100 ? 'text-primary' : 'text-danger');
                             ?>

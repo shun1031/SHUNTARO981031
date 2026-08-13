@@ -1014,6 +1014,27 @@ require_once __DIR__ . '/../includes/header.php';
     <style>
     /* 詳細ビューのランキング表: 横スクロールなしで収まるようコンパクト表示 */
     .pie-rank-table th, .pie-rank-table td { font-size:.68rem; padding:.28rem .35rem; white-space:nowrap; }
+
+    /* 集計カードの「詳細」ボタン専用の配色
+       共通CSSの .btn-primary は黒系(--n900)のため、ここでは青(--a600)を明示する。
+       円グラフ表示中=青背景・白文字 / 表を表示中=白背景・青文字 */
+    .btn-detail-toggle.btn-primary {
+        background: #2563eb !important;
+        border-color: #2563eb !important;
+        color: #fff !important;
+    }
+    .btn-detail-toggle.btn-primary:hover {
+        background: #1d4ed8 !important;
+        border-color: #1d4ed8 !important;
+    }
+    .btn-detail-toggle.btn-outline-primary {
+        background: #fff !important;
+        border-color: #2563eb !important;
+        color: #2563eb !important;
+    }
+    .btn-detail-toggle.btn-outline-primary:hover {
+        background: #eff6ff !important;
+    }
     </style>
 
     <!-- 集計カード 上段: キャリア別売上（左）+ 営業マン別売上（右） -->
@@ -1023,7 +1044,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-phone me-1" style="color:#06b6d4"></i>キャリア別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP3</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm btn-detail-toggle" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'carrierPieWrap','carrierFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1082,7 +1103,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-person-badge me-1" style="color:#f59e0b"></i>営業マン別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm btn-detail-toggle" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'repPieWrap','repFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1145,7 +1166,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-building me-1" style="color:#6366f1"></i>クライアント別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm btn-detail-toggle" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'clientPieWrap','clientFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>
@@ -1204,7 +1225,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-diagram-3 me-1" style="color:#059669"></i>アライアンス別売上 <small class="text-muted ms-1"><?= $year ?>年<?= $month ?>月 TOP5</small></span>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-primary btn-sm" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="1">詳細</button>
+                        <button type="button" class="btn btn-primary btn-sm btn-detail-toggle" style="font-size:.7rem;padding:2px 8px" onclick="togglePieView(this,'alliancePieWrap','allianceFyTableWrap')" data-pie="1">詳細</button>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary active summary-tax-excl" onclick="setSummaryTaxMode(false,this)" style="font-size:.7rem;padding:2px 8px">税抜</button>
                             <button type="button" class="btn btn-outline-secondary summary-tax-incl" onclick="setSummaryTaxMode(true,this)" style="font-size:.7rem;padding:2px 8px">税込</button>

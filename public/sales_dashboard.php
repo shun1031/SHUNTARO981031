@@ -834,11 +834,11 @@ require_once __DIR__ . '/../includes/header.php';
                         ?>
                         <!-- 前年同月売上 -->
                         <tr>
-                            <td class="fw-semibold fy-label">前年同月売上</td>
+                            <td class="fy-label">前年同月売上</td>
                             <?php foreach ($fyMonths as $i => $fm): $prevRev = $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0; ?>
                             <td class="text-end <?= $prevRev > 0 ? '' : 'text-muted' ?>"><?= $prevRev > 0 ? number_format($prevRev) : '-' ?></td>
                             <?php endforeach; ?>
-                            <td class="text-end fw-bold table-secondary"><?= $fyTotalPrevRev > 0 ? number_format($fyTotalPrevRev) : '-' ?></td>
+                            <td class="text-end table-secondary"><?= $fyTotalPrevRev > 0 ? number_format($fyTotalPrevRev) : '-' ?></td>
                         </tr>
                         <!-- 前年同月比 -->
                         <tr class="table-light">

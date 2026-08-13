@@ -936,6 +936,29 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php endforeach; ?>
                                     <td class="text-center table-secondary fw-semibold" id="fyTotalFrameSum"><?= $fyTotalFrameTotal ?: '-' ?></td>
                                 </tr>
+                                <?php
+                                // 進捗（累計）: 実績がある月のみ、前月までの進捗に「実績−目標」を足していく
+                                // 実績が無い月は「-」とし、累計にも含めない
+                                $_renderFrameProgress = function(string $label, string $cls, array $tgtMap, array $actMap) use ($fyMonthsFrame) {
+                                    $cum = 0; $last = null;
+                                    $cells = '';
+                                    foreach ($fyMonthsFrame as $fm) {
+                                        $act = $actMap[$fm['y']][$fm['m']] ?? 0;
+                                        if ($act === 0) { $cells .= '<td class="text-center text-muted ' . $cls . '">-</td>'; continue; }
+                                        $cum += $act - ($tgtMap[$fm['y']][$fm['m']] ?? 0);
+                                        $last = $cum;
+                                        $color = $cum >= 0 ? '#059669' : '#dc2626';
+                                        $cells .= '<td class="text-center fw-semibold ' . $cls . '" style="color:' . $color . '">'
+                                                . ($cum > 0 ? '+' : '') . $cum . '</td>';
+                                    }
+                                    $sumColor = $last === null ? '' : ' style="color:' . ($last >= 0 ? '#059669' : '#dc2626') . '"';
+                                    $sumText  = $last === null ? '-' : (($last > 0 ? '+' : '') . $last);
+                                    echo '<tr><td class="fy-label">' . $label . '</td>' . $cells
+                                       . '<td class="text-center table-secondary fw-semibold"' . $sumColor . '>' . $sumText . '</td></tr>';
+                                };
+                                $_renderFrameProgress('1次進捗',     'fy-prog-first',  $frameTargetMap,  $frameActualMap);
+                                $_renderFrameProgress('2次以降進捗', 'fy-prog-second', $frameTarget2Map, $frameActual2Map);
+                                ?>
                             </tbody>
                         </table>
                     </div>
@@ -1549,6 +1572,44 @@ function recalcFrameTgtTotal() {
     });
     const el1 = document.getElementById('fyFrameTgtTotal');  if (el1) el1.textContent = sum1 || 0;
     const el2 = document.getElementById('fyFrameTgt2Total'); if (el2) el2.textContent = sum2 || 0;
+    recalcFrameProgress();
+}
+
+// 進捗（累計）の再計算: 目標を手入力したその場で反映する
+function recalcFrameProgress() {
+    [['first', '.fy-first-actual',  '.fy-prog-first'],
+     ['second', '.fy-second-actual', '.fy-prog-second']].forEach(function(set) {
+        const frame   = set[0];
+        const actuals = document.querySelectorAll(set[1]);
+        const cells   = document.querySelectorAll(set[2]);
+        if (!actuals.length || !cells.length) return;
+        const targets = Array.from(document.querySelectorAll('.fy-frame-tgt-input'))
+                             .filter(i => (i.dataset.frame || 'first') === frame);
+        let cum = 0, last = null;
+        actuals.forEach(function(actEl, i) {
+            const act  = parseInt(actEl.dataset.val) || 0;
+            const cell = cells[i];
+            if (!cell) return;
+            if (act === 0) {
+                cell.textContent = '-';
+                cell.className = 'text-center text-muted ' + set[2].slice(1);
+                cell.style.color = '';
+                return;
+            }
+            const tgt = targets[i] ? (parseInt(targets[i].value) || 0) : 0;
+            cum += act - tgt;
+            last = cum;
+            cell.textContent = (cum > 0 ? '+' : '') + cum;
+            cell.className = 'text-center fw-semibold ' + set[2].slice(1);
+            cell.style.color = cum >= 0 ? '#059669' : '#dc2626';
+        });
+        // 合計欄は最終月の累計と一致する
+        const sumCell = cells[cells.length - 1] ? cells[cells.length - 1].parentElement.lastElementChild : null;
+        if (sumCell) {
+            sumCell.textContent = last === null ? '-' : ((last > 0 ? '+' : '') + last);
+            sumCell.style.color = last === null ? '' : (last >= 0 ? '#059669' : '#dc2626');
+        }
+    });
 }
 document.addEventListener('change', function(e) {
     const inp = e.target.closest ? e.target.closest('.fy-frame-tgt-input') : null;

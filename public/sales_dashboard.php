@@ -208,6 +208,29 @@ foreach ($fyMonths as $fm) {
     $fyTotalProfit += $fyRevMap[$fm['y']][$fm['m']]['profit'] ?? 0;
     $fyTotalTarget += $fyTgtMap[$fm['y']][$fm['m']]          ?? 0;
 }
+
+// 前年同月比の基準値 = 今期の売上目標合計 ÷ 前期の売上目標合計
+// （前期の目標が未入力なら算出せず、青は使わない）
+$fyPrevTotalTarget = 0;
+foreach ([$fyYear-2, $fyYear-1] as $_ty) {
+    foreach (getSalesTargets($cid, $_ty) as $m => $types) {
+        // 前年度の範囲（Sep(fyYear-2)〜Aug(fyYear-1)）だけを合算する
+        if ($_ty === $fyYear-2 && $m < 9) continue;
+        if ($_ty === $fyYear-1 && $m > 8) continue;
+        $fyPrevTotalTarget += $_tgtType
+            ? (int)($types[$_tgtType]['revenue_target'] ?? 0)
+            : (int)($types['regular']['revenue_target'] ?? 0) + (int)($types['event']['revenue_target'] ?? 0);
+    }
+}
+$fyYoyBase = ($fyTotalTarget > 0 && $fyPrevTotalTarget > 0)
+    ? round($fyTotalTarget / $fyPrevTotalTarget * 100, 1) : null;
+
+/** 前年同月比の色: 基準値以上=青 / 100%以上=緑 / 100%未満=赤 */
+function fyYoyClass(?float $yoy, ?float $base): string {
+    if ($yoy === null) return 'text-muted';
+    if ($base !== null && $yoy >= $base) return 'text-primary';
+    return $yoy >= 100 ? 'text-success' : 'text-danger';
+}
 // チャート用データ（年度順: 9月→8月 = インデックス1〜12）※年度切替AJAXでも使うため先に算出
 $trendData    = [];
 $trendTargets = [];
@@ -230,7 +253,7 @@ foreach ($fyMonths as $i => $fm) {
 
 $fyMargin = $fyTotalRev > 0 ? round($fyTotalProfit / $fyTotalRev * 100, 1) : 0;
 $fyAch    = $fyTotalTarget > 0 ? round($fyTotalRev / $fyTotalTarget * 100, 1) : 0;
-$fyAchColor = $fyAch >= 100 ? '#059669' : ($fyAch >= 80 ? '#3b82f6' : ($fyAch >= 50 ? '#f59e0b' : '#ef4444'));
+$fyAchColor = $fyAch >= 100 ? '#3b82f6' : '#ef4444';
 
 $kpis = getSalesDashboardKPIsFiltered($cid, $year, $month, $salesRep, $caseTypeFilter);
 // 前年同月に案件データが無い場合は、手入力の前年実績でKPIカードを補完する
@@ -583,7 +606,8 @@ require_once __DIR__ . '/../includes/header.php';
             : (int)($_curTypes['regular']['revenue_target'] ?? 0) + (int)($_curTypes['event']['revenue_target'] ?? 0);
     }
     $monthAch = $monthTarget > 0 ? round($kpis['revenue'] / $monthTarget * 100, 1) : 0;
-    $monthAchColor = $monthAch >= 100 ? '#059669' : ($monthAch >= 80 ? '#3b82f6' : ($monthAch >= 50 ? '#f59e0b' : '#ef4444'));
+    // 達成率は2色: 100%以上=青 / 100%未満=赤
+    $monthAchColor = $monthAch >= 100 ? '#3b82f6' : '#ef4444';
     ?>
     <!-- KPIカード -->
     <div class="d-flex justify-content-end mb-2">
@@ -794,11 +818,11 @@ require_once __DIR__ . '/../includes/header.php';
                         <tr>
                             <td class="fw-semibold fy-label">達成率</td>
                             <?php foreach ($fyMonths as $i => $fm): $d = $fyRowData[$i];
-                                $achCls = $d['ach'] === null ? 'text-muted' : ($d['ach'] >= 100 ? 'text-success' : ($d['ach'] >= 80 ? 'text-primary' : ($d['ach'] >= 50 ? 'text-warning' : 'text-danger')));
+                                $achCls = $d['ach'] === null ? 'text-muted' : ($d['ach'] >= 100 ? 'text-primary' : 'text-danger');
                             ?>
                             <td class="text-end <?= $achCls ?> fw-semibold"><?= $d['ach'] !== null ? $d['ach'] . '%' : '-' ?></td>
                             <?php endforeach; ?>
-                            <td class="text-end fw-bold table-secondary <?= $fyAch >= 100 ? 'text-success' : ($fyAch >= 80 ? 'text-primary' : ($fyAch >= 50 ? 'text-warning' : ($fyAch > 0 ? 'text-danger' : 'text-muted'))) ?>"><?= $fyAch > 0 ? $fyAch . '%' : '-' ?></td>
+                            <td class="text-end fw-bold table-secondary <?= $fyAch <= 0 ? 'text-muted' : ($fyAch >= 100 ? 'text-primary' : 'text-danger') ?>"><?= $fyAch > 0 ? $fyAch . '%' : '-' ?></td>
                         </tr>
                         <?php
                         // 前年同月売上・前年同月比（全ダッシュボード。売上と同じ絞り込みで整合）
@@ -824,9 +848,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 $prevRev = $fyPrevRevMap[$fm['y']-1][$fm['m']] ?? 0;
                                 $yoy = ($prevRev > 0 && $d['rev'] > 0) ? round($d['rev'] / $prevRev * 100, 1) : null;
                             ?>
-                            <td class="text-end text-muted"><?= $yoy !== null ? $yoy . '%' : '-' ?></td>
+                            <td class="text-end fw-semibold <?= fyYoyClass($yoy, $fyYoyBase) ?>"><?= $yoy !== null ? $yoy . '%' : '-' ?></td>
                             <?php endforeach; ?>
-                            <td class="text-end table-secondary text-muted"><?= $fyTotalYoy !== null ? $fyTotalYoy . '%' : '-' ?></td>
+                            <td class="text-end table-secondary fw-semibold <?= fyYoyClass($fyTotalYoy, $fyYoyBase) ?>"><?= $fyTotalYoy !== null ? $fyTotalYoy . '%' : '-' ?></td>
                         </tr>
                     </tbody>
                 </table>

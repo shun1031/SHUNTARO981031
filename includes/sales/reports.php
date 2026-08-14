@@ -336,18 +336,24 @@ function getSalesReps(int $companyId, ?int $year = null): array {
 function getSalesRepCandidates(int $companyId): array {
     $db = getDB();
     try {
+        // 同名の社員が複数いても1件にまとめる。
+        // ※DISTINCT では取得していない列で並べ替えできないため GROUP BY を使う
         $stmt = $db->prepare("
-            SELECT DISTINCT name FROM employees
+            SELECT name, MIN(name_kana) AS kana
+            FROM employees
             WHERE company_id = ? AND is_active = 1
               AND sales_rep_flag = 1
               AND employment_type IN ('正社員', '自社外注')
               AND name IS NOT NULL AND name <> ''
-            ORDER BY (name_kana IS NULL OR name_kana = ''), name_kana, name
+            GROUP BY name
+            ORDER BY (kana IS NULL OR kana = ''), kana, name
         ");
         $stmt->execute([$companyId]);
         return array_column($stmt->fetchAll(), 'name');
     } catch (PDOException $e) {
         // sales_rep_flag 未追加の環境では候補なし（既存値は選択肢に残るので入力は継続できる）
+        // 原因が分からなくならないようログには必ず残す
+        error_log('[getSalesRepCandidates] ' . $e->getMessage());
         return [];
     }
 }

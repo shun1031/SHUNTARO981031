@@ -499,24 +499,38 @@ $allianceFyRows = $_s->fetchAll();
 // ※2026年7月イベント案件の 近藤航 のみ粗利0円稼働者扱い（一度きりのデータ対応。他の年月・他スタッフには影響しない）
 $_zpCond = "(worker_name IN (SELECT em.name FROM employees em WHERE em.company_id = sales_cases.company_id AND em.is_active = 1 AND em.zero_profit_flag = 1)"
          . " OR (worker_name = '近藤航' AND case_year = 2026 AND case_month = 7 AND case_type = 'event'))";
+// 第3段階（1画面目）: 担当者の特定を「社員IDがあればその社員、無ければ従来どおり名前」に切り替え。
+// 空欄・該当者なし・名簿にない名前は従来と同じ扱いのため、直営業の判定も変わらない。
+// ※比較ページ admin/rep_id_compare.php で全期間・全員の金額一致を確認済み
 $_repFySql = "
     SELECT name, SUM(revenue) AS revenue, SUM(profit) AS profit
     FROM (
-        SELECT sales_rep AS name,
+        SELECT COALESCE(emp_rep.name, sales_cases.sales_rep) AS name,
                FLOOR(revenue/2) AS revenue,
                CASE WHEN $_zpCond THEN 0 ELSE FLOOR(gross_profit/2) END AS profit
         FROM sales_cases
-        WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
+        LEFT JOIN employees emp_rep
+               ON emp_rep.id = sales_cases.sales_rep_id
+              AND emp_rep.company_id = sales_cases.company_id
+        WHERE sales_cases.company_id = ? AND status = 'confirmed' AND sales_rep != ''
           AND case_year = ? AND case_month = ?
           $_ctf2
         UNION ALL
-        SELECT CASE WHEN COALESCE(manager,'') NOT IN ('','該当者なし') THEN manager
+        SELECT CASE WHEN emp_mgr.name IS NOT NULL THEN emp_mgr.name
+                    WHEN COALESCE(manager,'') NOT IN ('','該当者なし') THEN manager
+                    WHEN emp_rec.name IS NOT NULL THEN emp_rec.name
                     WHEN COALESCE(recruiter,'') NOT IN ('','該当者なし') THEN recruiter
                     ELSE '直営業' END AS name,
                revenue - FLOOR(revenue/2) AS revenue,
                CASE WHEN $_zpCond THEN 0 ELSE gross_profit - FLOOR(gross_profit/2) END AS profit
         FROM sales_cases
-        WHERE company_id = ? AND status = 'confirmed' AND sales_rep != ''
+        LEFT JOIN employees emp_mgr
+               ON emp_mgr.id = sales_cases.manager_id
+              AND emp_mgr.company_id = sales_cases.company_id
+        LEFT JOIN employees emp_rec
+               ON emp_rec.id = sales_cases.recruiter_id
+              AND emp_rec.company_id = sales_cases.company_id
+        WHERE sales_cases.company_id = ? AND status = 'confirmed' AND sales_rep != ''
           AND case_year = ? AND case_month = ?
           $_ctf2
     ) t

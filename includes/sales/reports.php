@@ -400,6 +400,30 @@ function getStaffNameCandidates(int $companyId, bool $salesRepOnly): array {
     }
 }
 
+/**
+ * 氏名から社員IDを引く（第2段階：案件に社員IDを併記するために使う）
+ * 同姓同名が複数いる場合は特定できないため NULL を返す（誤った紐付けを作らない）。
+ * 退職者も対象にする（過去案件の担当者を残すため is_active では絞らない）
+ */
+function resolveEmployeeIdByName(int $companyId, string $name): ?int {
+    $name = trim($name);
+    if ($name === '' || $name === '直営業' || $name === '該当者なし') return null;
+    static $cache = [];
+    $key = $companyId . '|' . $name;
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    $id = null;
+    try {
+        $stmt = getDB()->prepare('SELECT id FROM employees WHERE company_id = ? AND name = ? LIMIT 2');
+        $stmt->execute([$companyId, $name]);
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if (count($rows) === 1) $id = (int)$rows[0];   // 一意に決まるときだけ紐付ける
+    } catch (PDOException $e) {
+        error_log('[resolveEmployeeIdByName] ' . $e->getMessage());
+    }
+    $cache[$key] = $id;
+    return $id;
+}
+
 /** 営業担当・管理者の候補（営業担当にチェックが入っている人のみ） */
 function getSalesRepCandidates(int $companyId): array {
     return getStaffNameCandidates($companyId, true);

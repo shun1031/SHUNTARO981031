@@ -277,6 +277,14 @@ $migrations = [
     // ---- sales_cases: 予算区分（キャリア予算/代理店予算。常勤の1次案件のみ入力） ----
     "ALTER TABLE sales_cases ADD COLUMN budget_division VARCHAR(20) DEFAULT NULL AFTER case_division",
 
+    // ---- sales_cases: 担当者の社員ID（第2段階・名前と併存させるだけで集計はまだ使わない） ----
+    // 改姓・同姓同名に備えて社員を番号で特定できるようにする。値の書き込みのみ行い、
+    // 画面や集計は従来どおり名前を参照する（切り替えは第3段階で1画面ずつ行う）
+    "ALTER TABLE sales_cases ADD COLUMN sales_rep_id INT DEFAULT NULL COMMENT '営業担当の社員ID（名前と併存）'",
+    "ALTER TABLE sales_cases ADD COLUMN manager_id INT DEFAULT NULL COMMENT '管理者の社員ID（名前と併存）'",
+    "ALTER TABLE sales_cases ADD COLUMN recruiter_id INT DEFAULT NULL COMMENT '採用者の社員ID（名前と併存）'",
+    "ALTER TABLE sales_cases ADD INDEX idx_cases_rep_ids (company_id, sales_rep_id)",
+
     // ---- sales_clients: 取引先一覧（表記名・連絡先・契約書のGoogleドライブ紐付け） ----
     "ALTER TABLE sales_clients ADD COLUMN display_name VARCHAR(100) DEFAULT NULL COMMENT '表記名（アプリ内表示名）'",
     "ALTER TABLE sales_clients ADD COLUMN email VARCHAR(191) DEFAULT NULL COMMENT '担当者メールアドレス'",

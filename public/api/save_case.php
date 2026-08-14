@@ -59,6 +59,11 @@ if ($action === 'create' || $action === 'update') {
         'status'         => $data['status'] ?? 'confirmed',
         'note'           => trim($data['notes'] ?? ''),
         'case_division'  => ($data['case_division'] ?? '') ?: null,
+        // 第2段階: 担当者の社員IDを名前と一緒に保存する（集計はまだ名前を使う）
+        // 名簿に無い名前・同姓同名はNULL。担当者を変更したら必ず入れ替わるよう毎回計算する
+        'sales_rep_id'   => resolveEmployeeIdByName($cid, $data['sales_rep'] ?? ''),
+        'manager_id'     => resolveEmployeeIdByName($cid, $data['manager_name'] ?? ''),
+        'recruiter_id'   => resolveEmployeeIdByName($cid, $data['recruiter_name'] ?? ''),
         // 予算区分: 常勤の1次案件のみ保持。それ以外は必ずクリアする
         'budget_division' => ($caseType === 'regular' && ($data['case_division'] ?? '') === '1次')
                              ? (trim($data['budget_division'] ?? '') ?: null)

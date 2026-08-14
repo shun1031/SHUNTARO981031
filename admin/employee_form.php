@@ -96,6 +96,7 @@ $empInitialPassword     = (!$id && !$empUserAccount) ? generateInitialPassword()
 
 $pageTitle = $id ? ($employee['name'] ?? '') . ' 編集' : '新規社員登録';
 $error     = '';
+$fieldErrors = []; // 項目名 => エラーメッセージ
 $csrf      = getCsrfToken();
 
 // ============================================================
@@ -118,7 +119,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'name'               => trim($_POST['name'] ?? ''),
             'name_kana'          => trim($_POST['name_kana'] ?? ''),
             'phone'              => trim($_POST['phone'] ?? ''),
-            'email'              => trim($_POST['email'] ?? ''),
+            // 未入力は空文字ではなくNULLにする。email は UNIQUE 制約があり、
+            // 空文字だと2人目以降の未入力者が重複エラーになるため（NULLは重複扱いされない）
+            'email'              => (trim($_POST['email'] ?? '') !== '') ? trim($_POST['email']) : null,
             'hire_date'          => $_POST['hire_date'] ?: null,
             'employment_type'    => $_postEmpType,
             'employment_subtype' => trim($_POST['employment_subtype'] ?? ''),
@@ -131,9 +134,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'skills_json'        => !empty($skillsRaw) ? json_encode(array_values($skillsRaw), JSON_UNESCAPED_UNICODE) : null,
         ];
 
-        if (empty($fields['name'])) {
-            $error = '氏名は必須です';
+        // --- 入力チェック（項目ごとにメッセージを出す） ---
+        // 氏名以外は任意入力。値が入っているときだけ形式を確認する
+        if ($fields['name'] === '') {
+            $fieldErrors['name'] = '氏名を入力してください';
+        }
+        if ($fields['name_kana'] !== '' && !preg_match('/^[ァ-ヶーｦ-ﾟ\s　]+$/u', $fields['name_kana'])) {
+            $fieldErrors['name_kana'] = 'フリガナはカタカナで入力してください';
+        }
+        if ($fields['phone'] !== '' && !preg_match('/^[0-9\-]{10,13}$/', $fields['phone'])) {
+            $fieldErrors['phone'] = '電話番号は数字とハイフンで10〜13文字で入力してください';
+        }
+        if ($fields['email'] !== null) {
+            if (!filter_var($fields['email'], FILTER_VALIDATE_EMAIL)) {
+                $fieldErrors['email'] = 'メールアドレスの形式が正しくありません';
+            } else {
+                // メールアドレスは全社で一意。編集時は自分自身を除いて確認する
+                $dupSql = 'SELECT id FROM employees WHERE email = ?' . ($id ? ' AND id != ?' : '');
+                $dupStmt = $db->prepare($dupSql);
+                $dupStmt->execute($id ? [$fields['email'], $id] : [$fields['email']]);
+                if ($dupStmt->fetch()) {
+                    $fieldErrors['email'] = 'このメールアドレスは既に他の社員に登録されています';
+                }
+            }
+        }
+
+        if ($fieldErrors) {
+            // 入力内容を保持したまま再表示する
+            $employee = array_merge($employee ?: [], $fields);
+            $error = '入力内容を確認してください';
         } else {
+          try {
             if ($id) {
                 $setClauses = implode(',', array_map(fn($k) => "$k = ?", array_keys($fields)));
                 $sql = "UPDATE employees SET $setClauses WHERE id = ?";
@@ -232,6 +263,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             redirect(BASE_PATH . '/admin/employee_form.php?id=' . $id . '&saved=1');
+          } catch (PDOException $e) {
+            // 想定外のDBエラーも白い500ではなく画面にメッセージを出す
+            error_log('[employee_form] ' . $e->getMessage());
+            $employee = array_merge($employee ?: [], $fields);
+            $error = '保存できませんでした。入力内容を確認してください。（' . $e->getCode() . '）';
+          }
         }
     }
 
@@ -444,25 +481,30 @@ require_once __DIR__ . '/../includes/header.php';
                     <!-- 氏名 -->
                     <div class="col-md-4">
                         <label class="form-label fw-semibold">氏名 <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control" required value="<?= h($employee['name'] ?? '') ?>">
+                        <input type="text" name="name" class="form-control<?= isset($fieldErrors['name']) ? ' is-invalid' : '' ?>" required value="<?= h($employee['name'] ?? '') ?>">
+                        <?php if (isset($fieldErrors['name'])): ?><div class="invalid-feedback d-block"><?= h($fieldErrors['name']) ?></div><?php endif; ?>
                     </div>
 
                     <!-- フリガナ -->
                     <div class="col-md-4">
                         <label class="form-label">フリガナ</label>
-                        <input type="text" name="name_kana" class="form-control" value="<?= h($employee['name_kana'] ?? '') ?>">
+                        <input type="text" name="name_kana" class="form-control<?= isset($fieldErrors['name_kana']) ? ' is-invalid' : '' ?>" value="<?= h($employee['name_kana'] ?? '') ?>">
+                        <?php if (isset($fieldErrors['name_kana'])): ?><div class="invalid-feedback d-block"><?= h($fieldErrors['name_kana']) ?></div><?php endif; ?>
                     </div>
 
                     <!-- 電話番号 -->
                     <div class="col-md-4">
                         <label class="form-label">電話番号</label>
-                        <input type="text" name="phone" class="form-control" value="<?= h($employee['phone'] ?? '') ?>">
+                        <input type="text" name="phone" class="form-control<?= isset($fieldErrors['phone']) ? ' is-invalid' : '' ?>" value="<?= h($employee['phone'] ?? '') ?>">
+                        <?php if (isset($fieldErrors['phone'])): ?><div class="invalid-feedback d-block"><?= h($fieldErrors['phone']) ?></div><?php endif; ?>
                     </div>
 
                     <!-- メールアドレス -->
                     <div class="col-md-6">
                         <label class="form-label">メールアドレス</label>
-                        <input type="email" name="email" class="form-control" value="<?= h($employee['email'] ?? '') ?>">
+                        <!-- type=text にしてブラウザ既定の英語メッセージではなく、下の日本語メッセージを出す -->
+                        <input type="text" name="email" class="form-control<?= isset($fieldErrors['email']) ? ' is-invalid' : '' ?>" value="<?= h($employee['email'] ?? '') ?>">
+                        <?php if (isset($fieldErrors['email'])): ?><div class="invalid-feedback d-block"><?= h($fieldErrors['email']) ?></div><?php endif; ?>
                     </div>
 
                     <!-- 稼働開始日 -->

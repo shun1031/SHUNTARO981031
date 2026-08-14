@@ -23,9 +23,44 @@ $targets = [
     'recruiter' => ['採用者',   'recruiter_id'],
 ];
 
+// ------------------------------------------------------------------
+// 既存案件への社員ID付与（このボタンを押したときだけ実行）
+//  - 名簿と一意に一致する名前だけを対象にする（同姓同名は付けない）
+//  - 既にIDが付いている案件は触らない（未設定のみ）
+//  - 名前・金額・集計には一切影響しない
+// ------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backfill') {
+    if (!verifyCsrfToken($_POST['csrf'] ?? '')) { die('不正なリクエストです'); }
+    $applied = [];
+    foreach ($targets as $nameCol => [$label, $idCol]) {
+        try {
+            $stmt = $db->prepare("
+                UPDATE sales_cases sc
+                JOIN (
+                    SELECT company_id, name, MIN(id) AS eid
+                    FROM employees
+                    GROUP BY company_id, name
+                    HAVING COUNT(*) = 1
+                ) e ON e.company_id = sc.company_id AND e.name = sc.$nameCol
+                SET sc.$idCol = e.eid
+                WHERE sc.company_id = ? AND sc.$idCol IS NULL AND sc.$nameCol <> ''
+            ");
+            $stmt->execute([$cid]);
+            $applied[] = $label . ' ' . $stmt->rowCount() . '件';
+        } catch (PDOException $e) {
+            error_log('[rep_id_check backfill] ' . $e->getMessage());
+            $applied[] = $label . ' 失敗';
+        }
+    }
+    // PRG: 再読み込みで二重実行されないようにする
+    redirect(BASE_PATH . '/admin/rep_id_check.php?done=' . urlencode(implode(' / ', $applied)));
+}
+
 $rows        = [];
 $summary     = ['total' => 0, 'linked' => 0, 'unlinked' => 0];
+$linkable    = 0;   // これから付与できる件数（名簿と一意に一致し、まだIDが無いもの）
 $columnReady = true;
+$csrf        = getCsrfToken();
 
 foreach ($targets as $nameCol => [$label, $idCol]) {
     try {
@@ -54,6 +89,7 @@ foreach ($targets as $nameCol => [$label, $idCol]) {
             $summary['total']    += $cnt;
             $summary['linked']   += $linked;
             $summary['unlinked'] += ($cnt - $linked);
+            if ($hits === 1) { $linkable += ($cnt - $linked); }
         }
     } catch (PDOException $e) {
         $columnReady = false;
@@ -71,6 +107,39 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (!$columnReady): ?>
     <div class="alert alert-warning">
         社員IDの列がまだ作成されていません。デプロイ後に自動で追加されます。
+    </div>
+    <?php endif; ?>
+
+    <?php if (isset($_GET['done'])): ?>
+    <div class="alert alert-success alert-dismissible">
+        <i class="bi bi-check-circle me-1"></i>社員IDを付与しました（<?= h($_GET['done']) ?>）
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($columnReady && $linkable > 0): ?>
+    <div class="card border-primary mb-4">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="fw-semibold mb-1">既存案件に社員IDを付与できます</div>
+                <div class="small text-muted">
+                    対象は <strong class="text-primary"><?= number_format($linkable) ?>件</strong>
+                    （名簿と一意に一致する名前のみ）。<br>
+                    すでにIDが付いている案件は触りません。名前・売上・粗利・給与は変わりません。
+                </div>
+            </div>
+            <form method="post" onsubmit="return confirm('既存案件に社員IDを付与します。名前や金額は変わりません。実行しますか？')">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="action" value="backfill">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-link-45deg me-1"></i>社員IDを付与する
+                </button>
+            </form>
+        </div>
+    </div>
+    <?php elseif ($columnReady && $summary['total'] > 0): ?>
+    <div class="alert alert-secondary">
+        付与できる案件はありません（対象はすべて付与済み、または名簿と一致しない名前です）。
     </div>
     <?php endif; ?>
 

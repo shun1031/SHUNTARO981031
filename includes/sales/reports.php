@@ -444,9 +444,22 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
 
     // manager・recruiterもGROUP BY対象にしてPHP側で50/50分割を行う
     // （worker_nameは粗利0円稼働者判定のためGROUP BYに含める）
+    // 第3段階: 担当者は社員IDがあればその社員、無ければ従来どおり名前で特定する
+    $empNameById = [];
+    try {
+        $enStmt = $db->prepare('SELECT id, name FROM employees WHERE company_id = ?');
+        $enStmt->execute([$companyId]);
+        foreach ($enStmt->fetchAll() as $_e) { $empNameById[(int)$_e['id']] = $_e['name']; }
+    } catch (PDOException $e) { error_log('[getSalesRepReport] ' . $e->getMessage()); }
+    // 社員IDから氏名を引く。IDが無い・引けない場合は元の名前をそのまま使う
+    $nameOf = function ($id, string $fallback) use ($empNameById): string {
+        return (!empty($id) && isset($empNameById[(int)$id])) ? $empNameById[(int)$id] : $fallback;
+    };
+
     $sql = "SELECT
         sc.case_month, sc.case_type,
         sc.sales_rep, sc.manager, sc.recruiter, sc.worker_name,
+        sc.sales_rep_id, sc.manager_id, sc.recruiter_id,
         COALESCE(SUM(sc.revenue),0) as revenue,
         COALESCE(SUM(sc.gross_profit),0) as profit,
         COUNT(*) as case_count,
@@ -461,7 +474,8 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $sql .= " AND (sc.sales_rep = ? OR sc.manager = ? OR sc.recruiter = ?)";
         $params[] = $employeeName; $params[] = $employeeName; $params[] = $employeeName;
     }
-    $sql .= " GROUP BY sc.case_month, sc.case_type, sc.sales_rep, sc.manager, sc.recruiter, sc.worker_name";
+    $sql .= " GROUP BY sc.case_month, sc.case_type, sc.sales_rep, sc.manager, sc.recruiter, sc.worker_name,
+                      sc.sales_rep_id, sc.manager_id, sc.recruiter_id";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
 
@@ -498,10 +512,15 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $result[$name]['total_contracts']        += $con;
     };
 
+    // 紹介者として扱える値か（空欄と「該当者なし」は人ではないので除外）
+    // ※ダッシュボードの営業マン別売上と同じ判定に揃えたもの
+    $isPerson = fn(string $v): bool => $v !== '' && $v !== '該当者なし';
+
     foreach ($stmt->fetchAll() as $row) {
-        $rep       = $row['sales_rep'];
-        $manager   = trim($row['manager'] ?? '');
-        $recruiter = trim($row['recruiter'] ?? '');
+        // 社員IDがあればその社員の氏名、無ければ従来どおり案件に入っている名前を使う
+        $rep       = $nameOf($row['sales_rep_id'] ?? null, $row['sales_rep']);
+        $manager   = trim($nameOf($row['manager_id']   ?? null, (string)($row['manager']   ?? '')));
+        $recruiter = trim($nameOf($row['recruiter_id'] ?? null, (string)($row['recruiter'] ?? '')));
         $month     = (int)$row['case_month'];
         $type      = $row['case_type'];
         $revenue   = (int)$row['revenue'];
@@ -523,7 +542,7 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
             || (trim($row['worker_name'] ?? '') === '近藤航' && (int)$year === 2026 && $month === 7 && $type === 'event');
         if ($isZp) {
             $addEntry($rep, $month, $type, $repRev, 0, $count, $newTx, $neg, $con);
-            $referrer = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '直営業');
+            $referrer = $isPerson($manager) ? $manager : ($isPerson($recruiter) ? $recruiter : '直営業');
             $addEntry($referrer, $month, $type, $refRev, 0, 0, 0, 0, 0);
             $addEntry('直営業', $month, $type, 0, $profit, 0, 0, 0, 0);
             continue;
@@ -533,7 +552,7 @@ function getSalesRepReport(int $companyId, int $year, ?string $employeeName = nu
         $addEntry($rep, $month, $type, $repRev, $repPro, $count, $newTx, $neg, $con);
 
         // 紹介元（マネージャー → リクルーター → 直営業）: 50%
-        $referrer = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '直営業');
+        $referrer = $isPerson($manager) ? $manager : ($isPerson($recruiter) ? $recruiter : '直営業');
         $addEntry($referrer, $month, $type, $refRev, $refPro, 0, 0, 0, 0);
     }
 

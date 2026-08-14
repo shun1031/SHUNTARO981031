@@ -128,6 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'work_style'         => trim($_POST['work_style'] ?? ''),
             'staff_rank'         => $_rankApplies ? (trim($_POST['staff_rank'] ?? '') ?: null) : null,
             'sales_rep_flag'     => ($_rankApplies && !empty($_POST['sales_rep_flag'])) ? 1 : 0,
+            // インセンティブ率: 空欄はNULL（＝既定30%）。0%は明示的に0として保存する
+            'incentive_rate'     => ($_rankApplies && trim($_POST['incentive_rate'] ?? '') !== '')
+                                    ? round((float)$_POST['incentive_rate'] / 100, 4) : null,
             'departure_report_flag' => !empty($_POST['departure_report_flag']) ? 1 : 0,
             'zero_profit_flag'      => !empty($_POST['zero_profit_flag']) ? 1 : 0,
             'retirement_date'    => $_POST['retirement_date'] ?: null,
@@ -520,7 +523,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <!-- 雇用形態 -->
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">雇用形態</label>
                         <?php
                         // 旧データ互換: 自社+区分 を新選択肢へ読み替え
@@ -560,6 +563,18 @@ require_once __DIR__ . '/../includes/header.php';
                         </select>
                     </div>
 
+                    <!-- インセンティブ率（正社員・自社外注のみ表示）。空欄なら既定30% -->
+                    <div class="col-md-2" id="incentiveRateGroup">
+                        <label class="form-label">インセンティブ率</label>
+                        <div class="input-group">
+                            <input type="number" name="incentive_rate" class="form-control"
+                                   step="0.1" min="0" max="100" placeholder="未設定=30"
+                                   value="<?= isset($employee['incentive_rate']) && $employee['incentive_rate'] !== null
+                                            ? h(rtrim(rtrim(number_format((float)$employee['incentive_rate'] * 100, 2, '.', ''), '0'), '.')) : '' ?>">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+
                     <!-- 営業担当（正社員・自社外注のみ表示） -->
                     <div class="col-md-2" id="salesRepGroup">
                         <label class="form-label">営業担当</label>
@@ -571,7 +586,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <!-- 対象フラグ -->
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">対象フラグ</label>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="departure_report_flag" value="1" id="depReportFlag"
@@ -763,7 +778,7 @@ function toggleRankFields() {
     var sel = document.getElementById('empType');
     if (!sel) return;
     var show = (sel.value === '正社員' || sel.value === '自社外注');
-    ['rankGroup', 'salesRepGroup'].forEach(function(gid) {
+    ['rankGroup', 'incentiveRateGroup', 'salesRepGroup'].forEach(function(gid) {
         var g = document.getElementById(gid);
         if (g) g.style.display = show ? '' : 'none';
     });

@@ -167,22 +167,15 @@ try {
     $repTargetData = [];
 }
 
-// インセンティブ率マップ（0=なし、それ以外は割合）
-$INCENTIVE_RATES = [
-    '竹内陽'   => 0,
-    '直営業'   => 0,
-    '佐藤思杰' => 0.20,
-    '近藤航'   => 0.20,
-];
-$INCENTIVE_DEFAULT = 0.30;
+// インセンティブ率は社員一覧（employees.incentive_rate）で管理する。
+// 定義は includes/sales/reports.php の resolveIncentiveRate() に一本化した。
+$INCENTIVE_RATE_MAP = getIncentiveRateMap($cid);
 
 require_once __DIR__ . '/../includes/header.php';
 
 function renderRepCard(string $repName, array $cur, string $footerText, bool $showDetail = true): string {
-    global $INCENTIVE_RATES, $INCENTIVE_DEFAULT;
-    $rate = array_key_exists($repName, $INCENTIVE_RATES)
-        ? $INCENTIVE_RATES[$repName]
-        : $INCENTIVE_DEFAULT;
+    global $INCENTIVE_RATE_MAP;
+    $rate = resolveIncentiveRate($repName, $INCENTIVE_RATE_MAP);
     $profit     = (int)($cur['profit'] ?? 0);
     $revenue    = (int)($cur['revenue'] ?? 0);
     $profitRate = $revenue > 0 ? round($profit / $revenue * 100, 1) : null;

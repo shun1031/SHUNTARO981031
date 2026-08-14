@@ -223,6 +223,14 @@ $migrations = [
     "ALTER TABLE employees ADD COLUMN staff_rank VARCHAR(20) DEFAULT NULL COMMENT 'ランク（ブロンズ/シルバー/ゴールド）'",
     "ALTER TABLE employees ADD COLUMN sales_rep_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT '営業担当'",
 
+    // ---- employees: インセンティブ率（NULL=未設定。既定30%が適用される） ----
+    // これまで3ファイルに名前でベタ書きしていた率を名簿に移す
+    "ALTER TABLE employees ADD COLUMN incentive_rate DECIMAL(5,4) DEFAULT NULL COMMENT 'インセンティブ率（0.20=20%）。NULLは既定30%'",
+    // 現行のベタ書きと同じ値を初期投入する（金額を変えないため）
+    // ※既に値が入っている場合は上書きしない
+    "UPDATE employees SET incentive_rate = 0.0000 WHERE incentive_rate IS NULL AND name = '竹内陽'",
+    "UPDATE employees SET incentive_rate = 0.2000 WHERE incentive_rate IS NULL AND name IN ('佐藤思杰','近藤航')",
+
     // ---- departure_reports: 出発報告メール履歴 ----
     "CREATE TABLE IF NOT EXISTS departure_reports (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, employee_id INT NOT NULL, token VARCHAR(64) NOT NULL, sent_to VARCHAR(200) NOT NULL, admin_email VARCHAR(200) DEFAULT NULL, answer VARCHAR(10) DEFAULT NULL, sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, answered_at TIMESTAMP NULL DEFAULT NULL, UNIQUE KEY uk_dr_token (token), INDEX idx_dr_emp (company_id, employee_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

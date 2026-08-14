@@ -5,12 +5,10 @@ requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { http_response_code(403); exit; }
 
-// インセンティブ率
-const INCENTIVE_RATES_P = ['竹内陽' => 0.0, '直営業' => 0.0, '佐藤思杰' => 0.20, '近藤航' => 0.20];
-const INCENTIVE_DEFAULT_P = 0.30;
-
+// インセンティブ率は社員一覧（employees.incentive_rate）で管理する。
+// 定義は includes/sales/reports.php の resolveIncentiveRate() に一本化した。
 function getIncRateP(string $name): float {
-    return array_key_exists($name, INCENTIVE_RATES_P) ? INCENTIVE_RATES_P[$name] : INCENTIVE_DEFAULT_P;
+    return resolveIncentiveRate($name, getIncentiveRateMap(getCompanyId() ?? 0));
 }
 
 $payYear  = (int)($_GET['pay_year']  ?? date('Y'));

@@ -9,12 +9,10 @@ requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { http_response_code(403); echo json_encode(['error' => 'forbidden']); exit; }
 
-// インセンティブ率（sales_rep_report.php と同じ定義）
-const INCENTIVE_RATES = ['竹内陽' => 0.0, '直営業' => 0.0, '佐藤思杰' => 0.20, '近藤航' => 0.20];
-const INCENTIVE_DEFAULT = 0.30;
-
+// インセンティブ率は社員一覧（employees.incentive_rate）で管理する。
+// 定義は includes/sales/reports.php の resolveIncentiveRate() に一本化した。
 function getIncentiveRate(string $name): float {
-    return array_key_exists($name, INCENTIVE_RATES) ? INCENTIVE_RATES[$name] : INCENTIVE_DEFAULT;
+    return resolveIncentiveRate($name, getIncentiveRateMap(getCompanyId() ?? 0));
 }
 
 // ----------------------------------------------------------------

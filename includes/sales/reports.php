@@ -328,6 +328,47 @@ function getSalesReps(int $companyId, ?int $year = null): array {
     return array_column($stmt->fetchAll(), 'sales_rep');
 }
 
+// ----------------------------------------------------------------
+// インセンティブ率
+// ----------------------------------------------------------------
+// 率は社員一覧（employees.incentive_rate）で管理する。ここが唯一の定義。
+// 「直営業」は社員ではない区分なので常に0%。名簿に率が無い人は既定30%。
+
+const INCENTIVE_RATE_DEFAULT = 0.30;
+// 列が読めない環境向けの保険。移行前と同じ金額になるようにするためだけのもので、
+// 通常は使われない（社員一覧の値が優先される）
+const INCENTIVE_RATE_FALLBACK = ['竹内陽' => 0.0, '佐藤思杰' => 0.20, '近藤航' => 0.20];
+
+/**
+ * 社員一覧からインセンティブ率を取得する（氏名 => 率）
+ * 率が未設定（NULL）の人は含めない＝既定30%が適用される
+ */
+function getIncentiveRateMap(int $companyId): array {
+    static $cache = [];
+    if (isset($cache[$companyId])) return $cache[$companyId];
+    $map = [];
+    try {
+        $stmt = getDB()->prepare(
+            'SELECT name, incentive_rate FROM employees
+             WHERE company_id = ? AND incentive_rate IS NOT NULL AND name <> \'\''
+        );
+        $stmt->execute([$companyId]);
+        foreach ($stmt->fetchAll() as $r) { $map[$r['name']] = (float)$r['incentive_rate']; }
+    } catch (PDOException $e) {
+        // 列が未追加の場合は移行前と同じ率を使い、金額が変わらないようにする
+        error_log('[getIncentiveRateMap] ' . $e->getMessage());
+        $map = INCENTIVE_RATE_FALLBACK;
+    }
+    $cache[$companyId] = $map;
+    return $map;
+}
+
+/** 氏名からインセンティブ率を求める（直営業は常に0%、未設定は既定30%） */
+function resolveIncentiveRate(string $name, array $rateMap): float {
+    if ($name === '直営業') return 0.0;
+    return array_key_exists($name, $rateMap) ? (float)$rateMap[$name] : INCENTIVE_RATE_DEFAULT;
+}
+
 /**
  * 案件フォームの担当者候補（在籍中の 正社員 / 自社外注）
  * $salesRepOnly = true なら、社員一覧で営業担当にチェックが入っている人だけに絞る。

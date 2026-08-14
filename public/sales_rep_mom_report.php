@@ -105,7 +105,9 @@ $leftDirect = isset($leftData['直営業']) ? ['直営業' => $leftData['直営�
 $leftData   = array_filter($leftData, fn($d) => $d['rep'] !== '直営業');
 
 // 強制表示メンバー（売上0でも常に表示）
-$forcedMembers = ['山根脩平'];
+// 社員一覧で「営業担当」にチェックが入っている在籍中の正社員・自社外注を対象とする
+// （旧: 山根脩平をベタ書き。名簿で管理できるようになったため置き換え）
+$forcedMembers = getSalesRepCandidates($cid);
 $emptyEntry = ['rep'=>'','cur'=>$emptyMonth,'prev'=>$emptyMonth,'rev_mom'=>null,'prof_mom'=>null];
 foreach ($forcedMembers as $fm) {
     $inRight = false; foreach ($rightData as $d) { if ($d['rep'] === $fm) { $inRight = true; break; } }

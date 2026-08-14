@@ -102,7 +102,9 @@ $yearlyDirect  = isset($yearlyData['直営業']) ? ['直営業' => $yearlyData['
 $yearlyData    = array_filter($yearlyData, fn($d) => $d['sales_rep'] !== '直営業');
 
 // 強制表示メンバー（売上0でも必ずランキングに表示）
-$forcedMembers = ['山根脩平'];
+// 社員一覧で「営業担当」にチェックが入っている在籍中の正社員・自社外注を対象とする
+// （旧: 山根脩平をベタ書き。名簿で管理できるようになったため置き換え）
+$forcedMembers = getSalesRepCandidates($cid);
 $emptyMonthEntry = ['revenue'=>0,'profit'=>0,'case_count'=>0,'regular_revenue'=>0,'event_revenue'=>0];
 $emptyYearEntry  = ['sales_rep'=>'','total_revenue'=>0,'total_profit'=>0,'total_cases'=>0,'regular_revenue'=>0,'event_revenue'=>0,'months'=>[]];
 foreach ($forcedMembers as $fm) {

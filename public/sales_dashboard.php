@@ -525,10 +525,14 @@ $_repFySql = "
 $_s = $_sDb->prepare($_repFySql);
 $_s->execute(array_merge([$cid, $year, $month], $_ctp, [$cid, $year, $month], $_ctp));
 $repFyRows = $_s->fetchAll();
-// 山根脩平を末尾に固定追加（売上0でも必ず表示）
-$_yamaneFound = false;
-foreach ($repFyRows as $_r) { if ($_r['name'] === '山根脩平') { $_yamaneFound = true; break; } }
-if (!$_yamaneFound) { $repFyRows[] = ['name' => '山根脩平', 'revenue' => 0, 'profit' => 0]; }
+// 営業担当は売上0でも必ず表示する（社員一覧で「営業担当」にチェックした在籍中の正社員・自社外注）
+// ※旧: 山根脩平をベタ書き。名簿で管理できるようになったため置き換え
+$_repNames = array_column($repFyRows, 'name');
+foreach (getSalesRepCandidates($cid) as $_rc) {
+    if (!in_array($_rc, $_repNames, true)) {
+        $repFyRows[] = ['name' => $_rc, 'revenue' => 0, 'profit' => 0];
+    }
+}
 // 直営業の月間売上を取得して最後尾に追加
 // 売上: 紹介元なしの場合に半分（従来どおり）
 // 粗利: 粗利0円稼働者の案件は全額直営業、それ以外は紹介元なしの場合に半分

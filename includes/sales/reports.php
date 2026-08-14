@@ -329,12 +329,13 @@ function getSalesReps(int $companyId, ?int $year = null): array {
 }
 
 /**
- * 案件フォームの「営業担当」「管理者」の選択候補
- * 社員一覧で営業担当にチェックが入っている、在籍中の 正社員 / 自社外注 のみ。
+ * 案件フォームの担当者候補（在籍中の 正社員 / 自社外注）
+ * $salesRepOnly = true なら、社員一覧で営業担当にチェックが入っている人だけに絞る。
  * ※案件側は従来どおり名前の文字列で保存する（候補の提示だけを名簿基準にする）
  */
-function getSalesRepCandidates(int $companyId): array {
+function getStaffNameCandidates(int $companyId, bool $salesRepOnly): array {
     $db = getDB();
+    $repCond = $salesRepOnly ? ' AND sales_rep_flag = 1' : '';
     try {
         // 同名の社員が複数いても1件にまとめる。
         // ※DISTINCT では取得していない列で並べ替えできないため GROUP BY を使う
@@ -342,20 +343,31 @@ function getSalesRepCandidates(int $companyId): array {
             SELECT name, MIN(name_kana) AS kana
             FROM employees
             WHERE company_id = ? AND is_active = 1
-              AND sales_rep_flag = 1
               AND employment_type IN ('正社員', '自社外注')
               AND name IS NOT NULL AND name <> ''
+              $repCond
             GROUP BY name
             ORDER BY (kana IS NULL OR kana = ''), kana, name
         ");
         $stmt->execute([$companyId]);
         return array_column($stmt->fetchAll(), 'name');
     } catch (PDOException $e) {
-        // sales_rep_flag 未追加の環境では候補なし（既存値は選択肢に残るので入力は継続できる）
+        // 列が未追加の環境では候補なし（既存値は選択肢に残るので入力は継続できる）
         // 原因が分からなくならないようログには必ず残す
-        error_log('[getSalesRepCandidates] ' . $e->getMessage());
+        error_log('[getStaffNameCandidates] ' . $e->getMessage());
         return [];
     }
+}
+
+/** 営業担当・管理者の候補（営業担当にチェックが入っている人のみ） */
+function getSalesRepCandidates(int $companyId): array {
+    return getStaffNameCandidates($companyId, true);
+}
+
+/** 採用者の候補（営業担当チェックの有無を問わず、正社員・自社外注の全員）
+ *  ※採用活動は営業担当以外の社員も行うため、チェックで絞り込まない */
+function getRecruiterCandidates(int $companyId): array {
+    return getStaffNameCandidates($companyId, false);
 }
 
 function getSalesRepReport(int $companyId, int $year, ?string $employeeName = null): array {

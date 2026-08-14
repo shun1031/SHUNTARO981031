@@ -154,6 +154,8 @@ $clients = getSalesClients($cid);
 $alliances = getSalesAlliances($cid);
 // 営業担当・管理者の選択候補（社員一覧で営業担当にチェックした正社員/自社外注）
 $repCandidates = getSalesRepCandidates($cid);
+// 採用者の選択候補（営業担当チェックを問わず正社員/自社外注の全員）
+$recruiterCandidates = getRecruiterCandidates($cid);
 $brands = getSalesStoreBrands($cid);
 $areas = getSalesAreas($cid);
 $workers = getSalesWorkers($cid);
@@ -478,7 +480,14 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">採用者</label>
-                        <input type="text" name="recruiter_name" id="f_recruiter_name" class="form-control">
+                        <!-- 採用者は営業担当チェックを問わず正社員/自社外注の全員から選ぶ。
+                             空欄なら管理者→直営業の判定に従う（「該当者なし」は選択肢に出さない） -->
+                        <select name="recruiter_name" id="f_recruiter_name" class="form-select">
+                            <option value="">-- 未設定 --</option>
+                            <?php foreach ($recruiterCandidates as $_rcr): ?>
+                            <option value="<?= h($_rcr) ?>"><?= h($_rcr) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-medium">区分 <span class="text-danger">*</span></label>
@@ -905,7 +914,7 @@ function resetCaseForm() {
     document.getElementById('f_end_date').value = '';
     setRepSelect('f_sales_rep', '');
     setRepSelect('f_manager_name', '');
-    document.getElementById('f_recruiter_name').value = '';
+    setRepSelect('f_recruiter_name', '');
     document.getElementById('f_case_division').value = '';
     document.getElementById('f_budget_division').value = '';
     toggleBudgetDivision();
@@ -936,7 +945,7 @@ function editCase(c) {
     document.getElementById('f_end_date').value = c.end_date ? c.end_date.substring(0,7) : '';
     setRepSelect('f_sales_rep', c.sales_rep);
     setRepSelect('f_manager_name', c.manager);
-    document.getElementById('f_recruiter_name').value = c.recruiter || '';
+    setRepSelect('f_recruiter_name', c.recruiter);
     document.getElementById('f_case_division').value = c.case_division || '';
     document.getElementById('f_budget_division').value = c.budget_division || '';
     toggleBudgetDivision();

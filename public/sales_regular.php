@@ -152,6 +152,8 @@ $totalPages = ceil($totalCount / $perPage);
 
 $clients = getSalesClients($cid);
 $alliances = getSalesAlliances($cid);
+// 営業担当・管理者の選択候補（社員一覧で営業担当にチェックした正社員/自社外注）
+$repCandidates = getSalesRepCandidates($cid);
 $brands = getSalesStoreBrands($cid);
 $areas = getSalesAreas($cid);
 $workers = getSalesWorkers($cid);
@@ -452,13 +454,27 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label fw-medium">終了月</label>
                         <input type="month" name="end_date" id="f_end_date" class="form-control">
                     </div>
+                    <!-- 営業担当・管理者は社員一覧から選択（表記ゆれ防止）。
+                         候補にない既存の値は editCase 側で選択肢に追加して保持する -->
                     <div class="col-md-4">
                         <label class="form-label fw-medium">営業担当</label>
-                        <input type="text" name="sales_rep" id="f_sales_rep" class="form-control">
+                        <select name="sales_rep" id="f_sales_rep" class="form-select">
+                            <option value="">-- 選択してください --</option>
+                            <?php foreach ($repCandidates as $_rc): ?>
+                            <option value="<?= h($_rc) ?>"><?= h($_rc) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">管理者</label>
-                        <input type="text" name="manager_name" id="f_manager_name" class="form-control">
+                        <!-- 空欄のままにすると従来どおり「直営業」として集計される。
+                             「該当者なし」は集計処理によって扱いが割れるため選択肢に出さない -->
+                        <select name="manager_name" id="f_manager_name" class="form-select">
+                            <option value="">-- 未設定（直営業）--</option>
+                            <?php foreach ($repCandidates as $_rc): ?>
+                            <option value="<?= h($_rc) ?>"><?= h($_rc) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">採用者</label>
@@ -835,6 +851,25 @@ function setCarrierValue(v) {
     else if (known)   { sel.value = v;  inp.style.display = 'none'; }
     else              { sel.value = '__other__'; inp.style.display = ''; }
 }
+// 営業担当・管理者の選択欄に値を入れる。
+// 社員一覧にない名前（退職者・旧表記など）は「（名簿外）」として選択肢に足してから選ぶ。
+// これをしないと、既存案件を編集して保存したときに担当者が消えてしまう。
+function setRepSelect(selectId, val) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    // 前回の案件で追加した名簿外の選択肢を除去
+    Array.from(sel.querySelectorAll('option[data-legacy="1"]')).forEach(function(o) { o.remove(); });
+    val = val || '';
+    if (val !== '' && !Array.from(sel.options).some(function(o) { return o.value === val; })) {
+        var opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val + '（名簿外）';
+        opt.dataset.legacy = '1';
+        sel.appendChild(opt);
+    }
+    sel.value = val;
+}
+
 function toggleAllianceGroup() {
     var wt = document.getElementById('worker_type').value;
     var ag = document.getElementById('alliance_group');
@@ -868,8 +903,8 @@ function resetCaseForm() {
     document.getElementById('f_client_name_hidden').value = '';
     document.getElementById('f_start_date').value = '';
     document.getElementById('f_end_date').value = '';
-    document.getElementById('f_sales_rep').value = '';
-    document.getElementById('f_manager_name').value = '';
+    setRepSelect('f_sales_rep', '');
+    setRepSelect('f_manager_name', '');
     document.getElementById('f_recruiter_name').value = '';
     document.getElementById('f_case_division').value = '';
     document.getElementById('f_budget_division').value = '';
@@ -899,8 +934,8 @@ function editCase(c) {
     document.getElementById('f_client_name_hidden').value = c.client_name || '';
     document.getElementById('f_start_date').value = c.start_date ? c.start_date.substring(0,7) : '';
     document.getElementById('f_end_date').value = c.end_date ? c.end_date.substring(0,7) : '';
-    document.getElementById('f_sales_rep').value = c.sales_rep || '';
-    document.getElementById('f_manager_name').value = c.manager || '';
+    setRepSelect('f_sales_rep', c.sales_rep);
+    setRepSelect('f_manager_name', c.manager);
     document.getElementById('f_recruiter_name').value = c.recruiter || '';
     document.getElementById('f_case_division').value = c.case_division || '';
     document.getElementById('f_budget_division').value = c.budget_division || '';

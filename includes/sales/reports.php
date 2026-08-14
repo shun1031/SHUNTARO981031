@@ -328,6 +328,30 @@ function getSalesReps(int $companyId, ?int $year = null): array {
     return array_column($stmt->fetchAll(), 'sales_rep');
 }
 
+/**
+ * 案件フォームの「営業担当」「管理者」の選択候補
+ * 社員一覧で営業担当にチェックが入っている、在籍中の 正社員 / 自社外注 のみ。
+ * ※案件側は従来どおり名前の文字列で保存する（候補の提示だけを名簿基準にする）
+ */
+function getSalesRepCandidates(int $companyId): array {
+    $db = getDB();
+    try {
+        $stmt = $db->prepare("
+            SELECT DISTINCT name FROM employees
+            WHERE company_id = ? AND is_active = 1
+              AND sales_rep_flag = 1
+              AND employment_type IN ('正社員', '自社外注')
+              AND name IS NOT NULL AND name <> ''
+            ORDER BY (name_kana IS NULL OR name_kana = ''), name_kana, name
+        ");
+        $stmt->execute([$companyId]);
+        return array_column($stmt->fetchAll(), 'name');
+    } catch (PDOException $e) {
+        // sales_rep_flag 未追加の環境では候補なし（既存値は選択肢に残るので入力は継続できる）
+        return [];
+    }
+}
+
 function getSalesRepReport(int $companyId, int $year, ?string $employeeName = null): array {
     $db = getDB();
     // 粗利0円稼働者（配分は直営業100%）

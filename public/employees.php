@@ -103,6 +103,9 @@ require_once __DIR__ . '/../includes/header.php';
     .emp-cat-tabs button { font-size:.78rem; padding:11px 8px; gap:4px; }
     .emp-cat-tabs li { min-width:90px; }
 }
+/* カードはクリックできなくなったので、押せそうな見た目（指カーソル・浮き上がり）を消す */
+.employee-card { cursor: default; }
+.employee-card:hover { transform: none; box-shadow: var(--sh-card); }
 </style>
 
 <div class="container-fluid">
@@ -167,8 +170,9 @@ require_once __DIR__ . '/../includes/header.php';
             $searchText = strtolower($emp['name'] . ' ' . ($emp['name_kana'] ?? '') . ' ' . ($emp['job_title'] ?? '') . ' ' . ($emp['department'] ?? '') . ' ' . ($emp['team_name'] ?? ''));
         ?>
         <div class="col-sm-6 col-xl-4 emp-card-col" data-category="<?= h(empCategory($emp)) ?>" data-alliance="<?= h(trim($emp['affiliation_company'] ?? '')) ?>">
-            <a href="employee.php?id=<?= $emp['id'] ?>" class="employee-card p-4 h-100"
-               data-search="<?= h($searchText) ?>" data-bs-class="employee-filter-item">
+            <!-- カード自体はリンクにしない（中の編集ボタンから編集画面へ直行する） -->
+            <div class="employee-card p-4 h-100"
+                 data-search="<?= h($searchText) ?>">
                 <div class="employee-filter-item" data-search="<?= h($searchText) ?>">
                     <div class="d-flex align-items-start gap-3 mb-3">
                         <div class="avatar flex-shrink-0">
@@ -216,16 +220,20 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <?php endif; ?>
 
-                    <div class="mt-3 d-flex gap-2 text-muted" style="font-size:11px">
+                    <div class="mt-3 d-flex align-items-center gap-2 text-muted" style="font-size:11px">
                         <?php if ($emp['achiever'] !== null): ?>
                         <span><i class="bi bi-lightning-fill text-warning"></i> SF</span>
                         <?php endif; ?>
                         <?php if ($emp['leadership'] !== null): ?>
                         <span><i class="bi bi-activity text-success"></i> SPI</span>
                         <?php endif; ?>
+                        <a href="<?= BASE_PATH ?>/admin/employee_form.php?id=<?= $emp['id'] ?>"
+                           class="btn btn-sm btn-outline-primary ms-auto" style="font-size:11px;padding:2px 10px">
+                            <i class="bi bi-pencil me-1"></i>編集
+                        </a>
                     </div>
                 </div>
-            </a>
+            </div>
         </div>
         <?php endforeach; ?>
 

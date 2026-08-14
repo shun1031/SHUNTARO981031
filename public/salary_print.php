@@ -40,15 +40,31 @@ $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
 // インセンティブ集計
-$incStmt = $db->prepare("SELECT sales_rep,manager,recruiter,COALESCE(SUM(gross_profit),0) as profit
+// 第3段階: 担当者は社員IDがあればその社員、無ければ従来どおり名前で特定する
+$empNameById = [];
+try {
+    $enStmt = $db->prepare('SELECT id, name FROM employees WHERE company_id = ?');
+    $enStmt->execute([$cid]);
+    foreach ($enStmt->fetchAll() as $_e) { $empNameById[(int)$_e['id']] = $_e['name']; }
+} catch (PDOException $e) { error_log('[salary_print] ' . $e->getMessage()); }
+$nameOfP = function ($id, string $fallback) use ($empNameById): string {
+    return (!empty($id) && isset($empNameById[(int)$id])) ? $empNameById[(int)$id] : $fallback;
+};
+// 紹介者として扱える値か（空欄と「該当者なし」は人ではない。他の画面と同じ判定）
+$isPersonP = fn(string $v): bool => $v !== '' && $v !== '該当者なし';
+
+$incStmt = $db->prepare("SELECT sales_rep,manager,recruiter,sales_rep_id,manager_id,recruiter_id,COALESCE(SUM(gross_profit),0) as profit
     FROM sales_cases WHERE company_id=? AND case_year=? AND case_month=? AND status!='cancelled' AND sales_rep!=''
-    GROUP BY sales_rep,manager,recruiter");
+    GROUP BY sales_rep,manager,recruiter,sales_rep_id,manager_id,recruiter_id");
 $incStmt->execute([$cid,$incYear,$incMonth]);
 $incMap = [];
 foreach ($incStmt->fetchAll() as $r) {
     $p = (int)$r['profit']; $rp = (int)floor($p/2); $rfp = $p - $rp;
-    $incMap[$r['sales_rep']] = ($incMap[$r['sales_rep']] ?? 0) + $rp;
-    $ref = trim($r['manager']??'') !== '' ? trim($r['manager']) : (trim($r['recruiter']??'') !== '' ? trim($r['recruiter']) : '直営業');
+    $repName = $nameOfP($r['sales_rep_id'] ?? null, $r['sales_rep']);
+    $incMap[$repName] = ($incMap[$repName] ?? 0) + $rp;
+    $mg  = trim($nameOfP($r['manager_id']   ?? null, (string)($r['manager']   ?? '')));
+    $rc  = trim($nameOfP($r['recruiter_id'] ?? null, (string)($r['recruiter'] ?? '')));
+    $ref = $isPersonP($mg) ? $mg : ($isPersonP($rc) ? $rc : '直営業');
     $incMap[$ref] = ($incMap[$ref] ?? 0) + $rfp;
 }
 

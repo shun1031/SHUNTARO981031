@@ -20,13 +20,27 @@ function getIncentiveRate(string $name): float {
 // ----------------------------------------------------------------
 function getIncentiveProfitByPerson(int $companyId, int $year, int $month): array {
     $db = getDB();
+    // 第3段階: 担当者は社員IDがあればその社員、無ければ従来どおり名前で特定する
+    $empNameById = [];
+    try {
+        $enStmt = $db->prepare('SELECT id, name FROM employees WHERE company_id = ?');
+        $enStmt->execute([$companyId]);
+        foreach ($enStmt->fetchAll() as $_e) { $empNameById[(int)$_e['id']] = $_e['name']; }
+    } catch (PDOException $e) { error_log('[getIncentiveProfitByPerson] ' . $e->getMessage()); }
+    $nameOf = function ($id, string $fallback) use ($empNameById): string {
+        return (!empty($id) && isset($empNameById[(int)$id])) ? $empNameById[(int)$id] : $fallback;
+    };
+    // 紹介者として扱える値か（空欄と「該当者なし」は人ではない。他の画面と同じ判定）
+    $isPerson = fn(string $v): bool => $v !== '' && $v !== '該当者なし';
+
     $stmt = $db->prepare("
         SELECT sales_rep, manager, recruiter,
+               sales_rep_id, manager_id, recruiter_id,
                COALESCE(SUM(gross_profit), 0) as profit
         FROM sales_cases
         WHERE company_id = ? AND case_year = ? AND case_month = ?
           AND status != 'cancelled' AND sales_rep != ''
-        GROUP BY sales_rep, manager, recruiter
+        GROUP BY sales_rep, manager, recruiter, sales_rep_id, manager_id, recruiter_id
     ");
     $stmt->execute([$companyId, $year, $month]);
 
@@ -35,10 +49,10 @@ function getIncentiveProfitByPerson(int $companyId, int $year, int $month): arra
         $profit  = (int)$row['profit'];
         $repPro  = (int)floor($profit / 2);
         $refPro  = $profit - $repPro;
-        $rep     = $row['sales_rep'];
-        $manager = trim($row['manager'] ?? '');
-        $recruiter = trim($row['recruiter'] ?? '');
-        $referrer  = $manager !== '' ? $manager : ($recruiter !== '' ? $recruiter : '直営業');
+        $rep       = $nameOf($row['sales_rep_id'] ?? null, $row['sales_rep']);
+        $manager   = trim($nameOf($row['manager_id']   ?? null, (string)($row['manager']   ?? '')));
+        $recruiter = trim($nameOf($row['recruiter_id'] ?? null, (string)($row['recruiter'] ?? '')));
+        $referrer  = $isPerson($manager) ? $manager : ($isPerson($recruiter) ? $recruiter : '直営業');
 
         $byPerson[$rep]      = ($byPerson[$rep]      ?? 0) + $repPro;
         $byPerson[$referrer] = ($byPerson[$referrer] ?? 0) + $refPro;

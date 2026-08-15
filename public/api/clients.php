@@ -14,7 +14,8 @@ header('Content-Type: application/json; charset=utf-8');
 requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { echo json_encode(['error' => 'Unauthorized']); exit; }
-if (!isAdmin()) { echo json_encode(['error' => 'Forbidden']); exit; }
+// 閲覧は管理者または営業担当（追加・編集・削除は下のPOST判定で管理者のみに制限）
+if (!canViewSalesPages()) { http_response_code(403); echo json_encode(['error' => 'Forbidden']); exit; }
 
 $db = getDB();
 

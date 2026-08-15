@@ -12,7 +12,8 @@ requireAnyLogin();
 $cid = getCompanyId();
 if (!$cid) { echo json_encode(['error' => 'Unauthorized']); exit; }
 
-if (!isAdmin()) { echo json_encode(['error' => 'Forbidden']); exit; }
+// 閲覧は管理者または営業担当。データの変更は行わない読み取り専用API
+if (!canViewSalesPages()) { http_response_code(403); echo json_encode(['error' => 'Forbidden']); exit; }
 
 $db = getDB();
 $qCompany = trim($_GET['q_company'] ?? '');

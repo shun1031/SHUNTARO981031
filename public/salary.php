@@ -123,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1><i class="bi bi-cash-stack me-2"></i>給与管理</h1>
-                <p class="mb-0" style="font-size:.85rem;color:#6b7280">常勤案件でスタッフ区分が「自社外注」のスタッフの給与一覧です。</p>
+                <p class="mb-0" style="font-size:.85rem;color:#6b7280">社員一覧の雇用形態が「自社外注」のスタッフの、常勤案件の給与一覧です。</p>
             </div>
             <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#infoPanel">
                 <i class="bi bi-info-circle me-1"></i>給与の計算・支払タイミングについて
@@ -304,7 +304,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <p class="text-muted mt-3" style="font-size:.75rem">
-        ※ 表示されているのは、スタッフ区分が「自社外注」の常勤案件に所属するスタッフのみです。
+        ※ 表示されているのは、社員一覧の雇用形態が「自社外注」のスタッフの常勤案件のみです。
     </p>
 </div>
 

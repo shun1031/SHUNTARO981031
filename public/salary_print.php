@@ -147,5 +147,5 @@ tfoot td{font-weight:700;background:#f0fdf4}
 <td class="right blue"><?= yp($grandTotal) ?></td>
 </tr></tfoot>
 </table>
-<div class="note">※ 対象：スタッフ区分「自社外注」の常勤案件のみ</div>
+<div class="note">※ 対象：社員一覧の雇用形態が「自社外注」のスタッフの常勤案件のみ</div>
 </body></html>

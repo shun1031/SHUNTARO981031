@@ -25,9 +25,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <h1><i class="bi bi-people me-2"></i>取引先一覧</h1>
                 <p>登録されている取引先の情報および契約書の登録状況を一覧で確認できます。</p>
             </div>
+            <?php if (isAdmin()): /* 取引先の追加は管理者のみ */ ?>
             <button type="button" class="btn btn-primary" onclick="clOpenForm()">
                 <i class="bi bi-plus-lg me-1"></i>取引先を追加
             </button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -54,9 +56,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <div>
                     削除済みの取引先です。案件画面の取引先プルダウンには表示されません。
                 </div>
+                <?php if (isAdmin()): /* 一括復元は管理者のみ */ ?>
                 <button type="button" class="btn btn-warning btn-sm" onclick="clRestoreAll()">
                     <i class="bi bi-arrow-counterclockwise me-1"></i>すべて元に戻す
                 </button>
+                <?php endif; ?>
             </div>
 
             <!-- 一覧表 -->
@@ -172,9 +176,11 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 $clApi = json_encode(BASE_PATH . '/public/api/clients.php');
+$clIsAdmin = isAdmin() ? 'true' : 'false';
 $inlineJs = <<<CLJS
 var CL_API  = {$clApi};
 var CL_CSRF = '{$csrf}';
+var CL_CAN_EDIT = {$clIsAdmin};   // 編集・削除・復元は管理者のみ
 CLJS;
 $inlineJs .= <<<'CLJS2'
 
@@ -229,7 +235,8 @@ function clRender(d) {
                  +  '<td>' + (c.phone ? clEsc(c.phone) : '<span class="text-muted">-</span>') + '</td>'
                  +  '<td>' + contract + '</td>'
                  +  '<td class="text-end">'
-                 +  (clShow === 'deleted'
+                 +  (!CL_CAN_EDIT ? ''
+                     : clShow === 'deleted'
                         ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 cl-restore-btn" data-id="' + c.id + '" style="font-size:.72rem">元に戻す</button>'
                         : '<button type="button" class="btn btn-link p-0 text-secondary cl-edit-btn" data-id="' + c.id + '" title="編集"><i class="bi bi-pencil"></i></button>')
                  +  '</td></tr>';

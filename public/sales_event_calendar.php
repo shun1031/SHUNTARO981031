@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
 // データ取得
 // ─────────────────────────────────────────────
 $clientFilter = (int)($_GET['client_id'] ?? 0);
-$empFilter    = getEmployeeNameFilter();
+$empFilter    = getSalesPageNameFilter();
 
 // 確定イベントカレンダー（詳細フィールド付き独自クエリ）
 $_startDate = sprintf('%04d-%02d-01', $year, $month);

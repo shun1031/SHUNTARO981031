@@ -20,7 +20,7 @@ if ($prevM < 1) { $prevM = 12; $prevY--; }
 $nextM = $month + 1; $nextY = $year;
 if ($nextM > 12) { $nextM = 1; $nextY++; }
 
-$empFilter  = getEmployeeNameFilter();
+$empFilter  = getSalesPageNameFilter();
 $yearlyData = getSalesClientReport($cid, $year,     $empFilter);
 $prevYearly = getSalesClientReport($cid, $year - 1, $empFilter);
 

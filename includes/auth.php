@@ -129,6 +129,17 @@ function canViewSalesPages(): bool {
 }
 
 /**
+ * 営業マン用画面での絞り込み条件
+ * 管理者・営業担当は全件（null）、それ以外は従来どおり自分の名前で絞り込む。
+ * ※シフト・日報・交通費など他の画面は従来どおり getEmployeeNameFilter() を使うこと。
+ *   共通側を変えると、それらの画面でも営業担当が全員分を見られてしまうため。
+ */
+function getSalesPageNameFilter(): ?string {
+    if (canViewSalesPages()) return null;
+    return getEmployeeNameFilter();
+}
+
+/**
  * 営業マン用画面の閲覧を要求する（管理者 または 営業担当のみ）
  * これらの画面は従来 requireAnyLogin() だけで守られており、
  * メニューに出していないだけで誰でもURLから開けたため、入口で明示的に確認する。

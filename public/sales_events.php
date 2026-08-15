@@ -23,7 +23,7 @@ $db = getDB();
 
 // CSV出力
 if (isset($_GET['export'])) {
-    $csvEmpFilter = getEmployeeNameFilter();
+    $csvEmpFilter = getSalesPageNameFilter();
     $filters = ['case_type' => 'event', 'year' => $_GET['year'] ?? '', 'month' => $_GET['month'] ?? '', 'client_id' => $_GET['client_id'] ?? '', 'status' => $_GET['status'] ?? '', 'employee_name' => $csvEmpFilter ?? ''];
     exportSalesCasesCsv($cid, $filters);
     exit;
@@ -159,7 +159,7 @@ if (isAdmin()) {
 // フィルタ
 $year = (int)($_GET['year'] ?? date('Y'));
 $month = $_GET['month'] ?? '';
-$empFilter = getEmployeeNameFilter();
+$empFilter = getSalesPageNameFilter();
 $filters = [
     'case_type' => 'event',
     'year' => $year,
@@ -282,19 +282,26 @@ else { foreach ($cases as $c):
         <span id="profit_<?= $c['id'] ?>"><?= number_format($c['gross_profit']) ?></span>
         <?php if ($c['sales_rep']): ?><div id="profit_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" data-zero="<?= $isZeroProfit ? 1 : 0 ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?php if ($isZeroProfit): ?>直営業 <?= number_format($otPro) ?><?php else: ?><?= h($c['sales_rep']) ?> <?= number_format($repPro) ?><br><?= h($splitTo) ?> <?= number_format($otPro) ?><?php endif; ?></div><?php endif; ?>
     </td>
+    <?php /* 稼働数の増減・編集・削除は管理者のみ。営業担当には数字のみ表示する */ ?>
     <td class="text-center" style="white-space:nowrap">
+        <?php if (isAdmin()): ?>
         <div class="d-flex align-items-center justify-content-center gap-1">
             <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,-1)">−</button>
             <input type="number" id="spin_<?= $c['id'] ?>" value="<?= (int)$c['days_worked'] ?>" min="0" class="form-control form-control-sm p-1 text-center" style="width:52px">
             <button type="button" class="btn btn-outline-secondary btn-sm px-2" onclick="adjustDays(<?= $c['id'] ?>,1)">＋</button>
         </div>
+        <?php else: ?>
+        <?= (int)$c['days_worked'] ?>
+        <?php endif; ?>
     </td>
     <td style="white-space:nowrap">
+        <?php if (isAdmin()): ?>
         <div class="d-flex gap-1 justify-content-end">
             <button class="btn btn-sm btn-outline-primary" onclick='editCase(<?= json_encode($c, JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)' title="編集"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= $c['id'] ?>)" title="削除"><i class="bi bi-trash"></i></button>
             <button class="btn btn-sm btn-outline-success" onclick="applyDays(<?= $c['id'] ?>)" title="金額反映"><i class="bi bi-arrow-repeat"></i></button>
         </div>
+        <?php endif; ?>
     </td>
 </tr><?php endforeach; }
 $tbodyHtml = ob_get_clean();
@@ -364,7 +371,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="fw-bold px-2" style="min-width:110px;text-align:center;font-size:.95rem"><?= $dispYear ?>年<?= $dispMonth ?>月</span>
                     <a href="?year=<?= $nextY ?>&month=<?= $nextM ?>" class="btn btn-outline-secondary btn-sm px-3" style="font-size:1rem">›</a>
                 </div>
+                <?php if (isAdmin()): /* 案件の追加は管理者のみ */ ?>
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#caseModal" onclick="resetCaseForm()"><i class="bi bi-plus-lg me-1"></i>案件追加</button>
+                <?php endif; ?>
             </div>
         </div>
     </div>

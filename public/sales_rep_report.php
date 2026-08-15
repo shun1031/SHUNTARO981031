@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     exit;
 }
 
-$empFilter   = getEmployeeNameFilter();
+$empFilter   = getSalesPageNameFilter();
 
 // 詳細モーダルの年度切替（該当担当者の12ヶ月分のみ返す軽量API）
 if (($_GET['ajax_rep_fy'] ?? '') === '1') {
@@ -375,6 +375,7 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
 var REP_FISCAL_DATA   = <?= json_encode($fiscalChartData, JSON_UNESCAPED_UNICODE) ?>;
 var REP_TARGET_DATA   = <?= json_encode($repTargetData, JSON_UNESCAPED_UNICODE) ?>;
 var REP_BASE_FY       = <?= (int)$year ?>;
+var REP_CAN_EDIT_TARGET = <?= isAdmin() ? 'true' : 'false' ?>;   // 売上目標の入力は管理者のみ
 var REP_TGT_CSRF      = '<?= h(getCsrfToken()) ?>';
 var _repFy            = REP_BASE_FY;   // 詳細モーダルで表示中の年度
 var _repFyLoading     = false;
@@ -651,9 +652,14 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     var cumPro = _sum(profits);
 
     var html = '';
-    // 1. 売上目標（手入力）
+    // 1. 売上目標（管理者は手入力可。営業担当は数字のみ表示）
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>';
     for (var i = 0; i < 12; i++) {
+        if (!REP_CAN_EDIT_TARGET) {
+            html += '<td class="text-end text-nowrap">'
+                 + (targets[i] > 0 ? targets[i].toLocaleString() : '<span class="text-muted">-</span>') + '</td>';
+            continue;
+        }
         html += '<td class="p-0"><input type="text" inputmode="numeric" class="rep-tgt-inp form-control form-control-sm border-0 text-end px-1"'
              + ' style="font-size:.72rem;height:24px;background:transparent" data-idx="' + i + '"'
              + ' value="' + (targets[i] > 0 ? targets[i].toLocaleString() : '') + '"></td>';

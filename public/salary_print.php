@@ -24,7 +24,8 @@ $incYear  = (int)$incDt->format('Y');
 $incMonth = (int)$incDt->format('n');
 
 $db    = getDB();
-$where = ["sc.company_id=?","sc.case_type='regular'","sc.worker_type='自社外注'",
+// 対象者は社員名簿の雇用形態で判定する（給与管理の一覧と同じ条件に揃える）
+$where = ["sc.company_id=?","sc.case_type='regular'","emp_w.employment_type='自社外注'",
           "sc.case_year=?","sc.case_month=?","sc.status!='cancelled'"];
 $params= [$cid, $workYear, $workMonth];
 
@@ -35,6 +36,7 @@ if (!empty($_GET['worker_name'])){ $where[] = 'sc.worker_name LIKE ?'; $params[]
 $stmt = $db->prepare("SELECT sc.id,sc.worker_name,sc.revenue,sc.gross_profit,
     COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name, sc.store_name, sc.carrier, sc.sales_rep
     FROM sales_cases sc LEFT JOIN sales_clients cl ON sc.client_id=cl.id
+    INNER JOIN employees emp_w ON emp_w.id = sc.worker_employee_id AND emp_w.company_id = sc.company_id
     WHERE ".implode(' AND ',$where)." ORDER BY sc.worker_name,sc.id");
 $stmt->execute($params);
 $rows = $stmt->fetchAll();

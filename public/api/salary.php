@@ -79,7 +79,9 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
     $db = getDB();
 
     // 常勤案件クエリ
-    $where  = ["sc.company_id = ?", "sc.case_type = 'regular'", "sc.worker_type = '自社外注'",
+    // 対象者は社員名簿の雇用形態で判定する（案件側のスタッフ区分ではなく名簿を正とする）
+    // 名簿に登録が無い稼働スタッフ（アライアンス等）は対象外になる
+    $where  = ["sc.company_id = ?", "sc.case_type = 'regular'", "emp_w.employment_type = '自社外注'",
                "sc.case_year = ?", "sc.case_month = ?", "sc.status != 'cancelled'"];
     $params = [$companyId, $workYear, $workMonth];
 
@@ -111,6 +113,10 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
                    COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name
             FROM sales_cases sc
             LEFT JOIN sales_clients cl ON sc.client_id = cl.id
+            -- 社員名簿と結び付いている稼働スタッフのみを対象にする（内部結合）
+            INNER JOIN employees emp_w
+                    ON emp_w.id = sc.worker_employee_id
+                   AND emp_w.company_id = sc.company_id
             WHERE " . implode(' AND ', $where) . "
             ORDER BY sc.worker_name, sc.id";
 

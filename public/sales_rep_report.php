@@ -479,102 +479,98 @@ function _drawRepChart(repName, data, targetsArg, fy) {
 
     // 目標が未入力(0)の月は線を引かない
     function _tgtLine()  { return targets.map(function(t) { return t > 0 ? t : null; }); }
-    function _achvLine() {
-        return targets.map(function(t, i) {
-            return t > 0 ? Math.round((revenues[i] || 0) / t * 1000) / 10 : null;
+    // ※売上達成率はグラフから外したため、表側の _updateAchv() のみで計算する
+    // 累計（年度の初め=9月から順に足し上げる）。既存の月別データを合計するだけで計算式は変えない
+    function _cum(arr) {
+        var sum = 0;
+        return arr.map(function(v) { sum += (v || 0); return sum; });
+    }
+    // 累計目標: 目標が未入力(0)の月は点を打たない（従来の「目標線を引かない」仕様に合わせる）
+    function _cumTgtLine() {
+        var sum = 0;
+        return targets.map(function(t) {
+            if (!t || t <= 0) return null;
+            sum += t;
+            return sum;
         });
     }
 
     if (_repChart) { _repChart.destroy(); _repChart = null; }
     var ctx = document.getElementById('repDetailChart').getContext('2d');
 
+    // 当月＝棒グラフ（左軸）／累計＝折れ線（右軸）
     _repChart = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: '売上',
+                    label: '当月売上',
+                    type: 'bar',
                     data: revenues,
+                    backgroundColor: '#60a5fa',
                     borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59,130,246,0.06)',
+                    borderWidth: 0,
                     yAxisID: 'y',
-                    tension: 0,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
+                    order: 3,
                     datalabels: { display: false },
                 },
                 {
-                    label: '粗利',
+                    label: '当月粗利',
+                    type: 'bar',
                     data: profits,
-                    borderColor: '#1e40af',
-                    backgroundColor: 'rgba(30,64,175,0.04)',
+                    backgroundColor: '#fbbf24',
+                    borderColor: '#f59e0b',
+                    borderWidth: 0,
                     yAxisID: 'y',
-                    tension: 0,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
+                    order: 3,
                     datalabels: { display: false },
                 },
                 {
-                    label: '粗利率',
-                    data: rates,
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245,158,11,0.06)',
+                    label: '累計売上',
+                    type: 'line',
+                    data: _cum(revenues),
+                    borderColor: '#2563eb',
+                    backgroundColor: '#2563eb',
+                    pointBackgroundColor: '#2563eb',
                     yAxisID: 'y2',
                     tension: 0,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#f59e0b',
-                    spanGaps: true,
-                    datalabels: {
-                        display: function(ctx) {
-                            var v = ctx.dataset.data[ctx.dataIndex];
-                            return v !== null && v !== undefined;
-                        },
-                        formatter: function(v) { return v + '%'; },
-                        color: '#d97706',
-                        font: { size: 11, weight: 'bold' },
-                        anchor: 'end',
-                        align: 'top',
-                        offset: 2,
-                    },
-                },
-                {
-                    label: '売上目標',
-                    data: _tgtLine(),
-                    borderColor: '#9ca3af',
-                    backgroundColor: 'rgba(156,163,175,0.06)',
-                    borderDash: [6, 4],
-                    yAxisID: 'y',
-                    tension: 0,
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    spanGaps: true,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderWidth: 2,
+                    order: 1,
                     datalabels: { display: false },
                 },
                 {
-                    label: '売上達成率',
-                    data: _achvLine(),
+                    label: '累計粗利',
+                    type: 'line',
+                    data: _cum(profits),
+                    borderColor: '#ea580c',
+                    backgroundColor: '#ea580c',
+                    pointBackgroundColor: '#ea580c',
+                    yAxisID: 'y2',
+                    tension: 0,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderWidth: 2,
+                    order: 1,
+                    datalabels: { display: false },
+                },
+                {
+                    label: '累計目標',
+                    type: 'line',
+                    data: _cumTgtLine(),
                     borderColor: '#059669',
                     backgroundColor: 'rgba(5,150,105,0.06)',
+                    borderDash: [6, 4],
                     yAxisID: 'y2',
                     tension: 0,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#059669',
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    borderWidth: 2,
                     spanGaps: true,
-                    datalabels: {
-                        display: function(ctx) {
-                            var v = ctx.dataset.data[ctx.dataIndex];
-                            return v !== null && v !== undefined;
-                        },
-                        formatter: function(v) { return v + '%'; },
-                        color: '#047857',
-                        font: { size: 11, weight: 'bold' },
-                        anchor: 'start',
-                        align: 'bottom',
-                        offset: 2,
-                    },
+                    order: 2,
+                    datalabels: { display: false },
                 },
             ],
         },
@@ -589,37 +585,40 @@ function _drawRepChart(repName, data, targetsArg, fy) {
                     callbacks: {
                         label: function(ctx) {
                             var v = ctx.parsed.y;
-                            // 右軸（粗利率・売上達成率）は%、左軸（売上・粗利・売上目標）は円
-                            if (ctx.dataset.yAxisID === 'y2') {
-                                return ' ' + ctx.dataset.label + ': ' + (v !== null && v !== undefined ? v + '%' : '-');
-                            }
-                            return ' ' + ctx.dataset.label + ': ' + (v ? v.toLocaleString() + '円' : '0円');
+                            // 当月・累計とも金額（円）
+                            if (v === null || v === undefined) return ' ' + ctx.dataset.label + ': -';
+                            return ' ' + ctx.dataset.label + ': ' + v.toLocaleString() + '円';
                         }
                     }
                 },
                 datalabels: { display: false },
             },
             scales: {
+                // 左軸: 当月の売上・粗利（万円）
                 y: {
                     type: 'linear',
                     position: 'left',
                     beginAtZero: true,
+                    title: { display: true, text: '（万円）', font: { size: 10 }, color: '#6b7280' },
                     ticks: {
                         callback: function(v) {
                             if (v === 0) return '0';
-                            return Math.round(v / 10000).toLocaleString() + '万';
+                            return Math.round(v / 10000).toLocaleString();
                         }
                     },
                     grid: { color: 'rgba(0,0,0,0.06)' },
                 },
+                // 右軸: 累計の売上・粗利・目標（万円）
                 y2: {
                     type: 'linear',
                     position: 'right',
                     beginAtZero: true,
-                    suggestedMax: 80,
+                    title: { display: true, text: '（万円）', font: { size: 10 }, color: '#6b7280' },
                     ticks: {
-                        callback: function(v) { return v + '%'; },
-                        stepSize: 20,
+                        callback: function(v) {
+                            if (v === 0) return '0';
+                            return Math.round(v / 10000).toLocaleString();
+                        }
                     },
                     grid: { drawOnChartArea: false },
                 },
@@ -677,13 +676,13 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     }
     for (var k = 0; k < 12; k++) _updateAchv(k);
 
-    // グラフの「売上目標」「売上達成率」を即時反映（再描画せずデータ差し替えのみ）
+    // 目標を入力したらグラフの「累計目標」を即時反映（再描画せずデータ差し替えのみ）
+    // ※累計売上・累計粗利は目標に影響されないため差し替え不要
     function _syncTargetSeries() {
         if (!_repChart || !_repChart.data) return;
         var ds = _repChart.data.datasets;
         if (ds.length < 5) return;
-        ds[3].data = _tgtLine();
-        ds[4].data = _achvLine();
+        ds[4].data = _cumTgtLine();
         _repChart.update();
     }
 

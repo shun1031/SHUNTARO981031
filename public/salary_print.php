@@ -86,17 +86,39 @@ try {
     foreach ($_op->fetchAll() as $_r) { $ovrMapP[$_r['worker_name']] = (int)$_r['amount']; }
 } catch (PDOException $e) { /* テーブル未作成時は無視 */ }
 
+// 追加支給（交通費・役職者給など）。給与管理の一覧と同じ内容を印刷する
+$addMapP = [];
+try {
+    $_ap = getDB()->prepare("SELECT worker_name, amount, reason FROM salary_additional_payments
+        WHERE company_id = ? AND pay_year = ? AND pay_month = ? ORDER BY id");
+    $_ap->execute([$cid, $payYear, $payMonth]);
+    foreach ($_ap->fetchAll() as $_r) {
+        $_n = $_r['worker_name'];
+        if (!isset($addMapP[$_n])) $addMapP[$_n] = ['amount' => 0, 'reasons' => []];
+        $addMapP[$_n]['amount'] += (int)$_r['amount'];
+        if (trim((string)$_r['reason']) !== '') $addMapP[$_n]['reasons'][] = trim($_r['reason']);
+    }
+} catch (PDOException $e) { /* テーブル未作成時は無視 */ }
+
 $staffList = [];
 foreach ($staffMap as $n => $s) {
     if (array_key_exists($n, $ovrMapP)) { $s['regular_salary'] = $ovrMapP[$n]; }
     $rate = getIncRateP($n);
     $sp   = $incMap[$n] ?? 0;
     $inc  = ($rate>0 && $sp>0) ? (int)round($sp*$rate) : 0;
-    $staffList[] = array_merge($s, ['incentive'=>$inc,'total'=>$s['regular_salary']+$inc]);
+    $add  = $addMapP[$n]['amount'] ?? 0;
+    $addReason = isset($addMapP[$n]) ? implode('・', $addMapP[$n]['reasons']) : '';
+    $staffList[] = array_merge($s, [
+        'additional'   => $add,
+        'add_reason'   => $addReason,
+        'incentive'    => $inc,
+        'total'        => $s['regular_salary'] + $add + $inc,
+    ]);
 }
 usort($staffList, fn($a,$b) => strcmp($a['worker_name'],$b['worker_name']));
 
 $regTotal = array_sum(array_column($staffList,'regular_salary'));
+$addTotal = array_sum(array_column($staffList,'additional'));
 $incTotal = array_sum(array_column($staffList,'incentive'));
 $grandTotal= array_sum(array_column($staffList,'total'));
 
@@ -126,6 +148,7 @@ tfoot td{font-weight:700;background:#f0fdf4}
 <thead><tr>
 <th>スタッフ名</th><th>案件数</th>
 <th>常勤案件売上（7割）</th>
+<th>追加支給</th>
 <th>インセンティブ費用</th>
 <th>総支給額</th>
 </tr></thead>
@@ -135,6 +158,7 @@ tfoot td{font-weight:700;background:#f0fdf4}
 <td class="fw-bold"><?= h($s['worker_name']) ?></td>
 <td class="center"><?= $s['case_count'] ?>件</td>
 <td class="right"><?= yp($s['regular_salary']) ?></td>
+<td class="right"><?= yp($s['additional']) ?><?php if ($s['add_reason'] !== ''): ?><br><span style="font-size:8pt;color:#6b7280"><?= h($s['add_reason']) ?></span><?php endif; ?></td>
 <td class="right orange"><?= yp($s['incentive']) ?></td>
 <td class="right blue"><?= yp($s['total']) ?></td>
 </tr>
@@ -143,6 +167,7 @@ tfoot td{font-weight:700;background:#f0fdf4}
 <tfoot><tr>
 <td colspan="2" class="right">合計</td>
 <td class="right"><?= yp($regTotal) ?></td>
+<td class="right"><?= yp($addTotal) ?></td>
 <td class="right orange"><?= yp($incTotal) ?></td>
 <td class="right blue"><?= yp($grandTotal) ?></td>
 </tr></tfoot>

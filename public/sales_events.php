@@ -27,6 +27,10 @@ if (isset($_GET['export'])) {
     exit;
 }
 
+// 案件の追加・編集・削除・稼働数変更・前月コピーは管理者のみ
+// （画面のボタンを隠すだけでは防げないため、受け口の入口で確認する）
+if ($_SERVER['REQUEST_METHOD'] === 'POST') { requireAdminWrite(($_POST['action'] ?? '') === 'update_days'); }
+
 // AJAX: 稼働数・金額更新（JSON返却）
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_days' && verifyCsrfToken($_POST['csrf'] ?? '')) {
     header('Content-Type: application/json');

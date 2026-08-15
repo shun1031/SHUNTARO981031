@@ -93,6 +93,25 @@ function isAdmin(): bool {
 }
 
 /**
+ * データを変更する操作は管理者のみに許可する
+ * 画面のボタンを隠すだけでは、URLやAPIを直接呼ばれた場合に防げないため、
+ * 保存・削除を行う処理そのものの入口で必ず確認する。
+ * ※日報提出・交通費申請など、一般社員が正当に行う操作には使わないこと
+ * @param bool $json JSONを返すAPIならtrue（画面用HTMLではなくJSONで返す）
+ */
+function requireAdminWrite(bool $json = false): void {
+    if (isAdmin()) return;
+    http_response_code(403);
+    if ($json) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'この操作を行う権限がありません'], JSON_UNESCAPED_UNICODE);
+    } else {
+        echo 'この操作を行う権限がありません';
+    }
+    exit;
+}
+
+/**
  * 現在のユーザーのemployee_idを取得
  */
 function getSessionEmployeeId(): ?int {

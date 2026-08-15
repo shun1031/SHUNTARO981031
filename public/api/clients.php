@@ -38,6 +38,9 @@ function clientRowOut(array $r): array {
 
 $action = $_POST['action'] ?? '';
 
+// 取引先の追加・編集・削除は管理者のみ（一覧の取得は従来どおり閲覧可）
+if ($_SERVER['REQUEST_METHOD'] === 'POST') { requireAdminWrite(true); }
+
 // ───────── 一覧取得 ─────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $q    = trim($_GET['q'] ?? '');

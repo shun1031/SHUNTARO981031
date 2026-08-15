@@ -77,6 +77,9 @@ function esDecodeDetail(?string $json): ?array {
 
 $action = $_REQUEST['action'] ?? '';
 
+// 正社員給与の保存・削除・読み取り取り込みは管理者のみ（GETでの閲覧は従来どおり）
+if ($_SERVER['REQUEST_METHOD'] === 'POST') { requireAdminWrite(true); }
+
 // ─── 明細画像 ───
 if ($action === 'slip' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $empId = (int)($_GET['employee_id'] ?? 0);

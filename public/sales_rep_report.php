@@ -20,6 +20,8 @@ if ($nextM > 12) { $nextM = 1; $nextY++; }
 
 // 担当者別 月別売上目標の保存（AJAX / 集計クエリの前に処理して軽量に返す）
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_rep_target') {
+    // 売上目標の入力・保存は管理者のみ
+    requireAdminWrite(true);
     header('Content-Type: application/json; charset=utf-8');
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'csrf']); exit; }
     session_write_close(); // 連続入力で後続リクエストをブロックしない

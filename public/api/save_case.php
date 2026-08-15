@@ -7,6 +7,8 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/functions.php';
 header('Content-Type: application/json; charset=utf-8');
 requireAnyLogin();
+// 案件の追加・編集・削除は管理者のみ（画面のボタンを隠すだけでは防げないためここで確認する）
+requireAdminWrite(true);
 $cid = getCompanyId();
 if (!$cid) { echo json_encode(['error' => 'Unauthorized']); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'Method not allowed']); exit; }

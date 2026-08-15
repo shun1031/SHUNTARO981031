@@ -251,6 +251,8 @@ function buildSalaryData(int $companyId, int $payYear, int $payMonth, array $fil
 // POST: 追加支給の保存
 // ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // 給与データの保存は管理者のみ
+    requireAdminWrite(true);
     header('Content-Type: application/json; charset=UTF-8');
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     if (!verifyCsrfToken($input['csrf'] ?? '')) {

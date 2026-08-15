@@ -3,6 +3,8 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 requireAnyLogin();
+// 営業マン用画面: 管理者または営業担当のみ閲覧可（URL直打ちでも弾く）
+requireSalesPageView();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 requireRole('super_admin', 'company_admin');

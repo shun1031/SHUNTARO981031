@@ -129,6 +129,23 @@ function canViewSalesPages(): bool {
 }
 
 /**
+ * 営業マン用画面の閲覧を要求する（管理者 または 営業担当のみ）
+ * これらの画面は従来 requireAnyLogin() だけで守られており、
+ * メニューに出していないだけで誰でもURLから開けたため、入口で明示的に確認する。
+ */
+function requireSalesPageView(): void {
+    if (canViewSalesPages()) return;
+    http_response_code(403);
+    echo '<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>アクセス拒否</title></head>';
+    echo '<body style="font-family:sans-serif;text-align:center;padding:80px">';
+    echo '<h1>403 アクセス権限がありません</h1>';
+    echo '<p>この画面は営業担当の方のみ閲覧できます。</p>';
+    echo '<a href="' . BASE_PATH . '/public/index.php">ダッシュボードへ戻る</a>';
+    echo '</body></html>';
+    exit;
+}
+
+/**
  * データを変更する操作は管理者のみに許可する
  * 画面のボタンを隠すだけでは、URLやAPIを直接呼ばれた場合に防げないため、
  * 保存・削除を行う処理そのものの入口で必ず確認する。

@@ -60,6 +60,21 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/sales_transport.php', 'bi-car-front', '交通費申請', $currentPage === 'sales_transport') ?>
         <?= navLink(BASE_PATH . '/employee/requests.php', 'bi-pencil-square', '各種申請', $currentDir === 'employee' && $currentPage === 'requests', $pendingMyReq ? (string)$pendingMyReq : '') ?>
 
+        <?php if (isSalesRep()): ?>
+        <?php /* 営業担当のみ表示。閲覧専用（データ変更は管理者のみに制限済み）。並びは管理者メニューと同じ順 */ ?>
+        <?= navSection('営業メニュー') ?>
+        <?= navLink(BASE_PATH . '/public/sales_events.php', 'bi-calendar-event', 'イベント案件', $currentPage === 'sales_events') ?>
+        <?= navLink(BASE_PATH . '/public/sales_regular.php', 'bi-person-workspace', '常勤案件', $currentPage === 'sales_regular') ?>
+        <?= navLink(BASE_PATH . '/public/case_stores.php', 'bi-shop', '案件店舗管理', $currentPage === 'case_stores') ?>
+        <?= navLink(BASE_PATH . '/public/sales_event_calendar.php', 'bi-calendar-range', 'イベントカレンダー', $currentPage === 'sales_event_calendar') ?>
+        <?= navLink(BASE_PATH . '/public/alliance_staff.php', 'bi-people', 'アライアンス人員管理', $currentPage === 'alliance_staff') ?>
+        <?= navLink(BASE_PATH . '/public/clients.php', 'bi-people-fill', '取引先一覧', $currentPage === 'clients') ?>
+        <?= navLink(BASE_PATH . '/public/sales_client_report.php', 'bi-building', '取引先別売上', $currentPage === 'sales_client_report') ?>
+        <?= navLink(BASE_PATH . '/public/sales_rep_report.php', 'bi-person-badge', '担当者別売上', $currentPage === 'sales_rep_report') ?>
+        <?= navLink(BASE_PATH . '/public/sales_carrier_report.php', 'bi-reception-4', 'キャリア別売上', $currentPage === 'sales_carrier_report') ?>
+        <?= navLink(BASE_PATH . '/public/sales_cost.php', 'bi-building', 'アライアンス別売上', in_array($currentPage, ['sales_cost', 'sales_cost_detail'])) ?>
+        <?php endif; ?>
+
         <?php else: ?>
 
         <?= navSection('売上管理') ?>

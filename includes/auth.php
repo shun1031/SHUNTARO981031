@@ -93,6 +93,42 @@ function isAdmin(): bool {
 }
 
 /**
+ * ログイン中のユーザーが社員一覧で「営業担当」にチェックされているか
+ * 判定は employees.sales_rep_flag（在籍中の正社員・自社外注のみ）を見る。
+ * ※第2段階として用意した判定。まだどの画面からも呼ばれていない
+ */
+function isSalesRep(): bool {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = false;
+    $empId = getSessionEmployeeId();
+    if (!$empId) return $cache;
+    try {
+        $sql = "SELECT sales_rep_flag FROM employees
+                WHERE id = ? AND is_active = 1
+                  AND employment_type IN ('正社員', '自社外注')";
+        $params = [$empId];
+        $cid = getCompanyId();
+        if ($cid) { $sql .= ' AND company_id = ?'; $params[] = $cid; }
+        $stmt = getDB()->prepare($sql);
+        $stmt->execute($params);
+        $cache = ((int)$stmt->fetchColumn() === 1);
+    } catch (PDOException $e) {
+        // 列が未追加の環境では営業担当なしとして扱う（既存の動作を変えないため）
+        error_log('[isSalesRep] ' . $e->getMessage());
+    }
+    return $cache;
+}
+
+/**
+ * 営業マン用画面を閲覧できるか（管理者は従来どおり全画面を閲覧可）
+ * ※第2段階として用意した判定。まだどの画面からも呼ばれていない
+ */
+function canViewSalesPages(): bool {
+    return isAdmin() || isSalesRep();
+}
+
+/**
  * データを変更する操作は管理者のみに許可する
  * 画面のボタンを隠すだけでは、URLやAPIを直接呼ばれた場合に防げないため、
  * 保存・削除を行う処理そのものの入口で必ず確認する。

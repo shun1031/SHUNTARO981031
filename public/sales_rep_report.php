@@ -357,7 +357,7 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
                     <canvas id="repDetailChart"></canvas>
                 </div>
                 <div class="mt-3" style="overflow-x:auto">
-                    <table class="table table-sm table-bordered mb-0 text-center rep-detail-table" style="font-size:.72rem;min-width:680px">
+                    <table class="table table-sm table-bordered mb-0 text-center rep-detail-table" style="font-size:.72rem;min-width:760px">
                         <thead class="table-light" id="repDetailThead"></thead>
                         <tbody id="repDetailTbody"></tbody>
                     </table>
@@ -629,14 +629,22 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     // 月別数値テーブル（売上目標 → 売上 → 売上達成率 → 粗利 → 粗利率）
     var thead = document.getElementById('repDetailThead');
     var tbody = document.getElementById('repDetailTbody');
+    // 累計列（末尾）: 背景色を付けて月別と区切る。率は総合ダッシュボードと同じく合計同士で割る
+    var CUM_TD = ' class="text-end text-nowrap fw-semibold" style="background:#f1f5f9"';
     thead.innerHTML = '<tr><th style="min-width:56px">月</th>' +
-        labels.map(function(m) { return '<th class="text-end">' + m + '</th>'; }).join('') + '</tr>';
+        labels.map(function(m) { return '<th class="text-end">' + m + '</th>'; }).join('') +
+        '<th class="text-end" style="background:#e2e8f0;min-width:78px">累計</th></tr>';
     var fmtV = function(v) {
         return v > 0 ? '<span>' + v.toLocaleString() + '</span>' : '<span class="text-muted">-</span>';
     };
     var fmtR = function(v) {
         return v !== null ? '<span style="color:#d97706;font-weight:600">' + v + '%</span>' : '<span class="text-muted">-</span>';
     };
+    var _sum = function(arr) {
+        return arr.reduce(function(a, b) { return a + (b || 0); }, 0);
+    };
+    var cumRev = _sum(revenues);
+    var cumPro = _sum(profits);
 
     var html = '';
     // 1. 売上目標（手入力）
@@ -646,22 +654,26 @@ function _drawRepChart(repName, data, targetsArg, fy) {
              + ' style="font-size:.72rem;height:24px;background:transparent" data-idx="' + i + '"'
              + ' value="' + (targets[i] > 0 ? targets[i].toLocaleString() : '') + '"></td>';
     }
-    html += '</tr>';
+    // 累計は入力欄にせず自動計算（各月と合計がずれないようにするため）
+    html += '<td' + CUM_TD + ' id="repCumTgt"></td></tr>';
     // 2. 売上
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上</td>'
-         + revenues.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('') + '</tr>';
+         + revenues.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('')
+         + '<td' + CUM_TD + '>' + fmtV(cumRev) + '</td></tr>';
     // 3. 売上達成率（売上 ÷ 売上目標 × 100）
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上達成率</td>';
     for (var j = 0; j < 12; j++) {
         html += '<td class="text-end text-nowrap" id="repAchv' + j + '"></td>';
     }
-    html += '</tr>';
+    html += '<td' + CUM_TD + ' id="repCumAchv"></td></tr>';
     // 4. 粗利
     html += '<tr><td class="fw-semibold text-start text-nowrap">粗利</td>'
-         + profits.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('') + '</tr>';
-    // 5. 粗利率
+         + profits.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('')
+         + '<td' + CUM_TD + '>' + fmtV(cumPro) + '</td></tr>';
+    // 5. 粗利率（粗利の合計 ÷ 売上の合計。総合ダッシュボードと同じ求め方）
     html += '<tr><td class="fw-semibold text-start text-nowrap">粗利率</td>'
-         + rates.map(function(v) { return '<td class="text-end text-nowrap">' + fmtR(v) + '</td>'; }).join('') + '</tr>';
+         + rates.map(function(v) { return '<td class="text-end text-nowrap">' + fmtR(v) + '</td>'; }).join('')
+         + '<td' + CUM_TD + '>' + fmtR(cumRev > 0 ? Math.round(cumPro / cumRev * 1000) / 10 : null) + '</td></tr>';
     tbody.innerHTML = html;
 
     // 達成率セルの更新（目標未入力・0なら「-」）
@@ -674,7 +686,23 @@ function _drawRepChart(repName, data, targetsArg, fy) {
         var pct = Math.round(rev / tgt * 1000) / 10;
         cell.innerHTML = '<span style="font-weight:600;color:' + (pct >= 100 ? '#059669' : '#dc2626') + '">' + pct + '%</span>';
     }
+    // 累計の「売上目標」「売上達成率」は目標の入力に応じて変わるため、その都度計算し直す
+    function _updateCum() {
+        var cumTgt = _sum(targets);
+        var tCell = document.getElementById('repCumTgt');
+        var aCell = document.getElementById('repCumAchv');
+        if (tCell) tCell.innerHTML = fmtV(cumTgt);
+        if (aCell) {
+            if (cumTgt <= 0) { aCell.innerHTML = '<span class="text-muted">-</span>'; }
+            else {
+                var pct = Math.round(cumRev / cumTgt * 1000) / 10;
+                aCell.innerHTML = '<span style="font-weight:600;color:' + (pct >= 100 ? '#059669' : '#dc2626') + '">' + pct + '%</span>';
+            }
+        }
+    }
+
     for (var k = 0; k < 12; k++) _updateAchv(k);
+    _updateCum();
 
     // 目標を入力したらグラフの「累計目標」を即時反映（再描画せずデータ差し替えのみ）
     // ※累計売上・累計粗利は目標に影響されないため差し替え不要
@@ -692,6 +720,7 @@ function _drawRepChart(repName, data, targetsArg, fy) {
             var idx = parseInt(inp.dataset.idx, 10);
             targets[idx] = Math.max(0, parseInt(String(inp.value).replace(/[^0-9]/g, ''), 10) || 0);
             _updateAchv(idx);
+            _updateCum();
             _syncTargetSeries();
         });
         inp.addEventListener('change', function() {

@@ -14,13 +14,14 @@ $db  = getDB();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 
-$pageTitle = '担当者IDの移行確認';
+$pageTitle = '担当者・稼働スタッフIDの移行確認';
 
 // 対象3項目（案件側のカラム名 => 表示名, IDカラム名）
 $targets = [
-    'sales_rep' => ['営業担当', 'sales_rep_id'],
-    'manager'   => ['管理者',   'manager_id'],
-    'recruiter' => ['採用者',   'recruiter_id'],
+    'sales_rep'   => ['営業担当',     'sales_rep_id'],
+    'manager'     => ['管理者',       'manager_id'],
+    'recruiter'   => ['採用者',       'recruiter_id'],
+    'worker_name' => ['稼働スタッフ', 'worker_employee_id'],
 ];
 
 // ------------------------------------------------------------------
@@ -100,8 +101,8 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="container-fluid">
     <div class="page-header">
-        <h1><i class="bi bi-link-45deg me-2"></i>担当者IDの移行確認</h1>
-        <p>案件の担当者名が社員名簿と結び付いているかの確認ページです。データは変更しません。</p>
+        <h1><i class="bi bi-link-45deg me-2"></i>担当者・稼働スタッフIDの移行確認</h1>
+        <p>案件に入力された氏名が社員名簿と結び付いているかの確認ページです。データは変更しません。</p>
     </div>
 
     <?php if (!$columnReady): ?>

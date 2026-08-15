@@ -285,6 +285,11 @@ $migrations = [
     "ALTER TABLE sales_cases ADD COLUMN recruiter_id INT DEFAULT NULL COMMENT '採用者の社員ID（名前と併存）'",
     "ALTER TABLE sales_cases ADD INDEX idx_cases_rep_ids (company_id, sales_rep_id)",
 
+    // ---- sales_cases: 稼働スタッフの社員ID ----
+    // ※既存の worker_id は sales_workers への外部キーのため流用できない。社員名簿用に別途持つ
+    "ALTER TABLE sales_cases ADD COLUMN worker_employee_id INT DEFAULT NULL COMMENT '稼働スタッフの社員ID（名前と併存）'",
+    "ALTER TABLE sales_cases ADD INDEX idx_cases_worker_emp (company_id, worker_employee_id)",
+
     // ---- sales_clients: 取引先一覧（表記名・連絡先・契約書のGoogleドライブ紐付け） ----
     "ALTER TABLE sales_clients ADD COLUMN display_name VARCHAR(100) DEFAULT NULL COMMENT '表記名（アプリ内表示名）'",
     "ALTER TABLE sales_clients ADD COLUMN email VARCHAR(191) DEFAULT NULL COMMENT '担当者メールアドレス'",

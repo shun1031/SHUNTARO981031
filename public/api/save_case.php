@@ -64,6 +64,8 @@ if ($action === 'create' || $action === 'update') {
         'sales_rep_id'   => resolveEmployeeIdByName($cid, $data['sales_rep'] ?? ''),
         'manager_id'     => resolveEmployeeIdByName($cid, $data['manager_name'] ?? ''),
         'recruiter_id'   => resolveEmployeeIdByName($cid, $data['recruiter_name'] ?? ''),
+        // 稼働スタッフの社員ID（名簿に無い外部スタッフはNULLのまま）
+        'worker_employee_id' => resolveEmployeeIdByName($cid, $data['worker_name'] ?? ''),
         // 予算区分: 常勤の1次案件のみ保持。それ以外は必ずクリアする
         'budget_division' => ($caseType === 'regular' && ($data['case_division'] ?? '') === '1次')
                              ? (trim($data['budget_division'] ?? '') ?: null)

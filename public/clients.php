@@ -7,7 +7,7 @@ requireAnyLogin();
 requireSalesPageView();
 $cid = getCompanyId();
 if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
-requireRole('super_admin', 'company_admin');
+// 権限は上の requireSalesPageView() で確認済み（管理者 または 営業担当）
 
 $pageTitle = '取引先一覧';
 $extraCss  = ['sales.css'];

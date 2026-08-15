@@ -6,7 +6,8 @@ requireAnyLogin();
 // 営業マン用画面: 管理者または営業担当のみ閲覧可（URL直打ちでも弾く）
 requireSalesPageView();
 $cid = getCompanyId();
-if (!$cid || !isAdmin()) { redirect(BASE_PATH . '/public/index.php'); }
+// 権限は上の requireSalesPageView() で確認済み（管理者 または 営業担当）
+if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 
 $pageTitle = 'アライアンス人員管理';
 $extraCss  = ['sales.css'];

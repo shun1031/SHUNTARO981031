@@ -157,8 +157,8 @@ if ($action === 'reps') {
             WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.sales_rep != ''
               AND " . SM_FY_WHERE . " {$divCond}
         ) t
-        WHERE name NOT IN ('直営業', '', '該当者なし')
-        GROUP BY name";
+        WHERE t.name NOT IN ('直営業', '', '該当者なし')
+        GROUP BY t.name";
     $stmt = $db->prepare($revSql);
     $stmt->execute([$cid, $fy - 1, $fy, $cid, $fy - 1, $fy]);
     $revMap = [];
@@ -170,7 +170,7 @@ if ($action === 'reps') {
         FROM sales_cases sc " . SM_REP_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.client_id IS NOT NULL
           AND " . SM_FY_WHERE . " {$divCond}
-        GROUP BY name";
+        GROUP BY " . SM_REP_NAME;
     $stmt = $db->prepare($clientSql);
     $stmt->execute([$cid, $fy - 1, $fy]);
     $clientMap = [];
@@ -184,7 +184,7 @@ if ($action === 'reps') {
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND sc.worker_type = 'アライアンス' AND sc.alliance_id IS NOT NULL
           AND " . SM_FY_WHERE . " {$divCond}
-        GROUP BY name";
+        GROUP BY " . SM_MGR_NAME;
     $stmt = $db->prepare($allianceSql);
     $stmt->execute([$cid, $fy - 1, $fy]);
     $allianceMap = [];
@@ -238,7 +238,7 @@ if ($action === 'companies') {
           AND " . SM_FY_WHERE . "
           AND " . SM_REP_NAME . " = ?
           {$divCond}
-        GROUP BY cl.id, client_name, division
+        GROUP BY cl.id, cl.display_name, cl.client_name, {$divExpr}
         ORDER BY month_revenue DESC, fy_revenue DESC, client_name";
     $stmt = $db->prepare($sql);
     $stmt->execute([$curYear, $curMon, $cid, $fy - 1, $fy, $rep]);

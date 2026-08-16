@@ -73,6 +73,11 @@ if ($action === 'create' || $action === 'update') {
                              ? (trim($data['budget_division'] ?? '') ?: null)
                              : null,
     ];
+    // 光AD（戦略会議のみで使用）: 常勤案件フォームから送られてきたときだけ保存する。
+    // イベント案件フォームにはこの項目が無いのでキーごと渡さず、既存の値をそのまま残す
+    if (array_key_exists('hikari_ad_flag', $data)) {
+        $caseData['hikari_ad_flag'] = !empty($data['hikari_ad_flag']) ? 1 : 0;
+    }
     if ($caseType === 'regular') {
         $caseData['gross_profit_direct'] = $caseData['unit_price_in'] - $caseData['unit_price_out'];
     }

@@ -304,6 +304,16 @@ $migrations = [
 
     // ---- sales_frame_targets: 月別枠数目標テーブル ----
     "CREATE TABLE IF NOT EXISTS sales_frame_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, case_type VARCHAR(20) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_first_frame INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sft (company_id, case_type, year, month), INDEX idx_sft_company (company_id, case_type, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- sales_cases: 光ADフラグ（戦略会議画面でのみ使用） ----
+    // 常勤案件のみで入力する。既存の集計・画面はこの列を参照しないため数字は変わらない。
+    // DEFAULT 0 なので既存案件はすべて「光ADでない」として扱われる（データ書き換えなし）
+    "ALTER TABLE sales_cases ADD COLUMN hikari_ad_flag TINYINT(1) NOT NULL DEFAULT 0 COMMENT '光AD（戦略会議のみで使用）'",
+    "ALTER TABLE sales_cases ADD INDEX idx_cases_hikari_ad (company_id, hikari_ad_flag)",
+
+    // ---- strategy_meeting_memos: 戦略会議の企業メモ（企業ごとに1件） ----
+    // 戦略会議画面だけが読み書きする。既存テーブルには一切書き込まない
+    "CREATE TABLE IF NOT EXISTS strategy_meeting_memos (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, client_id INT NOT NULL, memo TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smm (company_id, client_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 $ok = 0;

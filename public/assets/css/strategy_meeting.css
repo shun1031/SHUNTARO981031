@@ -1,0 +1,350 @@
+/* ============================================================
+   戦略会議画面 専用スタイル
+   このファイルは strategy_meeting.php からのみ読み込まれる。
+   既存の style.css / sales.css には一切手を加えていない。
+   ============================================================ */
+
+.sm-wrap {
+    --sm-blue:        #1e50a0;
+    --sm-blue-strong: #2563eb;
+    --sm-blue-soft:   #e8f0fe;
+    --sm-green:       #16a34a;
+    --sm-amber:       #f5a524;
+    --sm-border:      #dfe3e8;
+    --sm-border-soft: #eceff3;
+    --sm-text:        #1f2937;
+    --sm-muted:       #6b7280;
+    --sm-panel-bg:    #ffffff;
+    color: var(--sm-text);
+}
+
+/* ---- 全体レイアウト: 左=営業マン / 右=企業一覧＋年推移 ---- */
+.sm-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+@media (max-width: 1199.98px) {
+    .sm-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.sm-panel {
+    background: var(--sm-panel-bg);
+    border: 1px solid var(--sm-border);
+    border-radius: 14px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.sm-panel + .sm-panel { margin-top: 1.25rem; }
+
+.sm-panel-title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--sm-blue);
+    margin: 0;
+}
+.sm-panel-title i { font-size: 1.25rem; }
+.sm-panel-lead {
+    margin: .4rem 0 0;
+    font-size: .8rem;
+    color: var(--sm-muted);
+}
+
+/* 戻る矢印つきの見出し（担当企業一覧・年推移） */
+.sm-subpanel-head {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-bottom: 1rem;
+}
+.sm-back {
+    border: none;
+    background: transparent;
+    color: var(--sm-blue);
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: .15rem .3rem;
+    border-radius: 6px;
+}
+.sm-back:hover { background: var(--sm-blue-soft); }
+.sm-subpanel-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--sm-blue);
+    margin: 0;
+}
+
+/* ---- 区分の切替ボタン ---- */
+.sm-filter { display: flex; flex-wrap: wrap; gap: .4rem; }
+.sm-filter-btn {
+    border: 1px solid var(--sm-border);
+    background: #fff;
+    color: var(--sm-muted);
+    font-size: .78rem;
+    font-weight: 600;
+    padding: .34rem .9rem;
+    border-radius: 8px;
+    line-height: 1.4;
+}
+.sm-filter-btn:hover { border-color: var(--sm-blue-strong); color: var(--sm-blue-strong); }
+.sm-filter-btn.active {
+    background: var(--sm-blue-strong);
+    border-color: var(--sm-blue-strong);
+    color: #fff;
+}
+
+/* ============================================================
+   営業マンカード
+   ============================================================ */
+.sm-rep-list { display: flex; flex-direction: column; gap: .85rem; margin-top: 1rem; }
+
+/* カード本体と「＋」ボタンを横並びにするための行 */
+.sm-rep-row { display: flex; align-items: stretch; gap: 0; }
+
+.sm-rep-card {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #fff;
+    border: 1px solid var(--sm-border);
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+}
+.sm-rep-row.is-active .sm-rep-card {
+    border-color: var(--sm-blue-strong);
+    box-shadow: 0 0 0 1px var(--sm-blue-strong) inset;
+}
+
+.sm-rep-ident {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    min-width: 118px;
+    flex: 0 0 auto;
+}
+.sm-rep-avatar {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.7rem;
+    color: #9aa3af;
+    line-height: 1;
+}
+.sm-rep-row.is-active .sm-rep-avatar { color: var(--sm-blue-strong); }
+.sm-rep-name { font-weight: 700; font-size: .95rem; white-space: nowrap; }
+
+.sm-rep-stats {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.sm-stat {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .84rem;
+}
+.sm-stat-ico { width: 20px; text-align: center; font-size: .95rem; flex: 0 0 auto; }
+.sm-stat-ico.is-client   { color: var(--sm-blue-strong); }
+.sm-stat-ico.is-alliance { color: var(--sm-green); }
+.sm-stat-ico.is-revenue  { color: var(--sm-amber); }
+.sm-stat-label { color: #374151; flex: 1 1 auto; }
+.sm-stat-value { font-weight: 700; white-space: nowrap; }
+
+/* 分岐の「＋」ボタンと接続線 */
+.sm-rep-branch {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding-left: 14px;
+}
+.sm-rep-branch::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    width: 14px; height: 1px;
+    background: var(--sm-border);
+}
+.sm-branch-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: var(--sm-blue-strong);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; line-height: 1;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, .35);
+}
+.sm-branch-btn:hover { background: var(--sm-blue); }
+
+/* ============================================================
+   担当企業一覧
+   ============================================================ */
+.sm-company-list { display: flex; flex-direction: column; gap: .7rem; }
+
+.sm-company-card {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 1px solid var(--sm-border);
+    border-radius: 12px;
+    padding: .85rem 1rem;
+}
+.sm-company-card:hover { border-color: var(--sm-blue-strong); }
+.sm-company-card.is-active {
+    border-color: var(--sm-blue-strong);
+    box-shadow: 0 0 0 1px var(--sm-blue-strong) inset;
+}
+
+.sm-company-ico {
+    width: 34px; height: 34px;
+    flex: 0 0 auto;
+    border-radius: 9px;
+    background: var(--sm-blue-soft);
+    color: var(--sm-blue-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.05rem;
+}
+.sm-company-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 700;
+    font-size: .9rem;
+    overflow-wrap: anywhere;
+}
+.sm-company-metrics {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 1.4rem;
+}
+.sm-metric { min-width: 0; }
+.sm-metric-label {
+    font-size: .62rem;
+    color: var(--sm-muted);
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.sm-metric-value {
+    font-size: .92rem;
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.sm-company-chevron { flex: 0 0 auto; color: #9aa3af; font-size: 1.05rem; }
+
+@media (max-width: 575.98px) {
+    .sm-company-card { flex-wrap: wrap; }
+    .sm-company-metrics { width: 100%; justify-content: space-between; gap: .6rem; }
+}
+
+/* ============================================================
+   年推移（期別）
+   ============================================================ */
+.sm-trend-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-bottom: .9rem;
+}
+.sm-trend-period { font-size: .84rem; font-weight: 600; }
+
+.sm-metric-switch { display: flex; gap: .3rem; }
+.sm-metric-switch button {
+    border: 1px solid var(--sm-border);
+    background: #fff;
+    color: var(--sm-muted);
+    font-size: .76rem;
+    font-weight: 600;
+    padding: .3rem .85rem;
+    border-radius: 7px;
+}
+.sm-metric-switch button.active {
+    background: var(--sm-blue-strong);
+    border-color: var(--sm-blue-strong);
+    color: #fff;
+}
+
+.sm-trend-body {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+@media (max-width: 991.98px) {
+    .sm-trend-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Chart.js はキャンバスの親要素のサイズを見て描画する。
+   キャンバス自体に width/height を指定すると幅0になって描画されないため、
+   高さは必ず親側（.sm-chart-box）に持たせること */
+.sm-chart-box {
+    position: relative;
+    height: 288px;
+    border: 1px solid var(--sm-border-soft);
+    border-radius: 10px;
+    padding: .75rem;
+}
+/* 念のための保険。ウィンドウ幅を縮めた直後でもキャンバスがはみ出さないようにする */
+.sm-chart-canvas { display: block; max-width: 100%; }
+
+.sm-summary {
+    border: 1px solid var(--sm-border-soft);
+    border-radius: 10px;
+    padding: .85rem 1rem;
+}
+.sm-summary-title { font-size: .82rem; font-weight: 700; margin-bottom: .6rem; }
+.sm-summary-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .32rem 0;
+    font-size: .8rem;
+}
+.sm-summary-row + .sm-summary-row { border-top: 1px dashed var(--sm-border-soft); }
+.sm-summary-label { color: var(--sm-muted); }
+.sm-summary-value { font-weight: 700; white-space: nowrap; }
+
+.sm-memo { margin-top: 1rem; }
+.sm-memo-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .5rem; margin-bottom: .4rem;
+}
+.sm-memo-title { font-size: .82rem; font-weight: 700; }
+.sm-memo textarea {
+    width: 100%;
+    border: 1px solid var(--sm-border);
+    border-radius: 8px;
+    padding: .55rem .7rem;
+    font-size: .8rem;
+    resize: vertical;
+    min-height: 78px;
+}
+.sm-memo textarea:focus {
+    outline: none;
+    border-color: var(--sm-blue-strong);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+.sm-memo-status { font-size: .7rem; color: var(--sm-muted); }
+
+/* ---- 空状態・読み込み中 ---- */
+.sm-empty {
+    text-align: center;
+    color: var(--sm-muted);
+    font-size: .82rem;
+    padding: 2.2rem .5rem;
+}
+.sm-empty i { display: block; font-size: 1.6rem; margin-bottom: .4rem; color: #c7ccd3; }

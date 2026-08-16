@@ -179,6 +179,11 @@ function createSalesCase(int $companyId, array $data): int {
             $fields[$col] = ($data[$col] !== '' && $data[$col] !== null) ? $data[$col] : null;
         }
     }
+    // 光ADフラグ（戦略会議のみで使用）: NOT NULL の列なので、上の拡張カラムとは分けて必ず 0/1 にする。
+    // 送られてこない保存経路（イベント案件・API等）では触らないため、既存の値はそのまま残る
+    if (array_key_exists('hikari_ad_flag', $data)) {
+        $fields['hikari_ad_flag'] = !empty($data['hikari_ad_flag']) ? 1 : 0;
+    }
 
     $cols = implode(', ', array_keys($fields));
     $phs  = implode(', ', array_fill(0, count($fields), '?'));
@@ -229,6 +234,11 @@ function updateSalesCase(int $id, int $companyId, array $data): void {
         if (array_key_exists($col, $data)) {
             $fields[$col] = ($data[$col] !== '' && $data[$col] !== null) ? $data[$col] : null;
         }
+    }
+    // 光ADフラグ（戦略会議のみで使用）: NOT NULL の列なので、上の拡張カラムとは分けて必ず 0/1 にする。
+    // 送られてこない保存経路（イベント案件・API等）では SET 句に入らないため、既存の値は消えない
+    if (array_key_exists('hikari_ad_flag', $data)) {
+        $fields['hikari_ad_flag'] = !empty($data['hikari_ad_flag']) ? 1 : 0;
     }
 
     $sets   = implode(', ', array_map(fn($k) => "$k=?", array_keys($fields)));

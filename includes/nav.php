@@ -100,6 +100,7 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/salary.php', 'bi-cash-stack', '給与管理', $currentPage === 'salary') ?>
         <?= navLink(BASE_PATH . '/public/employee_salary.php', 'bi-wallet2', '正社員給与管理', $currentPage === 'employee_salary') ?>
         <?= navLink(BASE_PATH . '/public/sga_management.php', 'bi-receipt-cutoff', '支出管理', $currentPage === 'sga_management') ?>
+        <?= navLink(BASE_PATH . '/public/strategy_meeting.php', 'bi-people-fill', '戦略会議', $currentPage === 'strategy_meeting') ?>
         <?= navLink(BASE_PATH . '/public/employees.php', 'bi-person-lines-fill', '社員一覧', $currentPage === 'employees' && $currentDir === 'public') ?>
 
 

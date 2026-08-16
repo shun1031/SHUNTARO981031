@@ -85,6 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             'status'         => $_POST['status'] ?? 'confirmed',
             'note'           => trim($_POST['notes'] ?? ''),
         ];
+        // 光AD（戦略会議のみで使用）: フォームに隠しフィールドがあるので必ず 0/1 が届く
+        if (array_key_exists('hikari_ad_flag', $_POST)) {
+            $data['hikari_ad_flag'] = !empty($_POST['hikari_ad_flag']) ? 1 : 0;
+        }
         // 常勤案件: 月額固定（稼働日数を乗じない）
         $data['gross_profit_direct'] = $data['unit_price_in'] - $data['unit_price_out'];
         $_crY = (int)($_GET['year']  ?? date('Y'));
@@ -127,6 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
                 'unit_price_out' => $pc['unit_price_out'], 'days_worked' => $pc['days_worked'],
                 'status' => $pc['status'], 'note' => $pc['note'],
                 'case_division' => $_cpDivision, 'budget_division' => $_cpBudget,
+                // 光ADも前月のまま引き継ぐ（戦略会議の区分がコピー後に変わらないようにする）
+                'hikari_ad_flag' => !empty($pc['hikari_ad_flag']) ? 1 : 0,
                 'gross_profit_direct' => (int)$pc['unit_price_in'] - (int)$pc['unit_price_out'],
             ]);
             $copied++;
@@ -250,7 +256,8 @@ else { foreach ($cases as $c):
     <td class="fw-medium"><?= h($c['worker_name']) ?></td>
     <td class="small"><?= h($c['carrier'] ?? '') ?></td>
     <td class="small"><?= h($c['trade_name'] ?? '') ?></td>
-    <td class="small"><?= h($c['store_name'] ?? '') ?></td>
+    <?php /* 光ADは列を増やさず店舗名の横にバッジで示す（既存の列構成・colspanを変えないため） */ ?>
+    <td class="small"><?= h($c['store_name'] ?? '') ?><?php if (!empty($c['hikari_ad_flag'])): ?> <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" style="font-size:.62rem;font-weight:600">光AD</span><?php endif; ?></td>
     <td class="amount amount-positive" style="vertical-align:top">
         <span id="rev_<?= $c['id'] ?>"><?= number_format($c['revenue']) ?></span>
         <?php if ($c['sales_rep']): ?><div id="rev_split_<?= $c['id'] ?>" data-rep="<?= h($c['sales_rep']) ?>" data-split="<?= h($splitTo) ?>" style="font-size:.68rem;color:#6b7280;line-height:1.5;margin-top:2px"><?= h($c['sales_rep']) ?> <?= number_format($repRev) ?><br><?= h($splitTo) ?> <?= number_format($otRev) ?></div><?php endif; ?>
@@ -544,8 +551,11 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label fw-medium">スタッフ名</label>
                         <input type="text" name="worker_name" id="f_worker_name" class="form-control">
                     </div>
+                    <?php /* ここで必ず改行させ、キャリア・屋号・店舗名・光ADを1行に揃える。
+                             （区分や外注先の表示・非表示で折り返し位置が変わるのを防ぐ） */ ?>
+                    <div class="w-100 d-none d-md-block p-0 mt-0" style="height:0"></div>
                     <!-- キャリア -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-medium">キャリア <span class="text-danger">*</span></label>
                         <select id="f_carrier_select" class="form-select" onchange="carrierSelectChanged()">
                             <option value="">-- 選択してください --</option>
@@ -560,7 +570,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="text" name="carrier" id="f_carrier" class="form-control mt-1" placeholder="キャリアを入力" autocomplete="off" style="display:none">
                     </div>
                     <!-- 屋号 -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-medium">屋号 <span class="text-danger">*</span></label>
                         <input type="text" name="trade_name" id="f_trade_name" class="form-control" placeholder="選択または入力" list="tradeNameList" autocomplete="off">
                         <datalist id="tradeNameList">
@@ -575,6 +585,17 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php foreach ($distinctStoreNames as $_sn): ?><option value="<?= h($_sn) ?>"><?php endforeach; ?>
                         </datalist>
                         <div class="form-text text-danger">【正式名称で入力】</div>
+                    </div>
+                    <!-- 光AD: 戦略会議画面の区分表示だけに使う。既存の集計・画面には影響しない -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-medium">光AD</label>
+                        <div class="form-check mt-2">
+                            <!-- 未チェックのときも 0 を送るための隠しフィールド。
+                                 これが無いとチェックを外した操作が保存されない -->
+                            <input type="hidden" name="hikari_ad_flag" value="0">
+                            <input class="form-check-input" type="checkbox" name="hikari_ad_flag" value="1" id="f_hikari_ad_flag">
+                            <label class="form-check-label small" for="f_hikari_ad_flag">光AD</label>
+                        </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-medium">請求単価(月)</label>
@@ -940,6 +961,7 @@ function resetCaseForm() {
     setCarrierValue('');
     document.getElementById('f_trade_name').value = '';
     document.getElementById('f_store_name').value = '';
+    document.getElementById('f_hikari_ad_flag').checked = false;
     document.getElementById('unit_price_in').value = 0;
     document.getElementById('unit_price_out').value = 0;
     document.getElementById('days_worked').value = 1;
@@ -970,6 +992,7 @@ function editCase(c) {
     setCarrierValue(c.carrier || '');
     document.getElementById('f_trade_name').value = c.trade_name || '';
     document.getElementById('f_store_name').value = c.store_name || '';
+    document.getElementById('f_hikari_ad_flag').checked = (String(c.hikari_ad_flag || '0') === '1');
     document.getElementById('unit_price_in').value = c.unit_price_in || 0;
     document.getElementById('unit_price_out').value = c.unit_price_out || 0;
     document.getElementById('days_worked').value = c.days_worked || 1;

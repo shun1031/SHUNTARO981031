@@ -54,12 +54,21 @@
     color: var(--sm-muted);
 }
 
-/* 戻る矢印つきの見出し（担当企業一覧・年推移） */
+/* 見出し行（営業マン一覧・担当企業一覧・年推移で共通） */
 .sm-subpanel-head {
     display: flex;
     align-items: center;
     gap: .6rem;
-    margin-bottom: 1rem;
+    padding-bottom: .7rem;
+    margin-bottom: .9rem;
+    border-bottom: 1px solid var(--sm-border-soft);
+}
+/* 見出しの右端に出す補足（対象期間など） */
+.sm-head-note {
+    margin-left: auto;
+    font-size: .7rem;
+    color: var(--sm-muted);
+    white-space: nowrap;
 }
 .sm-back {
     border: none;
@@ -100,7 +109,24 @@
 /* ============================================================
    営業マンカード
    ============================================================ */
-.sm-rep-list { display: flex; flex-direction: column; gap: .85rem; margin-top: 1rem; }
+/* 右側は縦に長くなるため、左の営業マン一覧は画面に追従させる。
+   一覧が画面より長いときだけ、一覧の中だけがスクロールする */
+@media (min-width: 1200px) {
+    .sm-panel-reps {
+        position: sticky;
+        top: 1rem;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 2rem);
+    }
+    .sm-panel-reps .sm-rep-list {
+        overflow-y: auto;
+        margin-right: -.35rem;
+        padding-right: .35rem;
+    }
+}
+
+.sm-rep-list { display: flex; flex-direction: column; gap: .7rem; }
 
 /* カード本体と「＋」ボタンを横並びにするための行 */
 .sm-rep-row { display: flex; align-items: stretch; gap: 0; }
@@ -223,29 +249,39 @@
     font-size: .9rem;
     overflow-wrap: anywhere;
 }
+/* 列幅を固定して、カードが縦に並んだときに数値の位置が揃うようにする */
 .sm-company-metrics {
     flex: 0 0 auto;
-    display: flex;
-    gap: 1.4rem;
+    display: grid;
+    grid-template-columns: 104px 108px 124px;
+    gap: 1rem;
 }
 .sm-metric { min-width: 0; }
 .sm-metric-label {
-    font-size: .62rem;
+    display: block;
+    font-size: .63rem;
     color: var(--sm-muted);
     white-space: nowrap;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 .sm-metric-value {
+    display: block;
     font-size: .92rem;
     font-weight: 700;
     white-space: nowrap;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 .sm-company-chevron { flex: 0 0 auto; color: #9aa3af; font-size: 1.05rem; }
 
-@media (max-width: 575.98px) {
+@media (max-width: 767.98px) {
     .sm-company-card { flex-wrap: wrap; }
-    .sm-company-metrics { width: 100%; justify-content: space-between; gap: .6rem; }
+    .sm-company-metrics {
+        width: 100%;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .5rem;
+    }
+    .sm-metric-label, .sm-metric-value { white-space: normal; }
+    .sm-company-chevron { display: none; }
 }
 
 /* ============================================================
@@ -297,21 +333,36 @@
     border-radius: 10px;
     padding: .75rem;
 }
+/* 企業を選ぶ前や実績が無いときは、枠だけが大きく残らないよう高さを詰める */
+.sm-chart-box.is-empty {
+    height: auto;
+    min-height: 132px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 /* 念のための保険。ウィンドウ幅を縮めた直後でもキャンバスがはみ出さないようにする */
 .sm-chart-canvas { display: block; max-width: 100%; }
 
 .sm-summary {
+    background: #f8fafc;
     border: 1px solid var(--sm-border-soft);
     border-radius: 10px;
-    padding: .85rem 1rem;
+    padding: .9rem 1rem;
 }
-.sm-summary-title { font-size: .82rem; font-weight: 700; margin-bottom: .6rem; }
+.sm-summary-title {
+    font-size: .82rem;
+    font-weight: 700;
+    padding-bottom: .5rem;
+    margin-bottom: .3rem;
+    border-bottom: 1px solid var(--sm-border-soft);
+}
 .sm-summary-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: .6rem;
-    padding: .32rem 0;
+    padding: .42rem 0;
     font-size: .8rem;
 }
 .sm-summary-row + .sm-summary-row { border-top: 1px dashed var(--sm-border-soft); }
@@ -328,11 +379,14 @@
     width: 100%;
     border: 1px solid var(--sm-border);
     border-radius: 8px;
-    padding: .55rem .7rem;
+    padding: .6rem .75rem;
     font-size: .8rem;
+    line-height: 1.6;
     resize: vertical;
-    min-height: 78px;
+    min-height: 96px;
+    background: #fff;
 }
+.sm-memo textarea:disabled { background: #f8fafc; }
 .sm-memo textarea:focus {
     outline: none;
     border-color: var(--sm-blue-strong);
@@ -344,7 +398,7 @@
 .sm-empty {
     text-align: center;
     color: var(--sm-muted);
-    font-size: .82rem;
-    padding: 2.2rem .5rem;
+    font-size: .8rem;
+    padding: 1.4rem .5rem;
 }
-.sm-empty i { display: block; font-size: 1.6rem; margin-bottom: .4rem; color: #c7ccd3; }
+.sm-empty i { display: block; font-size: 1.35rem; margin-bottom: .35rem; color: #c7ccd3; }

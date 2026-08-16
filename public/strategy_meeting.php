@@ -54,12 +54,12 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="sm-layout">
 
         <!-- ================= 左: 営業マン一覧 ================= -->
-        <div class="sm-panel">
-            <h2 class="sm-panel-title"><i class="bi bi-people-fill"></i>戦略会議</h2>
-            <p class="sm-panel-lead">
-                営業マンごとの担当企業状況と売上を可視化し、戦略立案に活用します。<br>
-                クライアント数・アライアンス数・売上金額は今年度（<?= h($fyLabel) ?>）の累計です。
-            </p>
+        <?php /* 画面上部のタイトルと説明が重複しないよう、ここは一覧の見出しだけにする */ ?>
+        <div class="sm-panel sm-panel-reps">
+            <div class="sm-subpanel-head">
+                <h2 class="sm-subpanel-title"><i class="bi bi-people-fill me-1"></i>営業マン一覧</h2>
+                <span class="sm-head-note">今年度（<?= h($fyLabel) ?>）の累計</span>
+            </div>
             <div class="sm-rep-list" id="smRepList">
                 <div class="sm-empty"><i class="bi bi-hourglass-split"></i>読み込み中...</div>
             </div>
@@ -101,7 +101,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="sm-trend-body">
-                    <div class="sm-chart-box">
+                    <div class="sm-chart-box is-empty">
                         <div id="smChartEmpty" class="sm-empty">
                             <i class="bi bi-bar-chart-line"></i>
                             企業を選ぶと年推移が表示されます
@@ -331,6 +331,8 @@ function smRenderTrend() {
     if (!periods.length) {
         canvas.style.display = 'none';
         empty.style.display = '';
+        // 実績が無いときはグラフ枠を詰める（大きな空白が残らないように）
+        empty.parentElement.classList.add('is-empty');
         empty.innerHTML = '<i class="bi bi-bar-chart-line"></i>この区分の実績がありません';
         document.getElementById('smSummaryTitle').textContent = '最新期のサマリー';
         document.getElementById('smSumRevenue').textContent = '-';
@@ -340,6 +342,7 @@ function smRenderTrend() {
     }
 
     empty.style.display = 'none';
+    empty.parentElement.classList.remove('is-empty');
     canvas.style.display = '';
 
     var isRev  = smState.metric === 'revenue';

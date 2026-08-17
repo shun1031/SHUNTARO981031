@@ -30,19 +30,38 @@ $db = getDB();
 // ----------------------------------------------------------------
 
 /**
- * 光AD列がまだ無い環境（マイグレーション未実行）でも動くようにする。
- * 列が無ければ「全件が光ADでない」として扱い、常勤/イベントの2区分で動作する。
+ * sales_cases に指定の列があるか（マイグレーション未実行の環境でも画面が開くようにする）
  */
-function smHasHikariAd(PDO $db): bool {
-    static $has = null;
-    if ($has !== null) return $has;
-    $has = false;
+function smHasColumn(PDO $db, string $col): bool {
+    static $cache = [];
+    if (array_key_exists($col, $cache)) return $cache[$col];
+    $cache[$col] = false;
     try {
-        $has = (bool)$db->query("SHOW COLUMNS FROM sales_cases LIKE 'hikari_ad_flag'")->fetch();
+        $stmt = $db->prepare("SHOW COLUMNS FROM sales_cases LIKE ?");
+        $stmt->execute([$col]);
+        $cache[$col] = (bool)$stmt->fetch();
     } catch (PDOException $e) {
         error_log('[strategy_meeting] ' . $e->getMessage());
     }
-    return $has;
+    return $cache[$col];
+}
+
+/**
+ * 光AD列がまだ無い環境でも動くようにする。
+ * 列が無ければ「全件が光ADでない」として扱い、常勤/イベントの2区分で動作する。
+ */
+function smHasHikariAd(PDO $db): bool {
+    return smHasColumn($db, 'hikari_ad_flag');
+}
+
+/**
+ * 枠数の数え方。既存の総合ダッシュボード「月別枠数」と同じく
+ * 区分が1次・2次以降の案件だけを数える（区分列が無い環境では全件）
+ */
+function smFrameCountExpr(PDO $db): string {
+    return smHasColumn($db, 'case_division')
+        ? "SUM(CASE WHEN sc.case_division IN ('1次', '2次以降') THEN 1 ELSE 0 END)"
+        : 'COUNT(*)';
 }
 
 /** 区分（光AD / 常勤 / イベント）を求めるSQL式 */
@@ -242,14 +261,17 @@ if ($action === 'companies') {
     $rep = trim($_GET['rep'] ?? '');
     if ($rep === '') { echo json_encode(['error' => 'rep required']); exit; }
 
-    $divExpr = smDivisionExpr($db);
+    $divExpr   = smDivisionExpr($db);
+    $frameExpr = smFrameCountExpr($db);
     // 企業は「取引先マスタの表記名」で表示する。
     // 取引先一覧で表記名を変えれば、ここもJOINで引くので次の表示から反映される
+    // 枠数は既存の総合ダッシュボード「月別枠数」に合わせ、区分が1次・2次以降の案件だけを数える。
+    // 取引金額はその企業との実際の取引額を出したいので、区分では絞らず全件を合計する
     $sql = "
         SELECT cl.id AS client_id,
                COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS client_name,
                {$divExpr} AS division,
-               COUNT(*) AS frame_count,
+               {$frameExpr} AS frame_count,
                COALESCE(SUM(sc.revenue), 0) AS revenue
         FROM sales_cases sc
         JOIN sales_clients cl ON sc.client_id = cl.id
@@ -305,10 +327,12 @@ if ($action === 'trend') {
     $repJoin = $rep !== '' ? SM_REP_JOIN : '';
     $repCond = $rep !== '' ? ' AND ' . SM_REP_NAME . ' = ?' : '';
 
+    // 枠数の数え方は担当企業一覧と揃える（カードの枠数とグラフの枠数が食い違わないように）
+    $frameExpr = smFrameCountExpr($db);
     $sql = "
         SELECT sc.case_year, sc.case_month,
                COALESCE(SUM(sc.revenue), 0) AS revenue,
-               COUNT(*) AS frame_count
+               {$frameExpr} AS frame_count
         FROM sales_cases sc {$repJoin}
         WHERE sc.company_id = ? AND sc.client_id = ? AND sc.status = 'confirmed'
           {$divCond}{$repCond}

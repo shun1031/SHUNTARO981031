@@ -314,6 +314,10 @@ $migrations = [
     // ---- strategy_meeting_memos: 戦略会議の企業メモ（企業ごとに1件） ----
     // 戦略会議画面だけが読み書きする。既存テーブルには一切書き込まない
     "CREATE TABLE IF NOT EXISTS strategy_meeting_memos (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, client_id INT NOT NULL, memo TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smm (company_id, client_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- strategy_meeting_settings: 戦略会議の設定（目標企業数） ----
+    // 戦略会議画面だけが読み書きする。既定は100社
+    "CREATE TABLE IF NOT EXISTS strategy_meeting_settings (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, target_client_count INT NOT NULL DEFAULT 100, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sms (company_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 $ok = 0;

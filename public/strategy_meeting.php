@@ -36,7 +36,14 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1><i class="bi bi-people-fill me-2"></i>戦略会議</h1>
-                <p>営業マンごとの担当企業状況と売上を可視化し、戦略立案に活用します。</p>
+                <?php /* 取引企業数の進捗。目標社数はクリックで編集できる（この画面は管理者専用） */ ?>
+                <p class="sm-goal" id="smGoal">
+                    <span class="sm-goal-count" id="smGoalCount">-</span><span class="sm-goal-sep">社 /</span>
+                    <span class="sm-goal-target" id="smGoalTarget" role="button" tabindex="0"
+                          title="クリックして目標企業数を変更">-</span><span class="sm-goal-sep">社</span>
+                    <input type="number" class="sm-goal-input d-none" id="smGoalInput" min="1" max="100000">
+                    <span class="sm-goal-note" id="smGoalNote"></span>
+                </p>
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap">
                 <!-- 対象月の送り。「月別」にしているパネルに適用する -->
@@ -175,6 +182,7 @@ var smState = {
     trendDivision: '',   // 年推移に使う区分（押した企業カードの区分）
     rep:           null, // 選択中の営業マン名
     clientId:      null, // 選択中の取引先ID
+    goalTarget:    100,  // 目標企業数
     repPeriod:     'month', // 営業マン一覧の集計期間: 'month' | 'fy'
     compPeriod:    'month', // 担当企業一覧の集計期間: 'month' | 'fy'
     year:          smInitYear,  // 「月別」のときの対象年
@@ -206,6 +214,59 @@ function smGet(params) {
 // 集計期間のパラメータ。年度のときも対象年月を送り、その月が属する年度を集計する
 function smPeriodParams(period) {
     return {period: period, year: smState.year, month: smState.month};
+}
+
+// ---------- 取引企業数の合計（〇〇社 / 目標社数） ----------
+// 営業マンカードの数字の単純合計ではなく、重複を除いた実企業数。
+// 月別/年度の切替には連動せず、今年度で固定
+function smLoadGoal() {
+    return smGet({action: 'summary', year: smState.year, month: smState.month}).then(function (d) {
+        if (d.error) return;
+        smState.goalTarget = d.target;
+        document.getElementById('smGoalCount').textContent  = Number(d.count).toLocaleString('ja-JP');
+        document.getElementById('smGoalTarget').textContent = Number(d.target).toLocaleString('ja-JP');
+        document.getElementById('smGoalNote').textContent   = '今年度（' + d.fy_label + '）／重複を除いた実企業数';
+    }).catch(function () { /* 表示だけなので失敗しても他の集計は止めない */ });
+}
+
+// 目標社数をその場で編集する
+function smOpenGoalEdit() {
+    var label = document.getElementById('smGoalTarget');
+    var input = document.getElementById('smGoalInput');
+    input.value = smState.goalTarget || 100;
+    label.classList.add('d-none');
+    input.classList.remove('d-none');
+    input.focus();
+    input.select();
+}
+
+function smCommitGoalEdit(save) {
+    var label = document.getElementById('smGoalTarget');
+    var input = document.getElementById('smGoalInput');
+    var note  = document.getElementById('smGoalNote');
+    input.classList.add('d-none');
+    label.classList.remove('d-none');
+    if (!save) return;
+
+    var v = parseInt(input.value, 10);
+    if (!v || v < 1 || v > 100000) { note.textContent = '1〜100000の数値を入力してください'; return; }
+    if (v === smState.goalTarget) return;
+
+    var fd = new FormData();
+    fd.append('csrf', smCsrf);
+    fd.append('action', 'save_target');
+    fd.append('target', v);
+    fetch(smApiUrl, {method: 'POST', body: fd})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d.success) {
+                smState.goalTarget = d.target;
+                label.textContent = Number(d.target).toLocaleString('ja-JP');
+            } else {
+                note.textContent = d.error || '保存に失敗しました';
+            }
+        })
+        .catch(function () { note.textContent = '通信エラーが発生しました'; });
 }
 
 // ---------- 営業マンカード ----------
@@ -606,12 +667,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 200);
     });
 
+    // 目標企業数のその場編集
+    document.getElementById('smGoalTarget').addEventListener('click', smOpenGoalEdit);
+    document.getElementById('smGoalTarget').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); smOpenGoalEdit(); }
+    });
+    document.getElementById('smGoalInput').addEventListener('blur', function () { smCommitGoalEdit(true); });
+    document.getElementById('smGoalInput').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter')  { e.preventDefault(); this.blur(); }
+        if (e.key === 'Escape') { smCommitGoalEdit(false); }
+    });
+
     smUpdateMonthNav();
+    smLoadGoal();
     smLoadReps();
 
     // 案件の追加・編集を別タブで行った場合にも追従できるよう、
     // 既存画面（案件店舗管理・シフト管理）と同じ60秒間隔で読み直す
     setInterval(function () {
+        smLoadGoal();
         smLoadReps().then(function () {
             if (smState.rep) return smLoadCompanies(smState.rep);
         }).then(function () {

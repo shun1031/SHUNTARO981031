@@ -89,6 +89,47 @@
     margin: 0;
 }
 
+/* ---- 取引企業数の進捗（〇〇社 / 100社） ---- */
+.sm-goal {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: .25rem;
+    margin: .35rem 0 0;
+}
+.sm-goal-count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--sm-blue-strong);
+    line-height: 1.2;
+}
+.sm-goal-sep { font-size: .9rem; color: var(--sm-muted); }
+.sm-goal-target {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 0 .2rem;
+    border-bottom: 1px dashed var(--sm-border);
+    cursor: pointer;
+}
+.sm-goal-target:hover {
+    color: var(--sm-blue-strong);
+    border-bottom-color: var(--sm-blue-strong);
+}
+.sm-goal-input {
+    width: 84px;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: .1rem .35rem;
+    border: 1px solid var(--sm-blue-strong);
+    border-radius: 6px;
+}
+.sm-goal-note {
+    font-size: .68rem;
+    color: var(--sm-muted);
+    margin-left: .4rem;
+}
+
 /* ---- 集計期間の切替（月別 / 年度） ---- */
 /* 年推移の「売上金額 / 枠数」と同じ見た目に揃える */
 .sm-period-switch { display: flex; gap: .25rem; }

@@ -91,14 +91,60 @@ const SM_REP_JOIN  = "LEFT JOIN employees er ON er.id = sc.sales_rep_id AND er.c
 const SM_MGR_NAME  = "COALESCE(em.name, sc.manager)";
 const SM_MGR_JOIN  = "LEFT JOIN employees em ON em.id = sc.manager_id AND em.company_id = sc.company_id";
 
+/**
+ * 会社名の表記ゆれを吸収して突き合わせ用のキーにする。
+ * 取引先と外注先は別テーブルなので、同じ会社を1社として数えるには名前で照合するしかない。
+ * 前後の空白を除去 / 全角英数字を半角へ / 大文字小文字を区別しない
+ * ※「株式会社ラネット」と「ラネット」のような表記違いまでは吸収できない
+ */
+function smNameKey(string $name): string {
+    $n = trim($name);
+    if ($n === '') return '';
+    if (function_exists('mb_convert_kana')) $n = mb_convert_kana($n, 'a');  // 全角英数字→半角
+    return mb_strtolower($n, 'UTF-8');
+}
+
+/** 目標企業数を取得（未設定なら既定の100社） */
+function smTargetCount(PDO $db, int $companyId): int {
+    try {
+        $stmt = $db->prepare('SELECT target_client_count FROM strategy_meeting_settings WHERE company_id = ?');
+        $stmt->execute([$companyId]);
+        $v = $stmt->fetchColumn();
+        if ($v !== false) return (int)$v;
+    } catch (PDOException $e) {
+        error_log('[strategy_meeting target] ' . $e->getMessage());
+    }
+    return 100;
+}
+
 // ----------------------------------------------------------------
-// POST: 企業メモの保存（戦略会議専用テーブルのみ）
+// POST: 企業メモ・目標企業数の保存（戦略会議専用テーブルのみ）
 // ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 保存は管理者のみ（他画面と同じ守り方に揃える）
     requireAdminWrite(true);
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => 'CSRF']); exit; }
-    if (($_POST['action'] ?? '') !== 'save_memo') { echo json_encode(['error' => 'Unknown action']); exit; }
+    $postAction = $_POST['action'] ?? '';
+
+    // --- 目標企業数の保存 ---
+    if ($postAction === 'save_target') {
+        $target = (int)($_POST['target'] ?? 0);
+        if ($target < 1 || $target > 100000) { echo json_encode(['error' => '1〜100000の数値を入力してください']); exit; }
+        try {
+            $stmt = $db->prepare("INSERT INTO strategy_meeting_settings (company_id, target_client_count)
+                                  VALUES (?, ?)
+                                  ON DUPLICATE KEY UPDATE target_client_count = VALUES(target_client_count), updated_at = NOW()");
+            $stmt->execute([$cid, $target]);
+            echo json_encode(['success' => true, 'target' => $target]);
+        } catch (PDOException $e) {
+            error_log('[strategy_meeting save_target] ' . $e->getMessage());
+            echo json_encode(['error' => '目標企業数の保存に失敗しました']);
+        }
+        exit;
+    }
+
+    // --- 企業メモの保存 ---
+    if ($postAction !== 'save_memo') { echo json_encode(['error' => 'Unknown action']); exit; }
 
     $clientId = (int)($_POST['client_id'] ?? 0);
     $memo     = trim($_POST['memo'] ?? '');
@@ -142,6 +188,68 @@ if ($pYear < 2000 || $pYear > 2100 || $pMonth < 1 || $pMonth > 12) {
 $divCond = smDivisionCond($division);
 
 try {
+
+// ----------------------------------------------------------------
+// action=summary : 取引企業数の合計（〇〇社 / 目標社数）
+// ----------------------------------------------------------------
+// 営業マンカードの数字を足し合わせたものではない。
+// 同じ企業を複数の営業マンが担当していても1社として数え、
+// さらに取引先と外注先に同じ会社名があれば、それも1社にまとめる。
+// 期間は月別/年度の切替に連動させず、今年度（9月〜8月）で固定する。
+if ($action === 'summary') {
+    $repNames = getSalesRepCandidates($cid);
+    $target   = smTargetCount($db, $cid);
+
+    if (!$repNames) {
+        echo json_encode(['count' => 0, 'target' => $target, 'fy_label' => smFyLabel(smFyOf($pYear, $pMonth))], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $fy       = smFyOf($pYear, $pMonth);
+    $fyParams = [$fy - 1, $fy];
+    $repPh    = implode(',', array_fill(0, count($repNames), '?'));
+
+    // 取引先: 営業担当がその人たちの案件に出てくる取引先（表記名）
+    $clientSql = "
+        SELECT DISTINCT COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS name
+        FROM sales_cases sc
+        JOIN sales_clients cl ON sc.client_id = cl.id
+        " . SM_REP_JOIN . "
+        WHERE sc.company_id = ? AND sc.status = 'confirmed'
+          AND " . SM_FY_WHERE . "
+          AND " . SM_REP_NAME . " IN ({$repPh})";
+    $stmt = $db->prepare($clientSql);
+    $stmt->execute(array_merge([$cid], $fyParams, $repNames));
+    $names = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    // 外注先: 管理者がその人たちの、スタッフ区分アライアンスの案件に出てくる外注先
+    $allianceSql = "
+        SELECT DISTINCT al.alliance_name AS name
+        FROM sales_cases sc
+        JOIN sales_alliances al ON sc.alliance_id = al.id
+        " . SM_MGR_JOIN . "
+        WHERE sc.company_id = ? AND sc.status = 'confirmed'
+          AND sc.worker_type = 'アライアンス'
+          AND " . SM_FY_WHERE . "
+          AND " . SM_MGR_NAME . " IN ({$repPh})";
+    $stmt = $db->prepare($allianceSql);
+    $stmt->execute(array_merge([$cid], $fyParams, $repNames));
+    $names = array_merge($names, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+
+    // 表記ゆれを吸収したうえで重複を除く
+    $keys = [];
+    foreach ($names as $n) {
+        $k = smNameKey((string)$n);
+        if ($k !== '') $keys[$k] = true;
+    }
+
+    echo json_encode([
+        'count'    => count($keys),
+        'target'   => $target,
+        'fy_label' => smFyLabel($fy),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // ----------------------------------------------------------------
 // action=reps : 営業マンカード一覧

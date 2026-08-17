@@ -29,54 +29,33 @@ $db = getDB();
 // 共通ヘルパー
 // ----------------------------------------------------------------
 
-/**
- * sales_cases に指定の列があるか（マイグレーション未実行の環境でも画面が開くようにする）
- */
-function smHasColumn(PDO $db, string $col): bool {
-    static $cache = [];
-    if (array_key_exists($col, $cache)) return $cache[$col];
-    $cache[$col] = false;
-    try {
-        $stmt = $db->prepare("SHOW COLUMNS FROM sales_cases LIKE ?");
-        $stmt->execute([$col]);
-        $cache[$col] = (bool)$stmt->fetch();
-    } catch (PDOException $e) {
-        error_log('[strategy_meeting] ' . $e->getMessage());
-    }
-    return $cache[$col];
+// hikari_ad_flag / case_division は起動時マイグレーションで必ず追加される。
+// マイグレーションはWebサーバーの起動前に実行されるため、画面が開ける時点で列は存在する。
+// 以前は列の有無を確認してから使っていたが、確認の失敗を「列が無い」と誤って解釈し、
+// 光ADが常勤に混ざったまま静かに表示される不具合を招いたため、確認をやめて直接使う。
+// 万一列が無い場合はSQLエラーになり、画面に「データの取得に失敗しました」と出る。
+
+/** 区分（光AD / 常勤 / イベント）を求めるSQL式 */
+function smDivisionExpr(): string {
+    return "CASE WHEN sc.hikari_ad_flag = 1 THEN '光AD'
+                 WHEN sc.case_type = 'regular' THEN '常勤'
+                 ELSE 'イベント' END";
 }
 
-/**
- * 光AD列がまだ無い環境でも動くようにする。
- * 列が無ければ「全件が光ADでない」として扱い、常勤/イベントの2区分で動作する。
- */
-function smHasHikariAd(PDO $db): bool {
-    return smHasColumn($db, 'hikari_ad_flag');
+/** 区分での絞り込み条件（未指定・不明な値なら絞らない） */
+function smDivisionCond(string $division): string {
+    if ($division === '光AD')     return ' AND sc.hikari_ad_flag = 1';
+    if ($division === '常勤')     return " AND sc.hikari_ad_flag = 0 AND sc.case_type = 'regular'";
+    if ($division === 'イベント') return " AND sc.hikari_ad_flag = 0 AND sc.case_type = 'event'";
+    return '';
 }
 
 /**
  * 枠数の数え方。既存の総合ダッシュボード「月別枠数」と同じく
- * 区分が1次・2次以降の案件だけを数える（区分列が無い環境では全件）
+ * 区分が1次・2次以降の案件だけを数える
  */
-function smFrameCountExpr(PDO $db): string {
-    return smHasColumn($db, 'case_division')
-        ? "SUM(CASE WHEN sc.case_division IN ('1次', '2次以降') THEN 1 ELSE 0 END)"
-        : 'COUNT(*)';
-}
-
-/** 区分（光AD / 常勤 / イベント）を求めるSQL式 */
-function smDivisionExpr(PDO $db): string {
-    $ad = smHasHikariAd($db) ? "WHEN sc.hikari_ad_flag = 1 THEN '光AD' " : '';
-    return "CASE {$ad}WHEN sc.case_type = 'regular' THEN '常勤' ELSE 'イベント' END";
-}
-
-/** 区分での絞り込み条件（未指定・不明な値なら絞らない） */
-function smDivisionCond(PDO $db, string $division): string {
-    $adOff = smHasHikariAd($db) ? 'sc.hikari_ad_flag = 0 AND ' : '';
-    if ($division === '光AD')     return smHasHikariAd($db) ? ' AND sc.hikari_ad_flag = 1' : ' AND 1 = 0';
-    if ($division === '常勤')     return " AND {$adOff}sc.case_type = 'regular'";
-    if ($division === 'イベント') return " AND {$adOff}sc.case_type = 'event'";
-    return '';
+function smFrameCountExpr(): string {
+    return "SUM(CASE WHEN sc.case_division IN ('1次', '2次以降') THEN 1 ELSE 0 END)";
 }
 
 /** 年度（9月始まり）の月範囲条件。パラメータは [$fy-1, $fy] を渡す */
@@ -160,7 +139,7 @@ if ($pYear < 2000 || $pYear > 2100 || $pMonth < 1 || $pMonth > 12) {
 
 [$perWhere, $perParams, $perLabel] = smPeriod($period, $pYear, $pMonth);
 
-$divCond = smDivisionCond($db, $division);
+$divCond = smDivisionCond($division);
 
 try {
 
@@ -261,8 +240,8 @@ if ($action === 'companies') {
     $rep = trim($_GET['rep'] ?? '');
     if ($rep === '') { echo json_encode(['error' => 'rep required']); exit; }
 
-    $divExpr   = smDivisionExpr($db);
-    $frameExpr = smFrameCountExpr($db);
+    $divExpr   = smDivisionExpr();
+    $frameExpr = smFrameCountExpr();
     // 企業は「取引先マスタの表記名」で表示する。
     // 取引先一覧で表記名を変えれば、ここもJOINで引くので次の表示から反映される
     // 枠数は既存の総合ダッシュボード「月別枠数」に合わせ、区分が1次・2次以降の案件だけを数える。
@@ -328,7 +307,7 @@ if ($action === 'trend') {
     $repCond = $rep !== '' ? ' AND ' . SM_REP_NAME . ' = ?' : '';
 
     // 枠数の数え方は担当企業一覧と揃える（カードの枠数とグラフの枠数が食い違わないように）
-    $frameExpr = smFrameCountExpr($db);
+    $frameExpr = smFrameCountExpr();
     $sql = "
         SELECT sc.case_year, sc.case_month,
                COALESCE(SUM(sc.revenue), 0) AS revenue,
@@ -369,7 +348,7 @@ if ($action === 'trend') {
     // 区分は指定されたものを表示。未指定なら実際に登録されている区分を並べる
     $divLabel = $division;
     if ($divLabel === '') {
-        $dvStmt = $db->prepare("SELECT DISTINCT " . smDivisionExpr($db) . " AS d
+        $dvStmt = $db->prepare("SELECT DISTINCT " . smDivisionExpr() . " AS d
                                 FROM sales_cases sc {$repJoin}
                                 WHERE sc.company_id = ? AND sc.client_id = ? AND sc.status = 'confirmed'
                                   {$repCond}");

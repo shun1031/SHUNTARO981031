@@ -22,11 +22,11 @@ $extraCss  = ['strategy_meeting.css'];
 
 $csrf = getCsrfToken();
 
-// 今年度（9月始まり）。9〜12月は翌年度あつかい
-$_y  = (int)date('Y');
-$_m  = (int)date('n');
-$fy  = $_m >= 9 ? $_y + 1 : $_y;
-$fyLabel = substr((string)($fy - 1), 2) . '.9〜' . substr((string)$fy, 2) . '.8';
+// 初期表示の対象年月は「前月」。
+// 当月分の案件は月末にまとめて登録する運用のため、当月だと数字が入らないことがある
+$_prev      = (new DateTimeImmutable('today'))->modify('first day of last month');
+$initYear   = (int)$_prev->format('Y');
+$initMonth  = (int)$_prev->format('n');
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -38,8 +38,18 @@ require_once __DIR__ . '/../includes/header.php';
                 <h1><i class="bi bi-people-fill me-2"></i>戦略会議</h1>
                 <p>営業マンごとの担当企業状況と売上を可視化し、戦略立案に活用します。</p>
             </div>
-            <!-- 区分の切替。担当企業一覧の絞り込みにだけ使う（営業マンカードの数値は変わらない） -->
-            <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- 対象月の送り。「月別」にしているパネルに適用する -->
+                <div class="sm-monthnav" id="smMonthNav">
+                    <button type="button" class="sm-monthnav-btn" data-delta="-1" title="前の月">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="sm-monthnav-label" id="smMonthLabel"><?= $initYear ?>年<?= $initMonth ?>月</span>
+                    <button type="button" class="sm-monthnav-btn" data-delta="1" title="次の月">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+                <!-- 区分の切替。担当企業一覧の絞り込みにだけ使う（営業マンカードの数値は変わらない） -->
                 <span class="text-muted" style="font-size:.72rem">担当企業一覧の絞り込み</span>
                 <div class="sm-filter" id="smFilter">
                 <button type="button" class="sm-filter-btn active" data-division="">すべて</button>
@@ -58,7 +68,11 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="sm-panel sm-panel-reps">
             <div class="sm-subpanel-head">
                 <h2 class="sm-subpanel-title"><i class="bi bi-people-fill me-1"></i>営業マン一覧</h2>
-                <span class="sm-head-note">今年度（<?= h($fyLabel) ?>）の累計</span>
+                <div class="sm-period-switch ms-auto" id="smRepPeriod">
+                    <button type="button" class="active" data-period="month">月別</button>
+                    <button type="button" data-period="fy">年度</button>
+                </div>
+                <span class="sm-head-note" id="smRepPeriodNote"><?= $initYear ?>年<?= $initMonth ?>月</span>
             </div>
             <div class="sm-rep-list" id="smRepList">
                 <div class="sm-empty"><i class="bi bi-hourglass-split"></i>読み込み中...</div>
@@ -74,6 +88,11 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="bi bi-arrow-left"></i>
                     </button>
                     <h3 class="sm-subpanel-title" id="smCompanyTitle">担当企業一覧</h3>
+                    <div class="sm-period-switch ms-auto" id="smCompPeriod">
+                        <button type="button" class="active" data-period="month">月別</button>
+                        <button type="button" data-period="fy">年度</button>
+                    </div>
+                    <span class="sm-head-note" id="smCompPeriodNote"><?= $initYear ?>年<?= $initMonth ?>月</span>
                 </div>
                 <div class="sm-company-list" id="smCompanyList">
                     <div class="sm-empty">
@@ -144,7 +163,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php
 $inlineJs  = 'var smApiUrl = ' . json_encode(BASE_PATH . '/public/api/strategy_meeting.php') . ';';
 $inlineJs .= 'var smCsrf = ' . json_encode($csrf) . ';';
-$inlineJs .= 'var smFyLabel = ' . json_encode($fyLabel, JSON_UNESCAPED_UNICODE) . ';';
+$inlineJs .= 'var smInitYear = ' . (int)$initYear . '; var smInitMonth = ' . (int)$initMonth . ';';
 $inlineJs .= <<<'JS'
 
 // ============================================================
@@ -156,6 +175,10 @@ var smState = {
     trendDivision: '',   // 年推移に使う区分（押した企業カードの区分）
     rep:           null, // 選択中の営業マン名
     clientId:      null, // 選択中の取引先ID
+    repPeriod:     'month', // 営業マン一覧の集計期間: 'month' | 'fy'
+    compPeriod:    'month', // 担当企業一覧の集計期間: 'month' | 'fy'
+    year:          smInitYear,  // 「月別」のときの対象年
+    month:         smInitMonth, // 「月別」のときの対象月
     metric:    'revenue',
     periods:   [],
     frameUnit: '枠',
@@ -180,10 +203,18 @@ function smGet(params) {
         .then(function (r) { return r.json(); });
 }
 
+// 集計期間のパラメータ。年度のときも対象年月を送り、その月が属する年度を集計する
+function smPeriodParams(period) {
+    return {period: period, year: smState.year, month: smState.month};
+}
+
 // ---------- 営業マンカード ----------
 function smLoadReps() {
     var box = document.getElementById('smRepList');
-    return smGet({action: 'reps'}).then(function (d) {
+    var qs  = smPeriodParams(smState.repPeriod);
+    qs.action = 'reps';
+    return smGet(qs).then(function (d) {
+        if (d.period_label) document.getElementById('smRepPeriodNote').textContent = d.period_label;
         if (d.error) { box.innerHTML = smEmpty('exclamation-triangle', d.error); return; }
         if (!d.reps || !d.reps.length) {
             box.innerHTML = smEmpty('person-x', '社員一覧で「営業担当」にチェックが入っている社員がいません');
@@ -236,10 +267,15 @@ function smLoadCompanies(rep) {
     title.textContent = rep + 'の担当企業一覧';
     box.innerHTML = smEmpty('hourglass-split', '読み込み中...');
 
-    return smGet({action: 'companies', rep: rep, division: smState.division}).then(function (d) {
+    var qs = smPeriodParams(smState.compPeriod);
+    qs.action = 'companies';
+    qs.rep = rep;
+    qs.division = smState.division;
+    return smGet(qs).then(function (d) {
+        if (d.period_label) document.getElementById('smCompPeriodNote').textContent = d.period_label;
         if (d.error) { box.innerHTML = smEmpty('exclamation-triangle', d.error); return; }
         if (!d.companies || !d.companies.length) {
-            box.innerHTML = smEmpty('inbox', '今年度の担当企業がありません');
+            box.innerHTML = smEmpty('inbox', (d.period_label || 'この期間') + 'の担当企業がありません');
             return;
         }
         box.innerHTML = d.companies.map(function (c) {
@@ -259,8 +295,8 @@ function smLoadCompanies(rep) {
                   '<span class="sm-metric-value">' + c.frame_count + smEsc(c.frame_unit) + '</span>' +
                 '</span>' +
                 '<span class="sm-metric">' +
-                  '<span class="sm-metric-label">取引金額（' + smEsc(d.month_label) + '）</span>' +
-                  '<span class="sm-metric-value">' + smYen(c.month_revenue) + '</span>' +
+                  '<span class="sm-metric-label">取引金額（' + smEsc(d.period_label) + '）</span>' +
+                  '<span class="sm-metric-value">' + smYen(c.revenue) + '</span>' +
                 '</span>' +
               '</span>' +
               '<span class="sm-company-chevron"><i class="bi bi-chevron-right"></i></span>' +
@@ -438,8 +474,55 @@ function smSaveMemo() {
         .catch(function () { status.textContent = '通信エラーが発生しました'; });
 }
 
+// ---------- 集計期間（月別 / 年度）の切替 ----------
+// 押されたパネルだけを取り直す。全画面のリロードはしない
+function smBindPeriodSwitch(elId, stateKey, reload) {
+    document.getElementById(elId).addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn || btn.dataset.period === smState[stateKey]) return;
+        this.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        smState[stateKey] = btn.dataset.period;
+        smUpdateMonthNav();
+        reload();
+    });
+}
+
+// 月送りは「月別」にしているパネルがあるときだけ操作できる
+function smUpdateMonthNav() {
+    var nav = document.getElementById('smMonthNav');
+    var useMonth = (smState.repPeriod === 'month' || smState.compPeriod === 'month');
+    nav.classList.toggle('is-disabled', !useMonth);
+    document.getElementById('smMonthLabel').textContent = smState.year + '年' + smState.month + '月';
+}
+
+// 月を変えたときは「月別」にしているパネルだけを取り直す
+function smReloadForMonth() {
+    if (smState.repPeriod === 'month') smLoadReps();
+    if (smState.compPeriod === 'month' && smState.rep) smLoadCompanies(smState.rep);
+}
+
 // ---------- イベント登録 ----------
 document.addEventListener('DOMContentLoaded', function () {
+
+    smBindPeriodSwitch('smRepPeriod', 'repPeriod', function () { smLoadReps(); });
+    smBindPeriodSwitch('smCompPeriod', 'compPeriod', function () {
+        if (smState.rep) smLoadCompanies(smState.rep);
+    });
+
+    // 月送り（前の月 / 次の月）
+    document.getElementById('smMonthNav').addEventListener('click', function (e) {
+        if (this.classList.contains('is-disabled')) return;
+        var btn = e.target.closest('.sm-monthnav-btn');
+        if (!btn) return;
+        var m = smState.month + parseInt(btn.dataset.delta, 10);
+        var y = smState.year;
+        if (m < 1)  { m = 12; y -= 1; }
+        if (m > 12) { m = 1;  y += 1; }
+        smState.year = y; smState.month = m;
+        smUpdateMonthNav();
+        smReloadForMonth();
+    });
 
     // 区分の切替: 画面全体を選んだ区分で集計しなおす
     document.getElementById('smFilter').addEventListener('click', function (e) {
@@ -523,6 +606,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 200);
     });
 
+    smUpdateMonthNav();
     smLoadReps();
 
     // 案件の追加・編集を別タブで行った場合にも追従できるよう、

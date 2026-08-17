@@ -73,6 +73,19 @@ function smFyOf(int $year, int $month): int {
     return $month >= 9 ? $year + 1 : $year;
 }
 
+/**
+ * 集計期間の絞り込み条件を組み立てる（年度合計 / 月合計）
+ * どちらも「?」は2個なので、渡す値だけが変わる。集計そのものは変えない。
+ * @return array{0:string,1:array,2:string} [条件SQL, パラメータ, 表示ラベル]
+ */
+function smPeriod(string $period, int $year, int $month): array {
+    if ($period === 'fy') {
+        $fy = smFyOf($year, $month);
+        return [SM_FY_WHERE, [$fy - 1, $fy], '年度（' . smFyLabel($fy) . '）'];
+    }
+    return ['(sc.case_year = ? AND sc.case_month = ?)', [$year, $month], $year . '年' . $month . '月'];
+}
+
 // 担当者名を「社員IDがあればその社員、無ければ案件に入っている名前」で求める。
 // ※既存の売上集計（総合ダッシュボード・担当者別売上）と完全に同じ判定にするため
 const SM_REP_NAME  = "COALESCE(er.name, sc.sales_rep)";
@@ -113,12 +126,20 @@ $action   = $_GET['action'] ?? '';
 $division = (string)($_GET['division'] ?? '');
 if (!in_array($division, ['光AD', '常勤', 'イベント'], true)) $division = '';
 
-$today   = new DateTimeImmutable('today');
-$curYear = (int)$today->format('Y');
-$curMon  = (int)$today->format('n');
+// 集計期間: month=月合計 / fy=年度合計。既定は月合計
+$period = ($_GET['period'] ?? '') === 'fy' ? 'fy' : 'month';
 
-$fy = (int)($_GET['fy'] ?? 0);
-if ($fy < 2000 || $fy > 2100) $fy = smFyOf($curYear, $curMon);
+// 対象年月。未指定なら前月（当月は月末まで案件が登録されないため）
+$today  = new DateTimeImmutable('today');
+$pYear  = (int)($_GET['year']  ?? 0);
+$pMonth = (int)($_GET['month'] ?? 0);
+if ($pYear < 2000 || $pYear > 2100 || $pMonth < 1 || $pMonth > 12) {
+    $prev   = $today->modify('first day of last month');
+    $pYear  = (int)$prev->format('Y');
+    $pMonth = (int)$prev->format('n');
+}
+
+[$perWhere, $perParams, $perLabel] = smPeriod($period, $pYear, $pMonth);
 
 $divCond = smDivisionCond($db, $division);
 
@@ -136,14 +157,14 @@ if ($action === 'reps') {
     // カードの売上金額は常に全区分の合計で、既存の売上集計と同じ数字になる
     $divCond = '';
 
-    // --- 売上金額（今年度累計）: 既存の50/50分割と完全に同じロジック ---
+    // --- 売上金額（選択期間）: 既存の50/50分割と完全に同じロジック ---
     // 営業担当に50%、紹介元（管理者→採用者→直営業）に50%
     $revSql = "
         SELECT name, SUM(rev) AS revenue FROM (
             SELECT " . SM_REP_NAME . " AS name, FLOOR(sc.revenue / 2) AS rev
             FROM sales_cases sc " . SM_REP_JOIN . "
             WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.sales_rep != ''
-              AND " . SM_FY_WHERE . " {$divCond}
+              AND {$perWhere} {$divCond}
             UNION ALL
             SELECT CASE WHEN em.name IS NOT NULL THEN em.name
                         WHEN COALESCE(sc.manager, '')   NOT IN ('', '該当者なし') THEN sc.manager
@@ -155,38 +176,38 @@ if ($action === 'reps') {
             " . SM_MGR_JOIN . "
             LEFT JOIN employees erc ON erc.id = sc.recruiter_id AND erc.company_id = sc.company_id
             WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.sales_rep != ''
-              AND " . SM_FY_WHERE . " {$divCond}
+              AND {$perWhere} {$divCond}
         ) t
         WHERE t.name NOT IN ('直営業', '', '該当者なし')
         GROUP BY t.name";
     $stmt = $db->prepare($revSql);
-    $stmt->execute([$cid, $fy - 1, $fy, $cid, $fy - 1, $fy]);
+    $stmt->execute(array_merge([$cid], $perParams, [$cid], $perParams));
     $revMap = [];
     foreach ($stmt->fetchAll() as $r) { $revMap[$r['name']] = (int)$r['revenue']; }
 
-    // --- クライアント数（今年度・重複なし）: その営業マンが「営業担当」の案件の企業数 ---
+    // --- クライアント数（選択期間・重複なし）: その営業マンが「営業担当」の案件の企業数 ---
     $clientSql = "
         SELECT " . SM_REP_NAME . " AS name, COUNT(DISTINCT sc.client_id) AS cnt
         FROM sales_cases sc " . SM_REP_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.client_id IS NOT NULL
-          AND " . SM_FY_WHERE . " {$divCond}
+          AND {$perWhere} {$divCond}
         GROUP BY " . SM_REP_NAME;
     $stmt = $db->prepare($clientSql);
-    $stmt->execute([$cid, $fy - 1, $fy]);
+    $stmt->execute(array_merge([$cid], $perParams));
     $clientMap = [];
     foreach ($stmt->fetchAll() as $r) { $clientMap[$r['name']] = (int)$r['cnt']; }
 
-    // --- アライアンス数（今年度・重複なし） ---
+    // --- アライアンス数（選択期間・重複なし） ---
     // 判定基準は「管理者」。スタッフ区分がアライアンスの案件に出てくる外注先の社数
     $allianceSql = "
         SELECT " . SM_MGR_NAME . " AS name, COUNT(DISTINCT sc.alliance_id) AS cnt
         FROM sales_cases sc " . SM_MGR_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND sc.worker_type = 'アライアンス' AND sc.alliance_id IS NOT NULL
-          AND " . SM_FY_WHERE . " {$divCond}
+          AND {$perWhere} {$divCond}
         GROUP BY " . SM_MGR_NAME;
     $stmt = $db->prepare($allianceSql);
-    $stmt->execute([$cid, $fy - 1, $fy]);
+    $stmt->execute(array_merge([$cid], $perParams));
     $allianceMap = [];
     foreach ($stmt->fetchAll() as $r) {
         $n = trim((string)$r['name']);
@@ -207,9 +228,9 @@ if ($action === 'reps') {
     usort($reps, fn($a, $b) => $b['revenue'] <=> $a['revenue']);
 
     echo json_encode([
-        'reps'     => $reps,
-        'fy'       => $fy,
-        'fy_label' => smFyLabel($fy),
+        'reps'         => $reps,
+        'period'       => $period,
+        'period_label' => $perLabel,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -229,19 +250,18 @@ if ($action === 'companies') {
                COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS client_name,
                {$divExpr} AS division,
                COUNT(*) AS frame_count,
-               COALESCE(SUM(CASE WHEN sc.case_year = ? AND sc.case_month = ? THEN sc.revenue ELSE 0 END), 0) AS month_revenue,
-               COALESCE(SUM(sc.revenue), 0) AS fy_revenue
+               COALESCE(SUM(sc.revenue), 0) AS revenue
         FROM sales_cases sc
         JOIN sales_clients cl ON sc.client_id = cl.id
         " . SM_REP_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
-          AND " . SM_FY_WHERE . "
+          AND {$perWhere}
           AND " . SM_REP_NAME . " = ?
           {$divCond}
         GROUP BY cl.id, cl.display_name, cl.client_name, {$divExpr}
-        ORDER BY month_revenue DESC, fy_revenue DESC, client_name";
+        ORDER BY revenue DESC, client_name";
     $stmt = $db->prepare($sql);
-    $stmt->execute([$curYear, $curMon, $cid, $fy - 1, $fy, $rep]);
+    $stmt->execute(array_merge([$cid], $perParams, [$rep]));
 
     $companies = [];
     foreach ($stmt->fetchAll() as $r) {
@@ -253,15 +273,15 @@ if ($action === 'companies') {
             'frame_count'   => (int)$r['frame_count'],
             // 単位: イベントは「コマ」、それ以外は「枠」（既存ダッシュボードと同じ呼び分け）
             'frame_unit'    => $r['division'] === 'イベント' ? 'コマ' : '枠',
-            'month_revenue' => (int)$r['month_revenue'],
-            'fy_revenue'    => (int)$r['fy_revenue'],
+            'revenue'       => (int)$r['revenue'],
         ];
     }
 
     echo json_encode([
-        'rep'         => $rep,
-        'companies'   => $companies,
-        'month_label' => $curYear . '年' . $curMon . '月',
+        'rep'          => $rep,
+        'companies'    => $companies,
+        'period'       => $period,
+        'period_label' => $perLabel,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

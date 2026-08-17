@@ -55,10 +55,12 @@
 }
 
 /* 見出し行（営業マン一覧・担当企業一覧・年推移で共通） */
+/* 狭い画面ではボタンが折り返るようにして、はみ出しを防ぐ */
 .sm-subpanel-head {
     display: flex;
     align-items: center;
-    gap: .6rem;
+    flex-wrap: wrap;
+    gap: .5rem .6rem;
     padding-bottom: .7rem;
     margin-bottom: .9rem;
     border-bottom: 1px solid var(--sm-border-soft);
@@ -86,6 +88,58 @@
     color: var(--sm-blue);
     margin: 0;
 }
+
+/* ---- 集計期間の切替（月別 / 年度） ---- */
+/* 年推移の「売上金額 / 枠数」と同じ見た目に揃える */
+.sm-period-switch { display: flex; gap: .25rem; }
+.sm-period-switch button {
+    border: 1px solid var(--sm-border);
+    background: #fff;
+    color: var(--sm-muted);
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .22rem .6rem;
+    border-radius: 6px;
+    line-height: 1.4;
+}
+.sm-period-switch button:hover { border-color: var(--sm-blue-strong); color: var(--sm-blue-strong); }
+.sm-period-switch button.active {
+    background: var(--sm-blue-strong);
+    border-color: var(--sm-blue-strong);
+    color: #fff;
+}
+
+/* ---- 対象月の送り ---- */
+.sm-monthnav {
+    display: flex;
+    align-items: center;
+    gap: .15rem;
+    border: 1px solid var(--sm-border);
+    border-radius: 8px;
+    padding: .1rem .2rem;
+    background: #fff;
+}
+.sm-monthnav-btn {
+    border: none;
+    background: transparent;
+    color: var(--sm-blue-strong);
+    font-size: .8rem;
+    line-height: 1;
+    padding: .3rem .45rem;
+    border-radius: 5px;
+}
+.sm-monthnav-btn:hover { background: var(--sm-blue-soft); }
+.sm-monthnav-label {
+    font-size: .78rem;
+    font-weight: 700;
+    min-width: 84px;
+    text-align: center;
+    white-space: nowrap;
+}
+/* 両方のパネルが「年度」のときは月送りを使わない */
+.sm-monthnav.is-disabled { opacity: .45; }
+.sm-monthnav.is-disabled .sm-monthnav-btn { cursor: default; }
+.sm-monthnav.is-disabled .sm-monthnav-btn:hover { background: transparent; }
 
 /* ---- 区分の切替ボタン ---- */
 .sm-filter { display: flex; flex-wrap: wrap; gap: .4rem; }

@@ -745,11 +745,15 @@ function smRenderTrend2Table() {
     var num = function (v) {
         return v > 0 ? String(v) : '<span class="text-muted">-</span>';
     };
+    // 進捗: 目標に対して何社上回っているか。表示は常勤・イベントダッシュボードの
+    // 「1次進捗」と同じ（プラスは+付きの緑、マイナスは赤、目標が未入力なら「-」）。
+    // ※ダッシュボードは月ごとの枠数を足し上げるが、会社数はもともと累計なので
+    //   足し上げず「実績−目標」をそのまま出す（足すと二重計上になる）
     var pct = function (actual, target) {
-        // 目標が未入力・0のときは計算しない（0で割らない）
         if (!target || target <= 0) return '<span class="text-muted">-</span>';
-        var p = Math.round(actual / target * 1000) / 10;
-        return '<span style="font-weight:600;color:' + (p >= 100 ? '#059669' : '#dc2626') + '">' + p + '%</span>';
+        var d = (actual || 0) - target;
+        return '<span style="font-weight:600;color:' + (d >= 0 ? '#059669' : '#dc2626') + '">'
+             + (d > 0 ? '+' : '') + d + '</span>';
     };
 
     var html = '';
@@ -768,8 +772,8 @@ function smRenderTrend2Table() {
          + smT2Months.map(function (m) { return '<td>' + num(m.company_count) + '</td>'; }).join('')
          + '<td' + CUR + '>' + num(cur.company_count) + '</td></tr>';
 
-    // 3. 会社数達成率（会社数実績 ÷ 会社数目標）
-    html += '<tr><td class="sm-t2-rowhead">会社数達成率</td>'
+    // 3. 会社数進捗（会社数実績 − 会社数目標）
+    html += '<tr><td class="sm-t2-rowhead">会社数進捗</td>'
          + smT2Months.map(function (m, i) {
                return '<td id="smT2AchvC' + i + '">' + pct(m.company_count, m.target_company) + '</td>';
            }).join('')
@@ -789,8 +793,8 @@ function smRenderTrend2Table() {
          + smT2Months.map(function (m) { return '<td>' + num(m.active_count) + '</td>'; }).join('')
          + '<td' + CUR + '>' + num(cur.active_count) + '</td></tr>';
 
-    // 6. 取引有会社数達成率
-    html += '<tr><td class="sm-t2-rowhead">取引有会社数達成率</td>'
+    // 6. 取引有会社数進捗（取引有会社数実績 − 取引有会社数目標）
+    html += '<tr><td class="sm-t2-rowhead">取引有会社数進捗</td>'
          + smT2Months.map(function (m, i) {
                return '<td id="smT2AchvA' + i + '">' + pct(m.active_count, m.target_active) + '</td>';
            }).join('')
@@ -798,7 +802,7 @@ function smRenderTrend2Table() {
 
     tbody.innerHTML = html;
 
-    // 目標を入力 → 達成率とグラフの点線をその場で更新 → 非同期で保存（リロードなし）
+    // 目標を入力 → 進捗とグラフの点線をその場で更新 → 非同期で保存（リロードなし）
     tbody.querySelectorAll('.sm-t2-inp').forEach(function (inp) {
         inp.addEventListener('input', function () {
             var i = parseInt(inp.dataset.idx, 10);
@@ -828,13 +832,14 @@ function smRenderTrend2Table() {
     });
 }
 
-// 達成率セルを1ヶ月分だけ更新する
+// 進捗セルを1ヶ月分だけ更新する（目標を入力したときの即時反映用。表の描画と同じ計算）
 function smT2SyncCell(i) {
     var m = smT2Months[i];
     var f = function (actual, target) {
         if (!target || target <= 0) return '<span class="text-muted">-</span>';
-        var p = Math.round(actual / target * 1000) / 10;
-        return '<span style="font-weight:600;color:' + (p >= 100 ? '#059669' : '#dc2626') + '">' + p + '%</span>';
+        var d = (actual || 0) - target;
+        return '<span style="font-weight:600;color:' + (d >= 0 ? '#059669' : '#dc2626') + '">'
+             + (d > 0 ? '+' : '') + d + '</span>';
     };
     var c = document.getElementById('smT2AchvC' + i);
     var a = document.getElementById('smT2AchvA' + i);

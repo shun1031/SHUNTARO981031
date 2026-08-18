@@ -156,7 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // --- 商談報告の保存（新規登録 / 既存の書き換え） ---
-    // 1社につき1件。同じ会社を2件作らないよう、会社名キーで既存を探して更新する。
+    // 1社につき1件。既存の内容を書き換えられるのは、一覧の編集ボタンから開いたとき（id あり）だけ。
+    // 「＋商談報告」からの新規登録（id なし）で既に登録済みの会社を入れた場合は、
+    // 気づかないうちに担当者や備考が上書きされるのを防ぐため、保存せずにエラーを返す。
     // ステータスが変わったときは「いつ変わったか」の年月を記録し、過去の月の集計が
     // あとから変わらないようにする
     if ($postAction === 'save_negotiation') {
@@ -181,20 +183,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $counted = in_array($status, SM_COUNTED_STATUSES, true);
 
         try {
-            // 既存を探す（IDが来ていればそれ、無ければ会社名キーで）
+            // 編集対象は「一覧の編集ボタンから開いたレコード」だけ。
+            // 新規登録（id なし）では既存を拾わないので、勝手な上書きが起こらない
+            $cur = null;
             if ($id) {
                 $st = $db->prepare('SELECT * FROM strategy_meeting_negotiations WHERE id = ? AND company_id = ?');
                 $st->execute([$id, $cid]);
-            } else {
-                $st = $db->prepare('SELECT * FROM strategy_meeting_negotiations WHERE company_id = ? AND client_name_key = ?');
-                $st->execute([$cid, $key]);
+                $cur = $st->fetch() ?: null;
+                if (!$cur) { echo json_encode(['error' => '対象の商談報告が見つかりません']); exit; }
             }
-            $cur = $st->fetch();
 
-            // 会社名を変更した結果、別の既存レコードと重複する場合は弾く
-            $dup = $db->prepare('SELECT id FROM strategy_meeting_negotiations WHERE company_id = ? AND client_name_key = ? AND id <> ?');
+            // 同じ会社が既に登録されていないか確認する。
+            // 新規登録なら1件でもあればエラー。編集なら自分以外にあればエラー（会社名の変更で衝突した場合）
+            $dup = $db->prepare('SELECT client_name FROM strategy_meeting_negotiations
+                                 WHERE company_id = ? AND client_name_key = ? AND id <> ?');
             $dup->execute([$cid, $key, $cur ? (int)$cur['id'] : 0]);
-            if ($dup->fetchColumn()) { echo json_encode(['error' => 'この会社はすでに登録されています']); exit; }
+            $dupName = $dup->fetchColumn();
+            if ($dupName !== false) {
+                echo json_encode([
+                    'error' => '「' . $dupName . '」はすでに登録されています。'
+                             . '内容を変更する場合は一覧の編集ボタンから行ってください。',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
 
             if (!$cur) {
                 // --- 新規登録 ---

@@ -269,11 +269,62 @@ foreach ($RENAME as $oldName => $official) {
 }
 
 // ============================================================
+// 既存レコードごとに「どの正式名称に寄せるか」を決める
+// ============================================================
+/** この既存レコードが寄せられる正式名称。該当なしなら null */
+function scmTargetOf(array $c, array $renameKeyToOfficial, array $targetKeyToOfficial): ?string {
+    foreach ([$c['client_name'], $c['display_name']] as $n) {
+        $k = scmKey((string)$n);
+        if ($k === '') continue;
+        if (isset($renameKeyToOfficial[$k]))  return $renameKeyToOfficial[$k];
+        if (isset($targetKeyToOfficial[$k]))  return $targetKeyToOfficial[$k];
+    }
+    return null;
+}
+
+$targetKeyToOfficial = [];
+foreach ($TARGETS as [$official, $display, $src]) {
+    $targetKeyToOfficial[scmKey($official)] = $official;
+    $targetKeyToOfficial[scmKey($display)]  = $official;
+}
+
+// 正式名称 => その正式名称に寄る既存レコード（登録中のものだけ）
+$activeByOfficial = [];
+foreach ($current as $c) {
+    if ((int)$c['is_active'] !== 1) continue;
+    $off = scmTargetOf($c, $renameKeyToOfficial, $targetKeyToOfficial);
+    if ($off !== null) $activeByOfficial[$off][] = $c;
+}
+
+// ============================================================
+// 統合が必要な組（同じ会社が取引先一覧に2件以上ある）
+// 案件・請求・メモ・商談報告・外注先の紐づけを1件に寄せてから、余った側を削除済みにする
+// ============================================================
+$mergeGroups = [];
+foreach ($activeByOfficial as $official => $rows) {
+    if (count($rows) < 2) continue;
+    // 案件が多いほうを残す（同数なら古いレコードを残す）
+    usort($rows, function ($a, $b) use ($caseCount) {
+        $ca = $caseCount[(int)$a['id']] ?? 0;
+        $cb = $caseCount[(int)$b['id']] ?? 0;
+        if ($ca !== $cb) return $cb <=> $ca;
+        return (int)$a['id'] <=> (int)$b['id'];
+    });
+    $mergeGroups[] = ['official' => $official, 'keep' => $rows[0], 'drop' => array_slice($rows, 1)];
+}
+
+// ============================================================
 // 1件ごとに「更新 / 新規追加 / 変更なし」を判定
 // ============================================================
 $plan     = [];   // 実行する内容
 $warnings = [];   // 実行前に人が判断すべきこと
 $usedIds  = [];   // すでに割り当てた既存レコード（1レコードが2社に割り当たるのを防ぐ）
+
+// 統合で削除済みになる予定のレコード（更新対象からは外す）
+$dropIds = [];
+foreach ($mergeGroups as $g) {
+    foreach ($g['drop'] as $d) $dropIds[(int)$d['id']] = true;
+}
 
 // 表記名の重複チェック（登録リスト内）
 $dispSeen = [];
@@ -287,15 +338,14 @@ foreach ($TARGETS as [$official, $display, $src]) {
 }
 
 foreach ($TARGETS as [$official, $display, $src]) {
-    // 統合先がこの正式名称になっている既存レコードを探す
+    // この正式名称に寄せる既存レコードを探す。
+    // 登録中のものを優先し、無ければ削除済みのものを拾って復元する
     $match = null;
-    foreach ($current as $c) {
-        if (isset($usedIds[(int)$c['id']])) continue;
-        foreach ([$c['client_name'], $c['display_name']] as $n) {
-            $k = scmKey((string)$n);
-            if ($k === '') continue;
-            if (($renameKeyToOfficial[$k] ?? null) === $official) { $match = $c; break 2; }
-            if ($k === scmKey($official) || $k === scmKey($display)) { $match = $c; break 2; }
+    foreach ([1, 0] as $wantActive) {
+        foreach ($current as $c) {
+            if (isset($usedIds[(int)$c['id']]) || isset($dropIds[(int)$c['id']])) continue;
+            if ((int)$c['is_active'] !== $wantActive) continue;
+            if (scmTargetOf($c, $renameKeyToOfficial, $targetKeyToOfficial) === $official) { $match = $c; break 2; }
         }
     }
 
@@ -329,29 +379,13 @@ foreach ($TARGETS as [$official, $display, $src]) {
     }
 }
 
-// 2つ以上の既存レコードが同じ正式名称に統合されようとしていないか
-$officialToOld = [];
-foreach ($current as $c) {
-    foreach ([$c['client_name'], $c['display_name']] as $n) {
-        $k = scmKey((string)$n);
-        if ($k === '' || !isset($renameKeyToOfficial[$k])) continue;
-        $officialToOld[$renameKeyToOfficial[$k]][(int)$c['id']] = (string)$c['client_name'];
-    }
-}
-foreach ($officialToOld as $official => $olds) {
-    if (count($olds) > 1) {
-        $warnings[] = [
-            '既存レコードの統合が必要',
-            "「{$official}」に対して既存レコードが" . count($olds) . '件あります（'
-            . implode(' / ', array_map(fn($id, $n) => "#{$id} {$n}", array_keys($olds), $olds))
-            . '）。1件だけを更新し、残りは案件の付け替えが必要です',
-        ];
-    }
-}
-
 // 更新後の会社名が、更新対象以外の既存レコードとぶつからないか（DBの重複禁止に引っかかる）
+// 統合で削除済みになる予定のレコードは、統合の実行後に名前を空けるため対象外にする
 $nameOwner = [];
-foreach ($current as $c) { $nameOwner[trim((string)$c['client_name'])] = (int)$c['id']; }
+foreach ($current as $c) {
+    if (isset($dropIds[(int)$c['id']])) continue;
+    $nameOwner[trim((string)$c['client_name'])] = (int)$c['id'];
+}
 foreach ($plan as $p) {
     if ($p['mode'] === 'nochange') continue;
     $owner = $nameOwner[$p['official']] ?? null;
@@ -363,12 +397,14 @@ foreach ($plan as $p) {
 // 今回の対象にならず、そのまま残る既存レコード
 $untouched = [];
 foreach ($current as $c) {
-    if (isset($usedIds[(int)$c['id']])) continue;
+    if (isset($usedIds[(int)$c['id']]) || isset($dropIds[(int)$c['id']])) continue;
     $untouched[] = $c + ['cases' => $caseCount[(int)$c['id']] ?? 0];
 }
 
 // 残る会社の表記名が、今回登録する表記名とぶつからないか
+// （削除済みの取引先は案件フォームにも出ないため対象外）
 foreach ($untouched as $u) {
+    if ((int)$u['is_active'] !== 1) continue;
     $k = scmKey((string)$u['display_name']);
     if ($k !== '' && isset($dispSeen[$k])) {
         $warnings[] = [
@@ -385,11 +421,126 @@ $cntNoChange = count(array_filter($plan, fn($p) => $p['mode'] === 'nochange'));
 
 // ============================================================
 // 実行
+//   step=merge    … 重複レコードの統合（ステップ1）
+//   step=register … 名前の更新・新規追加（ステップ2）
 // ============================================================
 $done = false;
 $msg  = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
-    if ($warnings) {
+$step = $_POST['step'] ?? '';
+
+// 統合を実行した直後の案内（統合後の状態で読み直したとき）
+$mergedInfo = '';
+if (isset($_GET['merged'])) {
+    $mergedInfo = '重複していた取引先 ' . (int)$_GET['merged'] . '件を統合しました'
+                . '（案件 ' . (int)($_GET['cases'] ?? 0) . '件を付け替え）。'
+                . '続けて下の「登録を実行」を押してください。';
+}
+
+// ---- ステップ1: 重複レコードの統合 ----
+if ($step === 'merge' && $_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
+    if (!$mergeGroups) {
+        $msg = '統合が必要な取引先はありませんでした。';
+    } else {
+        try {
+            $db->beginTransaction();
+            $nCase = 0; $nDrop = 0;
+            foreach ($mergeGroups as $g) {
+                $keepId = (int)$g['keep']['id'];
+                foreach ($g['drop'] as $d) {
+                    $dropId = (int)$d['id'];
+
+                    // 案件を残す側へ付け替える（売上・給与の計算はそのまま維持される）
+                    $st = $db->prepare('UPDATE sales_cases SET client_id = ? WHERE client_id = ? AND company_id = ?');
+                    $st->execute([$keepId, $dropId, $cid]);
+                    $nCase += $st->rowCount();
+
+                    // 請求書（会社別）の控えも付け替える
+                    try {
+                        $db->prepare('UPDATE sales_company_invoices SET client_id = ? WHERE client_id = ? AND company_id = ?')
+                           ->execute([$keepId, $dropId, $cid]);
+                    } catch (PDOException $e) { error_log('[merge invoices] ' . $e->getMessage()); }
+
+                    // 外注先の「同じ会社の取引先」も付け替える
+                    try {
+                        $db->prepare('UPDATE sales_alliances SET client_id = ? WHERE client_id = ? AND company_id = ?')
+                           ->execute([$keepId, $dropId, $cid]);
+                    } catch (PDOException $e) { error_log('[merge alliances] ' . $e->getMessage()); }
+
+                    // 戦略会議の企業メモ。残す側に無ければ移し、両方にあれば本文をつなぐ
+                    try {
+                        $q = $db->prepare('SELECT client_id, memo FROM strategy_meeting_memos
+                                           WHERE company_id = ? AND client_id IN (?, ?)');
+                        $q->execute([$cid, $keepId, $dropId]);
+                        $memos = [];
+                        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) $memos[(int)$r['client_id']] = (string)$r['memo'];
+                        if (isset($memos[$dropId])) {
+                            if (isset($memos[$keepId])) {
+                                $joined = trim($memos[$keepId]) !== '' && trim($memos[$dropId]) !== ''
+                                    ? $memos[$keepId] . "\n" . $memos[$dropId]
+                                    : ($memos[$keepId] ?: $memos[$dropId]);
+                                $db->prepare('UPDATE strategy_meeting_memos SET memo = ?, updated_at = NOW()
+                                              WHERE company_id = ? AND client_id = ?')
+                                   ->execute([$joined, $cid, $keepId]);
+                                $db->prepare('DELETE FROM strategy_meeting_memos WHERE company_id = ? AND client_id = ?')
+                                   ->execute([$cid, $dropId]);
+                            } else {
+                                $db->prepare('UPDATE strategy_meeting_memos SET client_id = ?, updated_at = NOW()
+                                              WHERE company_id = ? AND client_id = ?')
+                                   ->execute([$keepId, $cid, $dropId]);
+                            }
+                        }
+                    } catch (PDOException $e) { error_log('[merge memos] ' . $e->getMessage()); }
+
+                    // 商談報告。残す側に無ければ移し、両方にあれば残す側だけにする
+                    try {
+                        $q = $db->prepare('SELECT id, client_id FROM strategy_meeting_negotiations
+                                           WHERE company_id = ? AND client_id IN (?, ?) ORDER BY id');
+                        $q->execute([$cid, $keepId, $dropId]);
+                        $ng = ['keep' => null, 'drop' => null];
+                        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                            $ng[(int)$r['client_id'] === $keepId ? 'keep' : 'drop'] = (int)$r['id'];
+                        }
+                        if ($ng['drop'] !== null) {
+                            if ($ng['keep'] !== null) {
+                                $db->prepare('DELETE FROM strategy_meeting_negotiations WHERE id = ? AND company_id = ?')
+                                   ->execute([$ng['drop'], $cid]);
+                            } else {
+                                $db->prepare('UPDATE strategy_meeting_negotiations SET client_id = ?, updated_at = NOW()
+                                              WHERE id = ? AND company_id = ?')
+                                   ->execute([$keepId, $ng['drop'], $cid]);
+                            }
+                        }
+                    } catch (PDOException $e) { error_log('[merge negotiations] ' . $e->getMessage()); }
+
+                    // 余ったレコードは削除済みにする。会社名は「統合済み」と分かるようにしておく
+                    // （会社名はDBで重複禁止なので、残す側が新しい名前を使えるよう名前も空ける）
+                    $db->prepare('UPDATE sales_clients
+                                  SET client_name = ?, display_name = ?, is_active = 0, updated_at = NOW()
+                                  WHERE id = ? AND company_id = ?')
+                       ->execute([
+                           mb_substr('【統合済み】' . $d['client_name'],  0, 100),
+                           mb_substr('【統合済み】' . $d['display_name'], 0, 100),
+                           $dropId, $cid,
+                       ]);
+                    $nDrop++;
+                }
+            }
+            $db->commit();
+            // 統合後の状態で画面を作り直すため、同じページを読み直す
+            redirect(BASE_PATH . '/public/setup_clients_master.php?merged=' . $nDrop . '&cases=' . $nCase);
+        } catch (PDOException $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            error_log('[setup_clients_master merge] ' . $e->getMessage());
+            $msg = '統合に失敗したため、変更をすべて取り消しました。' . $e->getMessage();
+        }
+    }
+}
+
+// ---- ステップ2: 名前の更新・新規追加 ----
+if ($step !== 'merge' && $_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
+    if ($mergeGroups) {
+        $msg = '先に「重複レコードの統合」を実行してください。';
+    } elseif ($warnings) {
         $msg = '確認が必要な項目が残っているため実行しませんでした。上の警告をご確認ください。';
     } else {
         try {
@@ -432,8 +583,65 @@ require_once __DIR__ . '/../includes/header.php';
            表記名を変えても過去の案件はそのまま残り、画面の表示名だけが切り替わります。</p>
     </div>
 
+    <?php if ($mergedInfo): ?>
+        <div class="alert alert-success"><?= h($mergedInfo) ?></div>
+    <?php endif; ?>
     <?php if ($msg): ?>
         <div class="alert alert-<?= $done ? 'success' : 'danger' ?>"><?= h($msg) ?></div>
+    <?php endif; ?>
+
+    <?php if ($mergeGroups): ?>
+    <div class="card border-warning mb-4">
+        <div class="card-header bg-warning fw-bold">
+            <i class="bi bi-1-circle me-1"></i>ステップ1：重複している取引先を統合する（<?= count($mergeGroups) ?>組）
+        </div>
+        <div class="card-body pb-2">
+            <p class="mb-2" style="font-size:.86rem">
+                同じ会社が取引先一覧に2件以上登録されています。<strong>案件が多いほうに寄せて1件にまとめます。</strong><br>
+                案件・請求書の控え・企業メモ・商談報告・外注先の紐づけは、すべて残す側へ付け替えます。
+                <span class="text-danger">売上・給与の金額は変わりません。</span>
+                余ったレコードは会社名の先頭に「【統合済み】」を付けて削除済みにします（データは消しません）。
+            </p>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0" style="font-size:.82rem">
+                <thead class="table-light">
+                    <tr><th>まとめる会社</th><th>残す</th><th>削除済みにする</th></tr>
+                </thead>
+                <tbody>
+                <?php foreach ($mergeGroups as $g): ?>
+                    <tr>
+                        <td class="fw-medium"><?= h($g['official']) ?></td>
+                        <td>
+                            <span class="badge bg-primary me-1">残す</span>
+                            #<?= (int)$g['keep']['id'] ?> <?= h($g['keep']['client_name']) ?>
+                            <span class="text-muted">（案件 <?= $caseCount[(int)$g['keep']['id']] ?? 0 ?>件）</span>
+                        </td>
+                        <td>
+                            <?php foreach ($g['drop'] as $d): ?>
+                            <div>
+                                <span class="badge bg-secondary me-1">統合</span>
+                                #<?= (int)$d['id'] ?> <?= h($d['client_name']) ?>
+                                <span class="text-muted">（案件 <?= $caseCount[(int)$d['id']] ?? 0 ?>件 → 残す側へ）</span>
+                            </div>
+                            <?php endforeach; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer">
+            <form method="post" onsubmit="return confirm('<?= count($mergeGroups) ?>組を統合します。案件は残す側へ付け替えられます。よろしいですか？');">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="step" value="merge">
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-arrow-left-right me-1"></i>統合を実行
+                </button>
+                <span class="text-muted small ms-2">これを実行してから、下の「登録を実行」を押してください</span>
+            </form>
+        </div>
+    </div>
     <?php endif; ?>
 
     <div class="row g-3 mb-4">
@@ -573,11 +781,14 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (!$done): ?>
         <form method="post" onsubmit="return confirm('更新 <?= $cntUpdate ?>社 / 新規追加 <?= $cntInsert ?>社 を登録します。よろしいですか？');">
             <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+            <input type="hidden" name="step" value="register">
             <button type="submit" class="btn btn-primary btn-lg"
-                    <?= ($warnings || ($cntUpdate + $cntInsert) === 0) ? 'disabled' : '' ?>>
-                <i class="bi bi-check2-circle me-1"></i>登録を実行
+                    <?= ($mergeGroups || $warnings || ($cntUpdate + $cntInsert) === 0) ? 'disabled' : '' ?>>
+                <i class="bi bi-<?= $mergeGroups ? '2' : 'check2' ?>-circle me-1"></i>登録を実行
             </button>
-            <?php if ($warnings): ?>
+            <?php if ($mergeGroups): ?>
+                <span class="text-danger small ms-2">先にステップ1の「統合を実行」を押してください</span>
+            <?php elseif ($warnings): ?>
                 <span class="text-danger small ms-2">確認が必要な項目が残っています</span>
             <?php endif; ?>
         </form>

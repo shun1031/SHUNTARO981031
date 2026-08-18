@@ -140,6 +140,10 @@
     margin-bottom: 1rem;
 }
 .sm-t2-canvas { display: block; max-width: 100%; }
+/* 画面が狭いと凡例が数段になり、グラフの描画領域が潰れてしまうため高さを足す */
+@media (max-width: 767.98px) {
+    .sm-t2-chart-box { height: 430px; }
+}
 
 /* 表は月が13列あるため、枠の中だけで横スクロールさせる */
 .sm-t2-table-wrap { overflow-x: auto; }
@@ -169,6 +173,16 @@
     min-width: 132px;
     background: #fcfdfe;
 }
+/* 区分の見出し行。長い項目名はここにまとめ、下の行は「目標・実績・進捗」だけにする */
+.sm-t2-table .sm-t2-group td {
+    background: #eef2f7;
+    font-weight: 700;
+    color: var(--sm-blue);
+    text-align: left;
+    padding: .3rem .5rem;
+}
+/* 見出しにぶら下がる行は少し右に寄せて階層を示す */
+.sm-t2-table .sm-t2-rowhead.is-sub { padding-left: 1.1rem; }
 /* 末尾の「現在」列は月別と区切るため背景色を付ける */
 .sm-t2-table .sm-t2-cur {
     background: #f1f5f9;

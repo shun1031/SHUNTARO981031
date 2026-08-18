@@ -331,7 +331,8 @@ function smPeriodParams(period) {
 }
 
 // ---------- 取引企業数の合計（〇〇社 / 目標社数） ----------
-// 営業マンカードの数字の単純合計ではなく、重複を除いた実企業数。
+// 営業マンカードの数字の単純合計ではなく、重複を除いた社数
+//（表の「パートナー数＋パートナー候補数実績」と同じ数字）。
 // 月別/年度の切替には連動せず、今年度で固定
 function smLoadGoal() {
     return smGet({action: 'summary', year: smState.year, month: smState.month}).then(function (d) {
@@ -339,7 +340,8 @@ function smLoadGoal() {
         smState.goalTarget = d.target;
         document.getElementById('smGoalCount').textContent  = Number(d.count).toLocaleString('ja-JP');
         document.getElementById('smGoalTarget').textContent = Number(d.target).toLocaleString('ja-JP');
-        document.getElementById('smGoalNote').textContent   = '今年度（' + d.fy_label + '）／重複を除いた実企業数';
+        // 表の「パートナー数＋パートナー候補数実績」と同じ数字なので、呼び方を揃える
+        document.getElementById('smGoalNote').textContent   = '今年度（' + d.fy_label + '）／パートナー数＋パートナー候補数';
     }).catch(function () { /* 表示だけなので失敗しても他の集計は止めない */ });
 }
 
@@ -689,17 +691,17 @@ function smRenderTrend2() {
                  backgroundColor: '#93c5fd', yAxisID: 'y', order: 4},
                 {label: '取引・候補になった数', type: 'bar', data: converted,
                  backgroundColor: '#fca5a5', yAxisID: 'y', order: 4},
-                // 折れ線（右軸）: 累計の会社数
-                {label: '会社数実績', type: 'line', data: company,
+                // 折れ線（右軸）: 累計の社数。名前は表の項目と揃える
+                {label: 'パートナー数＋パートナー候補数実績', type: 'line', data: company,
                  borderColor: '#2563eb', backgroundColor: '#2563eb', pointBackgroundColor: '#2563eb',
                  yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 3.5, order: 1},
-                {label: '会社数目標', type: 'line', data: tCompany,
+                {label: 'パートナー数＋パートナー候補数目標', type: 'line', data: tCompany,
                  borderColor: '#2563eb', backgroundColor: 'transparent', borderDash: [6, 4],
                  yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 0, spanGaps: true, order: 2},
-                {label: '取引有会社数実績', type: 'line', data: active,
+                {label: 'パートナー数実績', type: 'line', data: active,
                  borderColor: '#dc2626', backgroundColor: '#dc2626', pointBackgroundColor: '#dc2626',
                  yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 3.5, order: 1},
-                {label: '取引有会社数目標', type: 'line', data: tActive,
+                {label: 'パートナー数目標', type: 'line', data: tActive,
                  borderColor: '#dc2626', backgroundColor: 'transparent', borderDash: [6, 4],
                  yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 0, spanGaps: true, order: 2},
             ],
@@ -757,9 +759,18 @@ function smRenderTrend2Table() {
     };
 
     var html = '';
+    // 項目名が長いため、区分名を見出し行にまとめ、その下に目標・実績・進捗を並べる。
+    // 1列目を狭く保てるので、表が横にはみ出さずに済む
+    var groupRow = function (title) {
+        return '<tr class="sm-t2-group"><td class="sm-t2-rowhead" colspan="'
+             + (smT2Months.length + 2) + '">' + title + '</td></tr>';
+    };
 
-    // 1. 会社数目標（管理者は手入力可）
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-blue is-dashed"></span>会社数目標</td>';
+    // ===== パートナー数＋パートナー候補数 =====
+    html += groupRow('パートナー数＋パートナー候補数');
+
+    // 目標（管理者は手入力可）
+    html += '<tr><td class="sm-t2-rowhead is-sub"><span class="sm-t2-line is-blue is-dashed"></span>目標</td>';
     smT2Months.forEach(function (m, i) {
         html += '<td class="p-0"><input type="text" inputmode="numeric" class="sm-t2-inp"'
              + ' data-field="company" data-idx="' + i + '"'
@@ -767,20 +778,23 @@ function smRenderTrend2Table() {
     });
     html += '<td' + CUR + '>' + num(cur.target_company) + '</td></tr>';
 
-    // 2. 会社数実績
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-blue is-solid"></span>会社数実績</td>'
+    // 実績
+    html += '<tr><td class="sm-t2-rowhead is-sub"><span class="sm-t2-line is-blue is-solid"></span>実績</td>'
          + smT2Months.map(function (m) { return '<td>' + num(m.company_count) + '</td>'; }).join('')
          + '<td' + CUR + '>' + num(cur.company_count) + '</td></tr>';
 
-    // 3. 会社数進捗（会社数実績 − 会社数目標）
-    html += '<tr><td class="sm-t2-rowhead">会社数進捗</td>'
+    // 進捗（実績 − 目標）
+    html += '<tr><td class="sm-t2-rowhead is-sub">進捗</td>'
          + smT2Months.map(function (m, i) {
                return '<td id="smT2AchvC' + i + '">' + pct(m.company_count, m.target_company) + '</td>';
            }).join('')
          + '<td' + CUR + ' id="smT2AchvCCur">' + pct(cur.company_count, cur.target_company) + '</td></tr>';
 
-    // 4. 取引有会社数目標（管理者は手入力可）
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-red is-dashed"></span>取引有会社数目標</td>';
+    // ===== パートナー数 =====
+    html += groupRow('パートナー数');
+
+    // 目標（管理者は手入力可）
+    html += '<tr><td class="sm-t2-rowhead is-sub"><span class="sm-t2-line is-red is-dashed"></span>目標</td>';
     smT2Months.forEach(function (m, i) {
         html += '<td class="p-0"><input type="text" inputmode="numeric" class="sm-t2-inp"'
              + ' data-field="active" data-idx="' + i + '"'
@@ -788,13 +802,13 @@ function smRenderTrend2Table() {
     });
     html += '<td' + CUR + '>' + num(cur.target_active) + '</td></tr>';
 
-    // 5. 取引有会社数実績
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-red is-solid"></span>取引有会社数実績</td>'
+    // 実績
+    html += '<tr><td class="sm-t2-rowhead is-sub"><span class="sm-t2-line is-red is-solid"></span>実績</td>'
          + smT2Months.map(function (m) { return '<td>' + num(m.active_count) + '</td>'; }).join('')
          + '<td' + CUR + '>' + num(cur.active_count) + '</td></tr>';
 
-    // 6. 取引有会社数進捗（取引有会社数実績 − 取引有会社数目標）
-    html += '<tr><td class="sm-t2-rowhead">取引有会社数進捗</td>'
+    // 進捗（実績 − 目標）
+    html += '<tr><td class="sm-t2-rowhead is-sub">進捗</td>'
          + smT2Months.map(function (m, i) {
                return '<td id="smT2AchvA' + i + '">' + pct(m.active_count, m.target_active) + '</td>';
            }).join('')

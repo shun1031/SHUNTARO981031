@@ -28,9 +28,9 @@ $_prev      = (new DateTimeImmutable('today'))->modify('first day of last month'
 $initYear   = (int)$_prev->format('Y');
 $initMonth  = (int)$_prev->format('n');
 
-// 商談報告フォームの選択候補（案件フォームと同じ基準にして表記ゆれを防ぐ）
+// 商談報告フォームの選択候補
+// ※会社名は手入力。営業担当者だけは案件フォームと同じ基準にして表記ゆれを防ぐ
 $repCandidates = getSalesRepCandidates($cid);   // 社員一覧で「営業担当」にチェックがある人
-$negClients    = getSalesClients($cid);         // 取引先マスタ
 $negStatuses   = ['取引開始', '取引候補', '温度感低め', '合わない', '倒産', 'その他'];
 
 // 商談報告の対象年月は当月を既定にする（過去にさかのぼって入力もできる）
@@ -242,15 +242,13 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-medium">会社名 <span class="text-danger">*</span></label>
-                        <?php /* 取引先一覧から選択でき、新規の会社は直接入力もできる（案件フォームと同じ方式） */ ?>
-                        <input type="text" class="form-control" id="smNegClient" list="smNegClientList"
-                               placeholder="選択または直接入力" autocomplete="off" required>
-                        <datalist id="smNegClientList">
-                            <?php foreach ($negClients as $_cl): ?>
-                            <option value="<?= h(($_cl['display_name'] ?? '') !== '' ? $_cl['display_name'] : $_cl['client_name']) ?>"></option>
-                            <?php endforeach; ?>
-                        </datalist>
-                        <div class="form-text" style="font-size:.7rem">同じ会社はまとめて1件で管理されます（重複登録はできません）</div>
+                        <?php /* 手入力のみ。会社数は会社名で突き合わせるため、既存の取引先と表記を揃えて入力する */ ?>
+                        <input type="text" class="form-control" id="smNegClient"
+                               placeholder="会社名を入力" autocomplete="off" maxlength="200" required>
+                        <div class="form-text" style="font-size:.7rem">
+                            同じ会社はまとめて1件で管理されます（重複登録はできません）。<br>
+                            すでに取引のある会社は、取引先一覧と同じ表記で入力してください。
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-medium">ステータス <span class="text-danger">*</span></label>

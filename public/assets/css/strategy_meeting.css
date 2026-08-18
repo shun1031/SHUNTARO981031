@@ -130,6 +130,80 @@
     margin-left: .4rem;
 }
 
+/* ---- 会社数の年間推移（グラフ＋表） ---- */
+.sm-trend2-panel { margin-bottom: 1.25rem; }
+
+/* Chart.js は親要素のサイズを見るので、高さは必ず親側に持たせる */
+.sm-t2-chart-box {
+    position: relative;
+    height: 320px;
+    margin-bottom: 1rem;
+}
+.sm-t2-canvas { display: block; max-width: 100%; }
+
+/* 表は月が13列あるため、枠の中だけで横スクロールさせる */
+.sm-t2-table-wrap { overflow-x: auto; }
+.sm-t2-table {
+    width: 100%;
+    min-width: 880px;
+    border-collapse: collapse;
+    font-size: .72rem;
+    text-align: center;
+}
+.sm-t2-table th,
+.sm-t2-table td {
+    border: 1px solid var(--sm-border-soft);
+    padding: .2rem .3rem;
+    white-space: nowrap;
+}
+.sm-t2-table thead th {
+    background: #f8fafc;
+    font-size: .68rem;
+    font-weight: 600;
+    color: var(--sm-muted);
+}
+/* 1列目（項目名）は左寄せで固定幅を確保する */
+.sm-t2-table .sm-t2-rowhead {
+    text-align: left;
+    font-weight: 600;
+    min-width: 132px;
+    background: #fcfdfe;
+}
+/* 末尾の「現在」列は月別と区切るため背景色を付ける */
+.sm-t2-table .sm-t2-cur {
+    background: #f1f5f9;
+    font-weight: 700;
+    min-width: 56px;
+}
+
+/* グラフの線色と表の行を対応づける小さな点 */
+.sm-t2-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: .35rem;
+    vertical-align: middle;
+}
+.sm-t2-dot.is-blue { background: #2563eb; }
+.sm-t2-dot.is-red  { background: #dc2626; }
+
+/* 目標の入力欄。周囲のセルと馴染ませ、入力できることは下線で示す */
+.sm-t2-inp {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: .72rem;
+    height: 22px;
+    padding: 0 2px;
+    border-bottom: 1px dashed var(--sm-border);
+}
+.sm-t2-inp:focus {
+    outline: none;
+    background: #fff;
+    border-bottom-color: var(--sm-blue-strong);
+}
+
 /* ---- 商談報告 ---- */
 .sm-neg-add {
     display: inline-flex;

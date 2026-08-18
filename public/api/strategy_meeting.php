@@ -261,6 +261,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 月別目標（会社数目標 / 取引有会社数目標）の保存 ---
+    if ($postAction === 'save_monthly_target') {
+        $tYear  = (int)($_POST['t_year']  ?? 0);
+        $tMonth = (int)($_POST['t_month'] ?? 0);
+        $field  = $_POST['field'] ?? '';
+        $value  = max(0, (int)($_POST['value'] ?? 0));
+        if (smYm($tYear, $tMonth) === null) { echo json_encode(['error' => '年月が不正です']); exit; }
+        if (!in_array($field, ['company', 'active'], true)) { echo json_encode(['error' => 'Unknown field']); exit; }
+
+        $col = $field === 'company' ? 'target_company_count' : 'target_active_count';
+        try {
+            // 片方だけ更新しても、もう片方の値が消えないようにする
+            $stmt = $db->prepare("INSERT INTO strategy_meeting_monthly_targets (company_id, year, month, {$col})
+                                  VALUES (?, ?, ?, ?)
+                                  ON DUPLICATE KEY UPDATE {$col} = VALUES({$col}), updated_at = NOW()");
+            $stmt->execute([$cid, $tYear, $tMonth, $value]);
+            echo json_encode(['success' => true]);
+        } catch (PDOException $e) {
+            error_log('[strategy_meeting save_monthly_target] ' . $e->getMessage());
+            echo json_encode(['error' => '目標の保存に失敗しました']);
+        }
+        exit;
+    }
+
     // --- 商談報告の削除 ---
     if ($postAction === 'delete_negotiation') {
         $id = (int)($_POST['id'] ?? 0);
@@ -320,6 +344,116 @@ if ($pYear < 2000 || $pYear > 2100 || $pMonth < 1 || $pMonth > 12) {
 $divCond = smDivisionCond($division);
 
 try {
+
+// ----------------------------------------------------------------
+// action=trend_companies : 会社数の年間推移（9月〜翌8月）
+// ----------------------------------------------------------------
+// 商談報告と「既に案件がある会社」を会社名で突き合わせ、同じ会社を二重に数えない。
+// 候補化・取引開始・除外の年月を記録してあるので、月ごとの実績を正確に出せる。
+if ($action === 'trend_companies') {
+    $fy       = smFyOf($pYear, $pMonth);
+    $fyMonths = [];
+    for ($m = 9; $m <= 12; $m++) $fyMonths[] = ($fy - 1) * 100 + $m;
+    for ($m = 1; $m <= 8;  $m++) $fyMonths[] = $fy * 100 + $m;
+
+    // --- 商談報告 ---
+    $negs = [];
+    $stmt = $db->prepare('SELECT client_name_key, first_report_ym, candidate_ym, active_ym, excluded_ym
+                          FROM strategy_meeting_negotiations WHERE company_id = ?');
+    $stmt->execute([$cid]);
+    foreach ($stmt->fetchAll() as $r) {
+        $negs[$r['client_name_key']] = [
+            'first'    => (int)$r['first_report_ym'],
+            'cand'     => $r['candidate_ym'] !== null ? (int)$r['candidate_ym'] : null,
+            'active'   => $r['active_ym']    !== null ? (int)$r['active_ym']    : null,
+            'excluded' => $r['excluded_ym']  !== null ? (int)$r['excluded_ym']  : null,
+        ];
+    }
+
+    // --- 既に案件がある会社（初回の案件年月から「取引開始」として扱う） ---
+    // 案件があるということは実際に取引しているので、除外はかけない
+    $caseFirst = [];
+    $stmt = $db->prepare("SELECT COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS name,
+                                 MIN(sc.case_year * 100 + sc.case_month) AS first_ym
+                          FROM sales_cases sc
+                          JOIN sales_clients cl ON sc.client_id = cl.id
+                          WHERE sc.company_id = ? AND sc.status = 'confirmed'
+                          GROUP BY cl.id, cl.display_name, cl.client_name");
+    $stmt->execute([$cid]);
+    foreach ($stmt->fetchAll() as $r) {
+        $k = smNameKey((string)$r['name']);
+        if ($k === '') continue;
+        $ym = (int)$r['first_ym'];
+        if (!isset($caseFirst[$k]) || $ym < $caseFirst[$k]) $caseFirst[$k] = $ym;
+    }
+
+    // --- 会社ごとに統合（同じ会社名は1社にまとめる） ---
+    $companies = $negs;
+    foreach ($caseFirst as $k => $ym) {
+        if (!isset($companies[$k])) {
+            $companies[$k] = ['first' => null, 'cand' => $ym, 'active' => $ym, 'excluded' => null];
+            continue;
+        }
+        // 商談報告にもある会社は早い方の月を採用。案件がある＝取引中なので除外は解除する
+        $c = $companies[$k];
+        $c['cand']     = $c['cand']   === null ? $ym : min($c['cand'],   $ym);
+        $c['active']   = $c['active'] === null ? $ym : min($c['active'], $ym);
+        $c['excluded'] = null;
+        $companies[$k] = $c;
+    }
+
+    // --- 月別目標 ---
+    $targetMap = [];
+    try {
+        $stmt = $db->prepare('SELECT year, month, target_company_count, target_active_count
+                              FROM strategy_meeting_monthly_targets WHERE company_id = ? AND year IN (?, ?)');
+        $stmt->execute([$cid, $fy - 1, $fy]);
+        foreach ($stmt->fetchAll() as $r) {
+            $targetMap[(int)$r['year'] * 100 + (int)$r['month']] = [
+                (int)$r['target_company_count'], (int)$r['target_active_count'],
+            ];
+        }
+    } catch (PDOException $e) {
+        error_log('[strategy_meeting targets] ' . $e->getMessage());
+    }
+
+    // --- 月ごとに数える ---
+    $months = [];
+    foreach ($fyMonths as $ym) {
+        $newNeg = 0; $converted = 0; $companyCount = 0; $activeCount = 0;
+
+        // 折れ線（累計）: 商談報告と既存案件を統合した全社が対象
+        foreach ($companies as $c) {
+            $alive = ($c['excluded'] === null || $c['excluded'] > $ym);
+            if ($c['cand']   !== null && $c['cand']   <= $ym && $alive) $companyCount++;
+            if ($c['active'] !== null && $c['active'] <= $ym && $alive) $activeCount++;
+        }
+        // 棒グラフ: 商談報告のみが対象（既存案件は商談報告ではないため数えない）
+        foreach ($negs as $n) {
+            if ($n['first'] === $ym)                              $newNeg++;     // 青棒: 新規商談数
+            if ($n['cand'] !== null && $n['cand'] === $ym)        $converted++;  // 赤棒: 取引・候補になった数
+        }
+        $t = $targetMap[$ym] ?? [0, 0];
+        $months[] = [
+            'ym'             => $ym,
+            'year'           => (int)floor($ym / 100),
+            'month'          => $ym % 100,
+            'new_negotiations' => $newNeg,
+            'converted'      => $converted,
+            'company_count'  => $companyCount,
+            'active_count'   => $activeCount,
+            'target_company' => $t[0],
+            'target_active'  => $t[1],
+        ];
+    }
+
+    echo json_encode([
+        'fy'       => $fy,
+        'fy_label' => smFyLabel($fy),
+        'months'   => $months,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // ----------------------------------------------------------------
 // action=negotiations : 商談報告の一覧（登録が新しい順）

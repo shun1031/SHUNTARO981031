@@ -82,7 +82,24 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <?php /* 商談報告の一覧。第2段階でこの位置にグラフと年間推移表が入る */ ?>
+    <?php /* 会社数の年間推移。9月〜翌8月の順で表示する */ ?>
+    <div class="sm-panel sm-trend2-panel">
+        <div class="sm-subpanel-head">
+            <h2 class="sm-subpanel-title"><i class="bi bi-graph-up-arrow me-1"></i>会社数の年間推移</h2>
+            <span class="sm-head-note" id="smT2Label"></span>
+        </div>
+        <div class="sm-t2-chart-box">
+            <canvas id="smT2Chart" class="sm-t2-canvas"></canvas>
+        </div>
+        <div class="sm-t2-table-wrap">
+            <table class="sm-t2-table">
+                <thead id="smT2Thead"></thead>
+                <tbody id="smT2Tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <?php /* 商談報告の一覧 */ ?>
     <div class="sm-panel sm-neg-panel">
         <div class="sm-subpanel-head">
             <h2 class="sm-subpanel-title"><i class="bi bi-chat-left-text me-1"></i>商談報告</h2>
@@ -635,6 +652,208 @@ function smSaveMemo() {
 }
 
 // ============================================================
+// 会社数の年間推移（グラフ＋表）
+// 9月〜翌8月の順。グラフと表は同じデータを参照する
+// ============================================================
+var smT2Chart  = null;
+var smT2Months = [];
+
+function smLoadTrend2() {
+    return smGet({action: 'trend_companies', year: smState.year, month: smState.month})
+        .then(function (d) {
+            if (d.error) return;
+            smT2Months = d.months || [];
+            document.getElementById('smT2Label').textContent = '年度（' + d.fy_label + '）';
+            smRenderTrend2();
+        })
+        .catch(function () { /* 表示だけなので失敗しても他の集計は止めない */ });
+}
+
+function smRenderTrend2() {
+    if (!smT2Months.length) return;
+    var labels    = smT2Months.map(function (m) { return m.month + '月'; });
+    var newNeg    = smT2Months.map(function (m) { return m.new_negotiations; });
+    var converted = smT2Months.map(function (m) { return m.converted; });
+    var company   = smT2Months.map(function (m) { return m.company_count; });
+    var active    = smT2Months.map(function (m) { return m.active_count; });
+    // 目標が未入力(0)の月は点を打たない（担当者別売上の目標線と同じ扱い）
+    var tCompany  = smT2Months.map(function (m) { return m.target_company > 0 ? m.target_company : null; });
+    var tActive   = smT2Months.map(function (m) { return m.target_active  > 0 ? m.target_active  : null; });
+
+    if (smT2Chart) { smT2Chart.destroy(); smT2Chart = null; }
+    smT2Chart = new Chart(document.getElementById('smT2Chart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                // 棒（左軸）: その月の件数
+                {label: '新規商談数', type: 'bar', data: newNeg,
+                 backgroundColor: '#93c5fd', yAxisID: 'y', order: 4},
+                {label: '取引・候補になった数', type: 'bar', data: converted,
+                 backgroundColor: '#fca5a5', yAxisID: 'y', order: 4},
+                // 折れ線（右軸）: 累計の会社数
+                {label: '会社数実績', type: 'line', data: company,
+                 borderColor: '#2563eb', backgroundColor: '#2563eb', pointBackgroundColor: '#2563eb',
+                 yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 3.5, order: 1},
+                {label: '会社数目標', type: 'line', data: tCompany,
+                 borderColor: '#2563eb', backgroundColor: 'transparent', borderDash: [6, 4],
+                 yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 0, spanGaps: true, order: 2},
+                {label: '取引有会社数実績', type: 'line', data: active,
+                 borderColor: '#dc2626', backgroundColor: '#dc2626', pointBackgroundColor: '#dc2626',
+                 yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 3.5, order: 1},
+                {label: '取引有会社数目標', type: 'line', data: tActive,
+                 borderColor: '#dc2626', backgroundColor: 'transparent', borderDash: [6, 4],
+                 yAxisID: 'y2', tension: 0, borderWidth: 2, pointRadius: 0, spanGaps: true, order: 2},
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {position: 'top', labels: {boxWidth: 14, font: {size: 10}}},
+                tooltip: {mode: 'index', intersect: false},
+            },
+            scales: {
+                y:  {type: 'linear', position: 'left', beginAtZero: true,
+                     title: {display: true, text: '（件）', font: {size: 10}, color: '#6b7280'},
+                     ticks: {precision: 0, font: {size: 10}}, grid: {color: 'rgba(0,0,0,.06)'}},
+                y2: {type: 'linear', position: 'right', beginAtZero: true,
+                     title: {display: true, text: '（社）', font: {size: 10}, color: '#6b7280'},
+                     ticks: {precision: 0, font: {size: 10}}, grid: {drawOnChartArea: false}},
+                x:  {ticks: {font: {size: 10}}, grid: {display: false}},
+            },
+        },
+    });
+
+    smRenderTrend2Table();
+}
+
+// 表はグラフと同じ数字を使う（別々に持たない）
+function smRenderTrend2Table() {
+    var thead = document.getElementById('smT2Thead');
+    var tbody = document.getElementById('smT2Tbody');
+    var CUR   = ' class="sm-t2-cur"';
+
+    thead.innerHTML = '<tr><th class="sm-t2-rowhead">月</th>' +
+        smT2Months.map(function (m) { return '<th>' + m.month + '月</th>'; }).join('') +
+        '<th class="sm-t2-cur">現在</th></tr>';
+
+    // 「現在」列は、当月（または年度末）時点の値を出す。累計なので合計はしない
+    var nowYm = smState.year * 100 + smState.month;
+    var curIdx = 0;
+    smT2Months.forEach(function (m, i) { if (m.ym <= nowYm) curIdx = i; });
+    var cur = smT2Months[curIdx];
+
+    var num = function (v) {
+        return v > 0 ? String(v) : '<span class="text-muted">-</span>';
+    };
+    var pct = function (actual, target) {
+        // 目標が未入力・0のときは計算しない（0で割らない）
+        if (!target || target <= 0) return '<span class="text-muted">-</span>';
+        var p = Math.round(actual / target * 1000) / 10;
+        return '<span style="font-weight:600;color:' + (p >= 100 ? '#059669' : '#dc2626') + '">' + p + '%</span>';
+    };
+
+    var html = '';
+
+    // 1. 会社数目標（管理者は手入力可）
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-blue"></span>会社数目標</td>';
+    smT2Months.forEach(function (m, i) {
+        html += '<td class="p-0"><input type="text" inputmode="numeric" class="sm-t2-inp"'
+             + ' data-field="company" data-idx="' + i + '"'
+             + ' value="' + (m.target_company > 0 ? m.target_company : '') + '"></td>';
+    });
+    html += '<td' + CUR + '>' + num(cur.target_company) + '</td></tr>';
+
+    // 2. 会社数実績
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-blue"></span>会社数実績</td>'
+         + smT2Months.map(function (m) { return '<td>' + num(m.company_count) + '</td>'; }).join('')
+         + '<td' + CUR + '>' + num(cur.company_count) + '</td></tr>';
+
+    // 3. 取引有会社数目標（管理者は手入力可）
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-red"></span>取引有会社数目標</td>';
+    smT2Months.forEach(function (m, i) {
+        html += '<td class="p-0"><input type="text" inputmode="numeric" class="sm-t2-inp"'
+             + ' data-field="active" data-idx="' + i + '"'
+             + ' value="' + (m.target_active > 0 ? m.target_active : '') + '"></td>';
+    });
+    html += '<td' + CUR + '>' + num(cur.target_active) + '</td></tr>';
+
+    // 4. 取引有会社数実績
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-red"></span>取引有会社数実績</td>'
+         + smT2Months.map(function (m) { return '<td>' + num(m.active_count) + '</td>'; }).join('')
+         + '<td' + CUR + '>' + num(cur.active_count) + '</td></tr>';
+
+    // 5. 会社数達成率
+    html += '<tr><td class="sm-t2-rowhead">会社数達成率</td>'
+         + smT2Months.map(function (m, i) {
+               return '<td id="smT2AchvC' + i + '">' + pct(m.company_count, m.target_company) + '</td>';
+           }).join('')
+         + '<td' + CUR + ' id="smT2AchvCCur">' + pct(cur.company_count, cur.target_company) + '</td></tr>';
+
+    // 6. 取引有会社数達成率
+    html += '<tr><td class="sm-t2-rowhead">取引有会社数達成率</td>'
+         + smT2Months.map(function (m, i) {
+               return '<td id="smT2AchvA' + i + '">' + pct(m.active_count, m.target_active) + '</td>';
+           }).join('')
+         + '<td' + CUR + ' id="smT2AchvACur">' + pct(cur.active_count, cur.target_active) + '</td></tr>';
+
+    tbody.innerHTML = html;
+
+    // 目標を入力 → 達成率とグラフの点線をその場で更新 → 非同期で保存（リロードなし）
+    tbody.querySelectorAll('.sm-t2-inp').forEach(function (inp) {
+        inp.addEventListener('input', function () {
+            var i = parseInt(inp.dataset.idx, 10);
+            var v = Math.max(0, parseInt(String(inp.value).replace(/[^0-9]/g, ''), 10) || 0);
+            if (inp.dataset.field === 'company') smT2Months[i].target_company = v;
+            else                                 smT2Months[i].target_active  = v;
+            smT2SyncCell(i);
+            smT2SyncChartTargets();
+        });
+        inp.addEventListener('change', function () {
+            var i = parseInt(inp.dataset.idx, 10);
+            var m = smT2Months[i];
+            var v = inp.dataset.field === 'company' ? m.target_company : m.target_active;
+            inp.value = v > 0 ? String(v) : '';
+            var fd = new FormData();
+            fd.append('csrf', smCsrf);
+            fd.append('action', 'save_monthly_target');
+            fd.append('t_year', m.year);
+            fd.append('t_month', m.month);
+            fd.append('field', inp.dataset.field);
+            fd.append('value', v);
+            fetch(smApiUrl, {method: 'POST', body: fd})
+                .then(function (r) { return r.json(); })
+                .then(function (d) { inp.style.background = (d && d.error) ? '#fee2e2' : 'transparent'; })
+                .catch(function () { inp.style.background = '#fee2e2'; });
+        });
+    });
+}
+
+// 達成率セルを1ヶ月分だけ更新する
+function smT2SyncCell(i) {
+    var m = smT2Months[i];
+    var f = function (actual, target) {
+        if (!target || target <= 0) return '<span class="text-muted">-</span>';
+        var p = Math.round(actual / target * 1000) / 10;
+        return '<span style="font-weight:600;color:' + (p >= 100 ? '#059669' : '#dc2626') + '">' + p + '%</span>';
+    };
+    var c = document.getElementById('smT2AchvC' + i);
+    var a = document.getElementById('smT2AchvA' + i);
+    if (c) c.innerHTML = f(m.company_count, m.target_company);
+    if (a) a.innerHTML = f(m.active_count,  m.target_active);
+}
+
+// グラフの点線（目標）だけを差し替える（作り直さない）
+function smT2SyncChartTargets() {
+    if (!smT2Chart) return;
+    var ds = smT2Chart.data.datasets;
+    ds[3].data = smT2Months.map(function (m) { return m.target_company > 0 ? m.target_company : null; });
+    ds[5].data = smT2Months.map(function (m) { return m.target_active  > 0 ? m.target_active  : null; });
+    smT2Chart.update();
+}
+
+// ============================================================
 // 商談報告（1社につき1件。ステータスを書き換えていく）
 // ============================================================
 var smNegModal = null;
@@ -739,7 +958,8 @@ function smNegSave() {
             if (!d.success) { smNegShowError(d.error || '保存に失敗しました'); return; }
             smNegModal.hide();
             smLoadNegotiations();
-            smLoadGoal();   // 取引企業数の進捗にも反映する
+            smLoadGoal();     // 取引企業数の進捗にも反映する
+            smLoadTrend2();   // 年間推移グラフ・表にも反映する
         })
         .catch(function () { btn.disabled = false; smNegShowError('通信エラーが発生しました'); });
 }
@@ -759,6 +979,7 @@ function smNegDelete() {
             smNegModal.hide();
             smLoadNegotiations();
             smLoadGoal();
+            smLoadTrend2();
         })
         .catch(function () { smNegShowError('通信エラーが発生しました'); });
 }
@@ -785,10 +1006,12 @@ function smUpdateMonthNav() {
     document.getElementById('smMonthLabel').textContent = smState.year + '年' + smState.month + '月';
 }
 
-// 月を変えたときは「月別」にしているパネルだけを取り直す
+// 月を変えたときは「月別」にしているパネルだけを取り直す。
+// 年間推移は年度が変わることがあるので毎回取り直す
 function smReloadForMonth() {
     if (smState.repPeriod === 'month') smLoadReps();
     if (smState.compPeriod === 'month' && smState.rep) smLoadCompanies(smState.rep);
+    smLoadTrend2();
 }
 
 // ---------- イベント登録 ----------
@@ -892,6 +1115,7 @@ document.addEventListener('DOMContentLoaded', function () {
         clearTimeout(smResizeTimer);
         smResizeTimer = setTimeout(function () {
             if (smState.periods.length) smRenderTrend();
+            if (smT2Months.length) smRenderTrend2();
         }, 200);
     });
 
@@ -930,6 +1154,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     smUpdateMonthNav();
     smLoadGoal();
+    smLoadTrend2();
     smLoadNegotiations();
     smLoadReps();
 
@@ -937,6 +1162,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // 既存画面（案件店舗管理・シフト管理）と同じ60秒間隔で読み直す
     setInterval(function () {
         smLoadGoal();
+        smLoadTrend2();
+        smLoadNegotiations();
         smLoadReps().then(function () {
             if (smState.rep) return smLoadCompanies(smState.rep);
         }).then(function () {

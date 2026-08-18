@@ -117,8 +117,20 @@ function smTargetCount(PDO $db, int $companyId): int {
     return 100;
 }
 
+/** 商談報告で選べるステータス */
+const SM_STATUSES = ['取引開始', '取引候補', '温度感低め', '合わない', '倒産', 'その他'];
+
+/** 会社数に含めるステータス（取引候補以上） */
+const SM_COUNTED_STATUSES = ['取引開始', '取引候補'];
+
+/** 年月を YYYYMM の整数にする。不正なら null */
+function smYm(?int $year, ?int $month): ?int {
+    if (!$year || !$month || $year < 2000 || $year > 2100 || $month < 1 || $month > 12) return null;
+    return $year * 100 + $month;
+}
+
 // ----------------------------------------------------------------
-// POST: 企業メモ・目標企業数の保存（戦略会議専用テーブルのみ）
+// POST: 企業メモ・目標企業数・商談報告の保存（戦略会議専用テーブルのみ）
 // ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 保存は管理者のみ（他画面と同じ守り方に揃える）
@@ -139,6 +151,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $e) {
             error_log('[strategy_meeting save_target] ' . $e->getMessage());
             echo json_encode(['error' => '目標企業数の保存に失敗しました']);
+        }
+        exit;
+    }
+
+    // --- 商談報告の保存（新規登録 / 既存の書き換え） ---
+    // 1社につき1件。同じ会社を2件作らないよう、会社名キーで既存を探して更新する。
+    // ステータスが変わったときは「いつ変わったか」の年月を記録し、過去の月の集計が
+    // あとから変わらないようにする
+    if ($postAction === 'save_negotiation') {
+        $id         = (int)($_POST['id'] ?? 0);
+        $clientName = trim($_POST['client_name'] ?? '');
+        $clientId   = ($_POST['client_id'] ?? '') !== '' ? (int)$_POST['client_id'] : null;
+        $repName    = trim($_POST['rep_name'] ?? '');
+        $status     = trim($_POST['status'] ?? '');
+        $statusOther= trim($_POST['status_other'] ?? '');
+        $note       = trim($_POST['note'] ?? '');
+        // 変更が起きた年月。まとめて入力するときのために過去の月も指定できる
+        $ym = smYm((int)($_POST['ym_year'] ?? 0), (int)($_POST['ym_month'] ?? 0));
+
+        if ($clientName === '')                      { echo json_encode(['error' => '会社名を入力してください']); exit; }
+        if (!in_array($status, SM_STATUSES, true))   { echo json_encode(['error' => 'ステータスを選択してください']); exit; }
+        if ($status === 'その他' && $statusOther === '') { echo json_encode(['error' => '「その他」の内容を入力してください']); exit; }
+        if ($ym === null)                            { echo json_encode(['error' => '対象年月を選択してください']); exit; }
+
+        $key = smNameKey($clientName);
+        if ($key === '') { echo json_encode(['error' => '会社名を入力してください']); exit; }
+
+        $counted = in_array($status, SM_COUNTED_STATUSES, true);
+
+        try {
+            // 既存を探す（IDが来ていればそれ、無ければ会社名キーで）
+            if ($id) {
+                $st = $db->prepare('SELECT * FROM strategy_meeting_negotiations WHERE id = ? AND company_id = ?');
+                $st->execute([$id, $cid]);
+            } else {
+                $st = $db->prepare('SELECT * FROM strategy_meeting_negotiations WHERE company_id = ? AND client_name_key = ?');
+                $st->execute([$cid, $key]);
+            }
+            $cur = $st->fetch();
+
+            // 会社名を変更した結果、別の既存レコードと重複する場合は弾く
+            $dup = $db->prepare('SELECT id FROM strategy_meeting_negotiations WHERE company_id = ? AND client_name_key = ? AND id <> ?');
+            $dup->execute([$cid, $key, $cur ? (int)$cur['id'] : 0]);
+            if ($dup->fetchColumn()) { echo json_encode(['error' => 'この会社はすでに登録されています']); exit; }
+
+            if (!$cur) {
+                // --- 新規登録 ---
+                $ins = $db->prepare("INSERT INTO strategy_meeting_negotiations
+                    (company_id, client_id, client_name, client_name_key, rep_name, rep_employee_id,
+                     status, status_other, note, first_report_ym, candidate_ym, active_ym, excluded_ym)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                $ins->execute([
+                    $cid, $clientId, $clientName, $key, $repName,
+                    resolveEmployeeIdByName($cid, $repName),
+                    $status, ($status === 'その他' ? $statusOther : null), ($note !== '' ? $note : null),
+                    $ym,
+                    $counted ? $ym : null,
+                    $status === '取引開始' ? $ym : null,
+                    $counted ? null : $ym,
+                ]);
+                echo json_encode(['success' => true, 'id' => (int)$db->lastInsertId()], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // --- 既存の書き換え ---
+            // 候補化・取引開始の年月は「最初になった月」を残す（後から遡れるよう小さい方を採用）
+            $candidateYm = $cur['candidate_ym'] !== null ? (int)$cur['candidate_ym'] : null;
+            $activeYm    = $cur['active_ym']    !== null ? (int)$cur['active_ym']    : null;
+            $excludedYm  = $cur['excluded_ym']  !== null ? (int)$cur['excluded_ym']  : null;
+
+            if ($counted) {
+                $candidateYm = $candidateYm === null ? $ym : min($candidateYm, $ym);
+                if ($status === '取引開始') {
+                    $activeYm = $activeYm === null ? $ym : min($activeYm, $ym);
+                }
+                $excludedYm = null;              // 会社数に復帰する
+            } else {
+                $excludedYm = $ym;               // この月から会社数・取引有会社数から外れる
+            }
+
+            $upd = $db->prepare("UPDATE strategy_meeting_negotiations
+                SET client_id = ?, client_name = ?, client_name_key = ?, rep_name = ?, rep_employee_id = ?,
+                    status = ?, status_other = ?, note = ?,
+                    candidate_ym = ?, active_ym = ?, excluded_ym = ?, updated_at = NOW()
+                WHERE id = ? AND company_id = ?");
+            $upd->execute([
+                $clientId, $clientName, $key, $repName, resolveEmployeeIdByName($cid, $repName),
+                $status, ($status === 'その他' ? $statusOther : null), ($note !== '' ? $note : null),
+                $candidateYm, $activeYm, $excludedYm,
+                (int)$cur['id'], $cid,
+            ]);
+            echo json_encode(['success' => true, 'id' => (int)$cur['id']], JSON_UNESCAPED_UNICODE);
+        } catch (PDOException $e) {
+            error_log('[strategy_meeting save_negotiation] ' . $e->getMessage());
+            echo json_encode(['error' => '商談報告の保存に失敗しました']);
+        }
+        exit;
+    }
+
+    // --- 商談報告の削除 ---
+    if ($postAction === 'delete_negotiation') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['error' => 'id required']); exit; }
+        try {
+            $db->prepare('DELETE FROM strategy_meeting_negotiations WHERE id = ? AND company_id = ?')->execute([$id, $cid]);
+            echo json_encode(['success' => true]);
+        } catch (PDOException $e) {
+            error_log('[strategy_meeting delete_negotiation] ' . $e->getMessage());
+            echo json_encode(['error' => '商談報告の削除に失敗しました']);
         }
         exit;
     }
@@ -188,6 +309,47 @@ if ($pYear < 2000 || $pYear > 2100 || $pMonth < 1 || $pMonth > 12) {
 $divCond = smDivisionCond($division);
 
 try {
+
+// ----------------------------------------------------------------
+// action=negotiations : 商談報告の一覧（登録が新しい順）
+// ----------------------------------------------------------------
+if ($action === 'negotiations') {
+    $stmt = $db->prepare("SELECT id, client_id, client_name, rep_name, status, status_other, note,
+                                 first_report_ym, candidate_ym, active_ym, excluded_ym
+                          FROM strategy_meeting_negotiations
+                          WHERE company_id = ?
+                          ORDER BY COALESCE(excluded_ym, 999999) DESC, first_report_ym DESC, id DESC");
+    $stmt->execute([$cid]);
+
+    $ymLabel = function ($v) {
+        if (!$v) return '';
+        return (int)floor($v / 100) . '年' . ((int)$v % 100) . '月';
+    };
+
+    $rows = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $rows[] = [
+            'id'            => (int)$r['id'],
+            'client_id'     => $r['client_id'] !== null ? (int)$r['client_id'] : null,
+            'client_name'   => $r['client_name'],
+            'rep_name'      => $r['rep_name'],
+            'status'        => $r['status'],
+            'status_other'  => $r['status_other'],
+            'note'          => $r['note'],
+            'first_label'   => $ymLabel($r['first_report_ym']),
+            'first_year'    => (int)floor((int)$r['first_report_ym'] / 100),
+            'first_month'   => (int)$r['first_report_ym'] % 100,
+            'excluded'      => $r['excluded_ym'] !== null,
+            'excluded_label'=> $ymLabel($r['excluded_ym']),
+        ];
+    }
+
+    echo json_encode([
+        'negotiations' => $rows,
+        'statuses'     => SM_STATUSES,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // ----------------------------------------------------------------
 // action=summary : 取引企業数の合計（〇〇社 / 目標社数）

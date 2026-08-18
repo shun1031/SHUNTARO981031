@@ -318,6 +318,16 @@ $migrations = [
     // ---- strategy_meeting_settings: 戦略会議の設定（目標企業数） ----
     // 戦略会議画面だけが読み書きする。既定は100社
     "CREATE TABLE IF NOT EXISTS strategy_meeting_settings (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, target_client_count INT NOT NULL DEFAULT 100, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_sms (company_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- strategy_meeting_negotiations: 商談報告（1社につき1件） ----
+    // 同じ会社が二重登録されないよう、会社名キーに UNIQUE 制約を付けてDB側で防ぐ。
+    // ステータスを書き換えたときは、その変更が「いつ起きたか」の年月を記録する
+    // （candidate_ym / active_ym / excluded_ym）。これで過去の月のグラフが後から変わらない
+    "CREATE TABLE IF NOT EXISTS strategy_meeting_negotiations (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, client_id INT DEFAULT NULL COMMENT '取引先マスタのID（新規入力ならNULL）', client_name VARCHAR(200) NOT NULL COMMENT '会社名（表示用）', client_name_key VARCHAR(200) NOT NULL COMMENT '突き合わせ用の正規化キー', rep_name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '営業担当者名', rep_employee_id INT DEFAULT NULL COMMENT '営業担当者の社員ID', status VARCHAR(20) NOT NULL DEFAULT '取引候補' COMMENT '取引開始/取引候補/温度感低め/合わない/倒産/その他', status_other VARCHAR(100) DEFAULT NULL COMMENT 'その他を選んだときの自由入力', note TEXT DEFAULT NULL, first_report_ym INT NOT NULL COMMENT '初回登録の年月 YYYYMM（新規商談数の基準）', candidate_ym INT DEFAULT NULL COMMENT '取引候補以上になった最初の年月 YYYYMM', active_ym INT DEFAULT NULL COMMENT '取引開始になった最初の年月 YYYYMM', excluded_ym INT DEFAULT NULL COMMENT '会社数から外れた年月 YYYYMM', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smn (company_id, client_name_key), INDEX idx_smn_first (company_id, first_report_ym), INDEX idx_smn_cand (company_id, candidate_ym), INDEX idx_smn_active (company_id, active_ym)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- strategy_meeting_monthly_targets: 会社数・取引有会社数の月別目標 ----
+    // 既存の sales_rep_targets と同じ形。9月〜翌8月の各月に設定する
+    "CREATE TABLE IF NOT EXISTS strategy_meeting_monthly_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_company_count INT NOT NULL DEFAULT 0 COMMENT '会社数目標', target_active_count INT NOT NULL DEFAULT 0 COMMENT '取引有会社数目標', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smmt (company_id, year, month), INDEX idx_smmt_company (company_id, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 $ok = 0;

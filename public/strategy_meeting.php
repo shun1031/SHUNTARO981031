@@ -28,6 +28,16 @@ $_prev      = (new DateTimeImmutable('today'))->modify('first day of last month'
 $initYear   = (int)$_prev->format('Y');
 $initMonth  = (int)$_prev->format('n');
 
+// 商談報告フォームの選択候補（案件フォームと同じ基準にして表記ゆれを防ぐ）
+$repCandidates = getSalesRepCandidates($cid);   // 社員一覧で「営業担当」にチェックがある人
+$negClients    = getSalesClients($cid);         // 取引先マスタ
+$negStatuses   = ['取引開始', '取引候補', '温度感低め', '合わない', '倒産', 'その他'];
+
+// 商談報告の対象年月は当月を既定にする（過去にさかのぼって入力もできる）
+$_today    = new DateTimeImmutable('today');
+$curYear   = (int)$_today->format('Y');
+$curMonth  = (int)$_today->format('n');
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -46,6 +56,10 @@ require_once __DIR__ . '/../includes/header.php';
                 </p>
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- 商談報告の登録（この画面は管理者専用のため、登録も管理者のみ） -->
+                <button type="button" class="sm-neg-add" id="smNegAdd">
+                    <i class="bi bi-plus-lg me-1"></i>商談報告
+                </button>
                 <!-- 対象月の送り。「月別」にしているパネルに適用する -->
                 <div class="sm-monthnav" id="smMonthNav">
                     <button type="button" class="sm-monthnav-btn" data-delta="-1" title="前の月">
@@ -65,6 +79,20 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="sm-filter-btn" data-division="イベント">イベント</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <?php /* 商談報告の一覧。第2段階でこの位置にグラフと年間推移表が入る */ ?>
+    <div class="sm-panel sm-neg-panel">
+        <div class="sm-subpanel-head">
+            <h2 class="sm-subpanel-title"><i class="bi bi-chat-left-text me-1"></i>商談報告</h2>
+            <span class="sm-head-note" id="smNegCount"></span>
+            <button type="button" class="sm-neg-toggle" id="smNegToggle" aria-expanded="false">
+                <i class="bi bi-chevron-down"></i><span>一覧を開く</span>
+            </button>
+        </div>
+        <div class="sm-neg-body d-none" id="smNegBody">
+            <div id="smNegList"></div>
         </div>
     </div>
 
@@ -164,6 +192,77 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- ================= 商談報告の入力フォーム ================= -->
+<div class="modal fade" id="smNegModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" id="smNegForm">
+            <div class="modal-header py-2">
+                <h5 class="modal-title" id="smNegModalTitle">商談報告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="smNegId" value="">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-medium">営業担当者 <span class="text-danger">*</span></label>
+                        <?php /* 表記ゆれを防ぐため、案件フォームと同じく社員一覧から選ぶ */ ?>
+                        <select class="form-select" id="smNegRep" required>
+                            <option value="">-- 選択してください --</option>
+                            <?php foreach ($repCandidates as $_rc): ?>
+                            <option value="<?= h($_rc) ?>"><?= h($_rc) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-medium">対象年月 <span class="text-danger">*</span></label>
+                        <?php /* まとめて入力するときのために過去の月も指定できる */ ?>
+                        <input type="month" class="form-control" id="smNegYm"
+                               value="<?= sprintf('%04d-%02d', $curYear, $curMonth) ?>" required>
+                        <div class="form-text" style="font-size:.7rem">この商談・ステータス変更が起きた月</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-medium">会社名 <span class="text-danger">*</span></label>
+                        <?php /* 取引先一覧から選択でき、新規の会社は直接入力もできる（案件フォームと同じ方式） */ ?>
+                        <input type="text" class="form-control" id="smNegClient" list="smNegClientList"
+                               placeholder="選択または直接入力" autocomplete="off" required>
+                        <datalist id="smNegClientList">
+                            <?php foreach ($negClients as $_cl): ?>
+                            <option value="<?= h(($_cl['display_name'] ?? '') !== '' ? $_cl['display_name'] : $_cl['client_name']) ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
+                        <div class="form-text" style="font-size:.7rem">同じ会社はまとめて1件で管理されます（重複登録はできません）</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-medium">ステータス <span class="text-danger">*</span></label>
+                        <select class="form-select" id="smNegStatus" required>
+                            <option value="">-- 選択してください --</option>
+                            <?php foreach ($negStatuses as $_s): ?>
+                            <option value="<?= h($_s) ?>"><?= h($_s) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-none" id="smNegOtherWrap">
+                        <label class="form-label fw-medium">その他の内容 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="smNegOther" maxlength="100">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-medium">備考</label>
+                        <textarea class="form-control" id="smNegNote" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="smNegError" style="font-size:.82rem"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-outline-danger btn-sm me-auto d-none" id="smNegDelete">
+                    <i class="bi bi-trash me-1"></i>削除
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">キャンセル</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="smNegSubmit">保存</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -535,6 +634,135 @@ function smSaveMemo() {
         .catch(function () { status.textContent = '通信エラーが発生しました'; });
 }
 
+// ============================================================
+// 商談報告（1社につき1件。ステータスを書き換えていく）
+// ============================================================
+var smNegModal = null;
+var smNegRows  = [];
+
+function smNegStatusClass(status) {
+    if (status === '取引開始') return 'is-active';
+    if (status === '取引候補') return 'is-candidate';
+    return 'is-out';
+}
+
+function smLoadNegotiations() {
+    var list = document.getElementById('smNegList');
+    return smGet({action: 'negotiations'}).then(function (d) {
+        if (d.error) { list.innerHTML = smEmpty('exclamation-triangle', d.error); return; }
+        smNegRows = d.negotiations || [];
+        document.getElementById('smNegCount').textContent = smNegRows.length + '件';
+
+        if (!smNegRows.length) {
+            list.innerHTML = smEmpty('chat-left-text', '「＋商談報告」から登録できます');
+            return;
+        }
+        list.innerHTML =
+            '<div class="sm-neg-table-wrap"><table class="sm-neg-table">' +
+            '<thead><tr>' +
+              '<th>会社名</th><th>営業担当者</th><th>ステータス</th><th>初回登録</th><th></th>' +
+            '</tr></thead><tbody>' +
+            smNegRows.map(function (r) {
+                var label = r.status === 'その他' && r.status_other
+                    ? 'その他（' + smEsc(r.status_other) + '）' : smEsc(r.status);
+                return '<tr' + (r.excluded ? ' class="is-excluded"' : '') + '>' +
+                    '<td class="fw-semibold">' + smEsc(r.client_name) + '</td>' +
+                    '<td>' + smEsc(r.rep_name) + '</td>' +
+                    '<td><span class="sm-neg-status ' + smNegStatusClass(r.status) + '">' + label + '</span></td>' +
+                    '<td class="text-nowrap">' + smEsc(r.first_label) + '</td>' +
+                    '<td class="text-end"><button type="button" class="sm-neg-edit" data-id="' + r.id + '">' +
+                      '<i class="bi bi-pencil"></i></button></td>' +
+                '</tr>';
+            }).join('') +
+            '</tbody></table></div>';
+    }).catch(function () {
+        list.innerHTML = smEmpty('wifi-off', '通信エラーが発生しました');
+    });
+}
+
+function smNegShowError(msg) {
+    var el = document.getElementById('smNegError');
+    if (!msg) { el.classList.add('d-none'); el.textContent = ''; return; }
+    el.textContent = msg;
+    el.classList.remove('d-none');
+}
+
+function smNegToggleOther() {
+    var isOther = document.getElementById('smNegStatus').value === 'その他';
+    document.getElementById('smNegOtherWrap').classList.toggle('d-none', !isOther);
+    document.getElementById('smNegOther').required = isOther;
+}
+
+function smNegOpen(row) {
+    smNegShowError('');
+    document.getElementById('smNegId').value     = row ? row.id : '';
+    document.getElementById('smNegRep').value    = row ? (row.rep_name || '') : '';
+    document.getElementById('smNegClient').value = row ? row.client_name : '';
+    document.getElementById('smNegStatus').value = row ? row.status : '';
+    document.getElementById('smNegOther').value  = row ? (row.status_other || '') : '';
+    document.getElementById('smNegNote').value   = row ? (row.note || '') : '';
+    document.getElementById('smNegModalTitle').textContent = row ? '商談報告の編集' : '商談報告';
+    document.getElementById('smNegDelete').classList.toggle('d-none', !row);
+    // 対象年月は既定で当月。まとめ入力のため過去の月にも変更できる
+    var d = new Date();
+    document.getElementById('smNegYm').value =
+        d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+    smNegToggleOther();
+
+    if (!smNegModal) smNegModal = new bootstrap.Modal(document.getElementById('smNegModal'));
+    smNegModal.show();
+}
+
+function smNegSave() {
+    var ym = document.getElementById('smNegYm').value || '';
+    var parts = ym.split('-');
+    if (parts.length !== 2) { smNegShowError('対象年月を選択してください'); return; }
+
+    var fd = new FormData();
+    fd.append('csrf', smCsrf);
+    fd.append('action', 'save_negotiation');
+    fd.append('id', document.getElementById('smNegId').value || '');
+    fd.append('rep_name', document.getElementById('smNegRep').value);
+    fd.append('client_name', document.getElementById('smNegClient').value.trim());
+    fd.append('status', document.getElementById('smNegStatus').value);
+    fd.append('status_other', document.getElementById('smNegOther').value.trim());
+    fd.append('note', document.getElementById('smNegNote').value.trim());
+    fd.append('ym_year', parseInt(parts[0], 10));
+    fd.append('ym_month', parseInt(parts[1], 10));
+
+    var btn = document.getElementById('smNegSubmit');
+    btn.disabled = true;
+    fetch(smApiUrl, {method: 'POST', body: fd})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            btn.disabled = false;
+            if (!d.success) { smNegShowError(d.error || '保存に失敗しました'); return; }
+            smNegModal.hide();
+            smLoadNegotiations();
+            smLoadGoal();   // 取引企業数の進捗にも反映する
+        })
+        .catch(function () { btn.disabled = false; smNegShowError('通信エラーが発生しました'); });
+}
+
+function smNegDelete() {
+    var id = document.getElementById('smNegId').value;
+    if (!id) return;
+    if (!confirm('この商談報告を削除しますか？')) return;
+    var fd = new FormData();
+    fd.append('csrf', smCsrf);
+    fd.append('action', 'delete_negotiation');
+    fd.append('id', id);
+    fetch(smApiUrl, {method: 'POST', body: fd})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (!d.success) { smNegShowError(d.error || '削除に失敗しました'); return; }
+            smNegModal.hide();
+            smLoadNegotiations();
+            smLoadGoal();
+        })
+        .catch(function () { smNegShowError('通信エラーが発生しました'); });
+}
+
 // ---------- 集計期間（月別 / 年度）の切替 ----------
 // 押されたパネルだけを取り直す。全画面のリロードはしない
 function smBindPeriodSwitch(elId, stateKey, reload) {
@@ -678,8 +906,31 @@ document.addEventListener('DOMContentLoaded', function () {
         if (e.key === 'Escape') { smCommitGoalEdit(false); }
     });
 
+    // 商談報告
+    document.getElementById('smNegAdd').addEventListener('click', function () { smNegOpen(null); });
+    document.getElementById('smNegStatus').addEventListener('change', smNegToggleOther);
+    document.getElementById('smNegForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        smNegSave();
+    });
+    document.getElementById('smNegDelete').addEventListener('click', smNegDelete);
+    document.getElementById('smNegList').addEventListener('click', function (e) {
+        var btn = e.target.closest('.sm-neg-edit');
+        if (!btn) return;
+        var row = smNegRows.filter(function (r) { return String(r.id) === String(btn.dataset.id); })[0];
+        if (row) smNegOpen(row);
+    });
+    document.getElementById('smNegToggle').addEventListener('click', function () {
+        var body = document.getElementById('smNegBody');
+        var open = body.classList.toggle('d-none') === false;
+        this.setAttribute('aria-expanded', open ? 'true' : 'false');
+        this.querySelector('span').textContent = open ? '一覧を閉じる' : '一覧を開く';
+        this.querySelector('i').className = open ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+    });
+
     smUpdateMonthNav();
     smLoadGoal();
+    smLoadNegotiations();
     smLoadReps();
 
     // 案件の追加・編集を別タブで行った場合にも追従できるよう、

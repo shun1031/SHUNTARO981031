@@ -371,20 +371,51 @@ if ($action === 'trend_companies') {
     }
 
     // --- 既に案件がある会社（初回の案件年月から「取引開始」として扱う） ---
-    // 案件があるということは実際に取引しているので、除外はかけない
+    // 案件があるということは実際に取引しているので、除外はかけない。
+    // 集計条件は画面上部の「〇〇社 / 目標社数」と完全に揃える:
+    //   取引先は営業担当基準、外注先は管理者基準、対象は今年度の案件のみ
+    $repNames = getSalesRepCandidates($cid);
     $caseFirst = [];
-    $stmt = $db->prepare("SELECT COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS name,
-                                 MIN(sc.case_year * 100 + sc.case_month) AS first_ym
-                          FROM sales_cases sc
-                          JOIN sales_clients cl ON sc.client_id = cl.id
-                          WHERE sc.company_id = ? AND sc.status = 'confirmed'
-                          GROUP BY cl.id, cl.display_name, cl.client_name");
-    $stmt->execute([$cid]);
-    foreach ($stmt->fetchAll() as $r) {
-        $k = smNameKey((string)$r['name']);
-        if ($k === '') continue;
-        $ym = (int)$r['first_ym'];
-        if (!isset($caseFirst[$k]) || $ym < $caseFirst[$k]) $caseFirst[$k] = $ym;
+    if ($repNames) {
+        $repPh    = implode(',', array_fill(0, count($repNames), '?'));
+        $fyParams = [$fy - 1, $fy];
+
+        // 取引先（クライアント）
+        $stmt = $db->prepare("SELECT COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS name,
+                                     MIN(sc.case_year * 100 + sc.case_month) AS first_ym
+                              FROM sales_cases sc
+                              JOIN sales_clients cl ON sc.client_id = cl.id
+                              " . SM_REP_JOIN . "
+                              WHERE sc.company_id = ? AND sc.status = 'confirmed'
+                                AND " . SM_FY_WHERE . "
+                                AND " . SM_REP_NAME . " IN ({$repPh})
+                              GROUP BY cl.id, cl.display_name, cl.client_name");
+        $stmt->execute(array_merge([$cid], $fyParams, $repNames));
+        foreach ($stmt->fetchAll() as $r) {
+            $k = smNameKey((string)$r['name']);
+            if ($k === '') continue;
+            $ym = (int)$r['first_ym'];
+            if (!isset($caseFirst[$k]) || $ym < $caseFirst[$k]) $caseFirst[$k] = $ym;
+        }
+
+        // 外注先（アライアンス）。商談報告の対象外なので常に「取引開始」として扱う
+        $stmt = $db->prepare("SELECT al.alliance_name AS name,
+                                     MIN(sc.case_year * 100 + sc.case_month) AS first_ym
+                              FROM sales_cases sc
+                              JOIN sales_alliances al ON sc.alliance_id = al.id
+                              " . SM_MGR_JOIN . "
+                              WHERE sc.company_id = ? AND sc.status = 'confirmed'
+                                AND sc.worker_type = 'アライアンス'
+                                AND " . SM_FY_WHERE . "
+                                AND " . SM_MGR_NAME . " IN ({$repPh})
+                              GROUP BY al.id, al.alliance_name");
+        $stmt->execute(array_merge([$cid], $fyParams, $repNames));
+        foreach ($stmt->fetchAll() as $r) {
+            $k = smNameKey((string)$r['name']);
+            if ($k === '') continue;
+            $ym = (int)$r['first_ym'];
+            if (!isset($caseFirst[$k]) || $ym < $caseFirst[$k]) $caseFirst[$k] = $ym;
+        }
     }
 
     // --- 会社ごとに統合（同じ会社名は1社にまとめる） ---

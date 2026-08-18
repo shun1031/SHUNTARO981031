@@ -755,7 +755,7 @@ function smRenderTrend2Table() {
     var html = '';
 
     // 1. 会社数目標（管理者は手入力可）
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-blue"></span>会社数目標</td>';
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-blue is-dashed"></span>会社数目標</td>';
     smT2Months.forEach(function (m, i) {
         html += '<td class="p-0"><input type="text" inputmode="numeric" class="sm-t2-inp"'
              + ' data-field="company" data-idx="' + i + '"'
@@ -764,12 +764,12 @@ function smRenderTrend2Table() {
     html += '<td' + CUR + '>' + num(cur.target_company) + '</td></tr>';
 
     // 2. 会社数実績
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-blue"></span>会社数実績</td>'
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-blue is-solid"></span>会社数実績</td>'
          + smT2Months.map(function (m) { return '<td>' + num(m.company_count) + '</td>'; }).join('')
          + '<td' + CUR + '>' + num(cur.company_count) + '</td></tr>';
 
     // 3. 取引有会社数目標（管理者は手入力可）
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-red"></span>取引有会社数目標</td>';
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-red is-dashed"></span>取引有会社数目標</td>';
     smT2Months.forEach(function (m, i) {
         html += '<td class="p-0"><input type="text" inputmode="numeric" class="sm-t2-inp"'
              + ' data-field="active" data-idx="' + i + '"'
@@ -778,7 +778,7 @@ function smRenderTrend2Table() {
     html += '<td' + CUR + '>' + num(cur.target_active) + '</td></tr>';
 
     // 4. 取引有会社数実績
-    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-dot is-red"></span>取引有会社数実績</td>'
+    html += '<tr><td class="sm-t2-rowhead"><span class="sm-t2-line is-red is-solid"></span>取引有会社数実績</td>'
          + smT2Months.map(function (m) { return '<td>' + num(m.active_count) + '</td>'; }).join('')
          + '<td' + CUR + '>' + num(cur.active_count) + '</td></tr>';
 

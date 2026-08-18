@@ -176,16 +176,19 @@
     min-width: 56px;
 }
 
-/* グラフの線色と表の行を対応づける小さな点 */
-.sm-t2-dot {
+/* 表の行とグラフの系列を対応づける印。
+   グラフの凡例と同じく、実績は実線・目標は点線で示す */
+.sm-t2-line {
     display: inline-block;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    margin-right: .35rem;
+    width: 15px;
+    margin-right: .4rem;
     vertical-align: middle;
+    border-top-width: 2px;
 }
-.sm-t2-dot.is-blue { background: #2563eb; }
-.sm-t2-dot.is-red  { background: #dc2626; }
+.sm-t2-line.is-solid  { border-top-style: solid; }
+.sm-t2-line.is-dashed { border-top-style: dashed; }
+.sm-t2-line.is-blue   { border-top-color: #2563eb; }
+.sm-t2-line.is-red    { border-top-color: #dc2626; }
 
 /* 目標の入力欄。周囲のセルと馴染ませ、入力できることは下線で示す */
 .sm-t2-inp {

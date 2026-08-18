@@ -100,7 +100,9 @@ const SM_MGR_JOIN  = "LEFT JOIN employees em ON em.id = sc.manager_id AND em.com
 function smNameKey(string $name): string {
     $n = trim($name);
     if ($n === '') return '';
-    if (function_exists('mb_convert_kana')) $n = mb_convert_kana($n, 'a');  // 全角英数字→半角
+    // a = 全角英数字→半角 / K = 半角カナ→全角カナ / V = 濁点付き半角カナを1文字にまとめる
+    // ※画面に出す会社名は入力どおりのまま。ここで作るのは突き合わせ用の値だけ
+    if (function_exists('mb_convert_kana')) $n = mb_convert_kana($n, 'aKV');
     return mb_strtolower($n, 'UTF-8');
 }
 

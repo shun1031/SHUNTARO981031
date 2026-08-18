@@ -328,6 +328,19 @@ $migrations = [
     // ---- strategy_meeting_monthly_targets: 会社数・取引有会社数の月別目標 ----
     // 既存の sales_rep_targets と同じ形。9月〜翌8月の各月に設定する
     "CREATE TABLE IF NOT EXISTS strategy_meeting_monthly_targets (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, target_company_count INT NOT NULL DEFAULT 0 COMMENT '会社数目標', target_active_count INT NOT NULL DEFAULT 0 COMMENT '取引有会社数目標', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uk_smmt (company_id, year, month), INDEX idx_smmt_company (company_id, year)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- sales_alliances: 同じ会社の取引先との紐づけ ----
+    // 外注先と取引先に同じ会社が登録されていることがある（LANGIS・Pachira・U-Plus など）。
+    // 戦略会議の会社数でこれを1社として数えるため、取引先マスタのIDを持たせる。
+    // 名前ではなくIDで結ぶので、あとから会社名・表記名を変えても集計が壊れない。
+    // 参照している画面は戦略会議のみ。既存の集計・請求・給与は一切この列を読まない
+    "ALTER TABLE sales_alliances ADD COLUMN client_id INT DEFAULT NULL COMMENT '同じ会社の取引先ID（戦略会議の名寄せ用）'",
+    "ALTER TABLE sales_alliances ADD INDEX idx_sa_client (company_id, client_id)",
+
+    // ---- strategy_meeting_negotiations: 取引先IDでの重複禁止 ----
+    // 商談報告は「1社につき1件」。取引先を選ぶ方式に変えたので、同じ取引先の
+    // 2件目をDB側で拒否する。client_id が NULL の行は対象外（MySQLのUNIQUEはNULLを重複と見ない）
+    "ALTER TABLE strategy_meeting_negotiations ADD UNIQUE KEY uk_smn_client (company_id, client_id)",
 ];
 
 $ok = 0;

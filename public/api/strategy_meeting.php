@@ -93,9 +93,8 @@ const SM_MGR_JOIN  = "LEFT JOIN employees em ON em.id = sc.manager_id AND em.com
 
 /**
  * 会社名の表記ゆれを吸収して突き合わせ用のキーにする。
- * 取引先と外注先は別テーブルなので、同じ会社を1社として数えるには名前で照合するしかない。
- * 前後の空白を除去 / 全角英数字を半角へ / 大文字小文字を区別しない
- * ※「株式会社ラネット」と「ラネット」のような表記違いまでは吸収できない
+ * 会社数の集計は取引先IDで行うようになったため、この関数はもう集計には使わない。
+ * 商談報告の client_name_key（過去データとの互換のために残している列）を作るためだけに使う。
  */
 function smNameKey(string $name): string {
     $n = trim($name);
@@ -104,6 +103,48 @@ function smNameKey(string $name): string {
     // ※画面に出す会社名は入力どおりのまま。ここで作るのは突き合わせ用の値だけ
     if (function_exists('mb_convert_kana')) $n = mb_convert_kana($n, 'aKV');
     return mb_strtolower($n, 'UTF-8');
+}
+
+/**
+ * 会社数を数えるときの「会社の識別キー」。
+ *
+ * 以前は会社名の文字列で突き合わせていたため、取引先一覧で表記名を変えると
+ * 商談報告と一致しなくなり、同じ会社が2社に数えられてしまっていた。
+ * そこで取引先マスタのIDで数える方式に変更した。IDは名前を変えても変わらないので、
+ * 取引先一覧をいくら編集しても会社数は崩れない。
+ */
+function smClientKey(int $clientId): string {
+    return 'C' . $clientId;
+}
+
+/**
+ * 外注先の識別キー。
+ * 外注先マスタの「同じ会社の取引先」が指定されていれば、その取引先と同じキーを返す
+ * （＝取引先にも外注先にも登録されている会社を1社として数える）。
+ * 指定が無い外注先は、それ単独の会社として数える。
+ */
+function smAllianceKey(int $allianceId, $linkedClientId): string {
+    $linked = (int)$linkedClientId;
+    return $linked > 0 ? smClientKey($linked) : 'A' . $allianceId;
+}
+
+/**
+ * 外注先ID → 紐づけ先の取引先ID の対応表。
+ * client_id 列が無い環境でも動くように、失敗しても空配列を返す
+ */
+function smAllianceClientMap(PDO $db, int $companyId): array {
+    try {
+        $stmt = $db->prepare('SELECT id, client_id FROM sales_alliances WHERE company_id = ?');
+        $stmt->execute([$companyId]);
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $map[(int)$r['id']] = $r['client_id'] !== null ? (int)$r['client_id'] : null;
+        }
+        return $map;
+    } catch (PDOException $e) {
+        error_log('[strategy_meeting alliance map] ' . $e->getMessage());
+        return [];
+    }
 }
 
 /** 目標企業数を取得（未設定なら既定の100社） */
@@ -165,8 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // あとから変わらないようにする
     if ($postAction === 'save_negotiation') {
         $id         = (int)($_POST['id'] ?? 0);
-        $clientName = trim($_POST['client_name'] ?? '');
-        $clientId   = ($_POST['client_id'] ?? '') !== '' ? (int)$_POST['client_id'] : null;
+        $clientId   = (int)($_POST['client_id'] ?? 0);
         $repName    = trim($_POST['rep_name'] ?? '');
         $status     = trim($_POST['status'] ?? '');
         $statusOther= trim($_POST['status_other'] ?? '');
@@ -174,13 +214,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 変更が起きた年月。まとめて入力するときのために過去の月も指定できる
         $ym = smYm((int)($_POST['ym_year'] ?? 0), (int)($_POST['ym_month'] ?? 0));
 
-        if ($clientName === '')                      { echo json_encode(['error' => '会社名を入力してください']); exit; }
+        // 会社は取引先一覧から選ぶ方式。手入力を受け付けないので表記ゆれが起きない
+        if (!$clientId)                              { echo json_encode(['error' => '会社を取引先一覧から選んでください']); exit; }
         if (!in_array($status, SM_STATUSES, true))   { echo json_encode(['error' => 'ステータスを選択してください']); exit; }
         if ($status === 'その他' && $statusOther === '') { echo json_encode(['error' => '「その他」の内容を入力してください']); exit; }
         if ($ym === null)                            { echo json_encode(['error' => '対象年月を選択してください']); exit; }
 
+        // 選ばれた取引先が自社のものか確認し、会社名は取引先マスタの表記名から取る
+        $clRow = getSalesClient($clientId, $cid);
+        if (!$clRow) { echo json_encode(['error' => '選ばれた取引先が見つかりません']); exit; }
+        $clientName = clientLabel($clRow);
         $key = smNameKey($clientName);
-        if ($key === '') { echo json_encode(['error' => '会社名を入力してください']); exit; }
 
         $counted = in_array($status, SM_COUNTED_STATUSES, true);
 
@@ -195,11 +239,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$cur) { echo json_encode(['error' => '対象の商談報告が見つかりません']); exit; }
             }
 
-            // 同じ会社が既に登録されていないか確認する。
-            // 新規登録なら1件でもあればエラー。編集なら自分以外にあればエラー（会社名の変更で衝突した場合）
+            // 同じ取引先が既に登録されていないか確認する（IDで判定するので表記ゆれの影響を受けない）。
+            // 新規登録なら1件でもあればエラー。編集なら自分以外にあればエラー
             $dup = $db->prepare('SELECT client_name FROM strategy_meeting_negotiations
-                                 WHERE company_id = ? AND client_name_key = ? AND id <> ?');
-            $dup->execute([$cid, $key, $cur ? (int)$cur['id'] : 0]);
+                                 WHERE company_id = ? AND client_id = ? AND id <> ?');
+            $dup->execute([$cid, $clientId, $cur ? (int)$cur['id'] : 0]);
             $dupName = $dup->fetchColumn();
             if ($dupName !== false) {
                 echo json_encode([
@@ -350,7 +394,9 @@ try {
 // ----------------------------------------------------------------
 // action=trend_companies : 会社数の年間推移（9月〜翌8月）
 // ----------------------------------------------------------------
-// 商談報告と「既に案件がある会社」を会社名で突き合わせ、同じ会社を二重に数えない。
+// 商談報告と「既に案件がある会社」を取引先IDで突き合わせ、同じ会社を二重に数えない。
+// 外注先は「同じ会社の取引先」が指定されていれば、その取引先と同じ会社として扱う。
+// IDで突き合わせるので、取引先一覧で会社名・表記名を変えても集計は崩れない。
 // 候補化・取引開始・除外の年月を記録してあるので、月ごとの実績を正確に出せる。
 if ($action === 'trend_companies') {
     $fy       = smFyOf($pYear, $pMonth);
@@ -359,12 +405,14 @@ if ($action === 'trend_companies') {
     for ($m = 1; $m <= 8;  $m++) $fyMonths[] = $fy * 100 + $m;
 
     // --- 商談報告 ---
+    // 取引先が選ばれていない古い行（client_id が空）は、従来どおり会社名キーで数える
     $negs = [];
-    $stmt = $db->prepare('SELECT client_name_key, first_report_ym, candidate_ym, active_ym, excluded_ym
+    $stmt = $db->prepare('SELECT client_id, client_name_key, first_report_ym, candidate_ym, active_ym, excluded_ym
                           FROM strategy_meeting_negotiations WHERE company_id = ?');
     $stmt->execute([$cid]);
     foreach ($stmt->fetchAll() as $r) {
-        $negs[$r['client_name_key']] = [
+        $k = $r['client_id'] !== null ? smClientKey((int)$r['client_id']) : 'N' . $r['client_name_key'];
+        $negs[$k] = [
             'first'    => (int)$r['first_report_ym'],
             'cand'     => $r['candidate_ym'] !== null ? (int)$r['candidate_ym'] : null,
             'active'   => $r['active_ym']    !== null ? (int)$r['active_ym']    : null,
@@ -376,14 +424,15 @@ if ($action === 'trend_companies') {
     // 案件があるということは実際に取引しているので、除外はかけない。
     // 集計条件は画面上部の「〇〇社 / 目標社数」と完全に揃える:
     //   取引先は営業担当基準、外注先は管理者基準、対象は今年度の案件のみ
-    $repNames = getSalesRepCandidates($cid);
+    $repNames  = getSalesRepCandidates($cid);
+    $allyMap   = smAllianceClientMap($db, $cid);
     $caseFirst = [];
     if ($repNames) {
         $repPh    = implode(',', array_fill(0, count($repNames), '?'));
         $fyParams = [$fy - 1, $fy];
 
         // 取引先（クライアント）
-        $stmt = $db->prepare("SELECT COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS name,
+        $stmt = $db->prepare("SELECT cl.id AS client_id,
                                      MIN(sc.case_year * 100 + sc.case_month) AS first_ym
                               FROM sales_cases sc
                               JOIN sales_clients cl ON sc.client_id = cl.id
@@ -391,17 +440,16 @@ if ($action === 'trend_companies') {
                               WHERE sc.company_id = ? AND sc.status = 'confirmed'
                                 AND " . SM_FY_WHERE . "
                                 AND " . SM_REP_NAME . " IN ({$repPh})
-                              GROUP BY cl.id, cl.display_name, cl.client_name");
+                              GROUP BY cl.id");
         $stmt->execute(array_merge([$cid], $fyParams, $repNames));
         foreach ($stmt->fetchAll() as $r) {
-            $k = smNameKey((string)$r['name']);
-            if ($k === '') continue;
+            $k  = smClientKey((int)$r['client_id']);
             $ym = (int)$r['first_ym'];
             if (!isset($caseFirst[$k]) || $ym < $caseFirst[$k]) $caseFirst[$k] = $ym;
         }
 
         // 外注先（アライアンス）。商談報告の対象外なので常に「取引開始」として扱う
-        $stmt = $db->prepare("SELECT al.alliance_name AS name,
+        $stmt = $db->prepare("SELECT al.id AS alliance_id,
                                      MIN(sc.case_year * 100 + sc.case_month) AS first_ym
                               FROM sales_cases sc
                               JOIN sales_alliances al ON sc.alliance_id = al.id
@@ -410,12 +458,12 @@ if ($action === 'trend_companies') {
                                 AND sc.worker_type = 'アライアンス'
                                 AND " . SM_FY_WHERE . "
                                 AND " . SM_MGR_NAME . " IN ({$repPh})
-                              GROUP BY al.id, al.alliance_name");
+                              GROUP BY al.id");
         $stmt->execute(array_merge([$cid], $fyParams, $repNames));
         foreach ($stmt->fetchAll() as $r) {
-            $k = smNameKey((string)$r['name']);
-            if ($k === '') continue;
-            $ym = (int)$r['first_ym'];
+            $aid = (int)$r['alliance_id'];
+            $k   = smAllianceKey($aid, $allyMap[$aid] ?? null);
+            $ym  = (int)$r['first_ym'];
             if (!isset($caseFirst[$k]) || $ym < $caseFirst[$k]) $caseFirst[$k] = $ym;
         }
     }
@@ -492,11 +540,17 @@ if ($action === 'trend_companies') {
 // action=negotiations : 商談報告の一覧（登録が新しい順）
 // ----------------------------------------------------------------
 if ($action === 'negotiations') {
-    $stmt = $db->prepare("SELECT id, client_id, client_name, rep_name, status, status_other, note,
-                                 first_report_ym, candidate_ym, active_ym, excluded_ym
-                          FROM strategy_meeting_negotiations
-                          WHERE company_id = ?
-                          ORDER BY COALESCE(excluded_ym, 999999) DESC, first_report_ym DESC, id DESC");
+    // 会社名は取引先マスタの表記名を優先して出す。
+    // こうしておくと、取引先一覧で表記名を編集した内容がこの一覧にもそのまま反映される
+    // （取引先が選ばれていない古い行だけ、保存されている会社名を使う）
+    $stmt = $db->prepare("SELECT n.id, n.client_id,
+                                 COALESCE(" . clientLabelSql('cl') . ", n.client_name) AS client_name,
+                                 n.rep_name, n.status, n.status_other, n.note,
+                                 n.first_report_ym, n.candidate_ym, n.active_ym, n.excluded_ym
+                          FROM strategy_meeting_negotiations n
+                          LEFT JOIN sales_clients cl ON cl.id = n.client_id AND cl.company_id = n.company_id
+                          WHERE n.company_id = ?
+                          ORDER BY COALESCE(n.excluded_ym, 999999) DESC, n.first_report_ym DESC, n.id DESC");
     $stmt->execute([$cid]);
 
     $ymLabel = function ($v) {
@@ -534,7 +588,8 @@ if ($action === 'negotiations') {
 // ----------------------------------------------------------------
 // 営業マンカードの数字を足し合わせたものではない。
 // 同じ企業を複数の営業マンが担当していても1社として数え、
-// さらに取引先と外注先に同じ会社名があれば、それも1社にまとめる。
+// さらに外注先マスタで「同じ会社の取引先」が指定されていれば、それも1社にまとめる。
+// 突き合わせは取引先IDで行うので、会社名・表記名を変えても数字は変わらない。
 // 期間は月別/年度の切替に連動させず、今年度（9月〜8月）で固定する。
 if ($action === 'summary') {
     $repNames = getSalesRepCandidates($cid);
@@ -548,10 +603,12 @@ if ($action === 'summary') {
     $fy       = smFyOf($pYear, $pMonth);
     $fyParams = [$fy - 1, $fy];
     $repPh    = implode(',', array_fill(0, count($repNames), '?'));
+    $allyMap  = smAllianceClientMap($db, $cid);
+    $keys     = [];
 
-    // 取引先: 営業担当がその人たちの案件に出てくる取引先（表記名）
+    // 取引先: 営業担当がその人たちの案件に出てくる取引先
     $clientSql = "
-        SELECT DISTINCT COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS name
+        SELECT DISTINCT cl.id AS client_id
         FROM sales_cases sc
         JOIN sales_clients cl ON sc.client_id = cl.id
         " . SM_REP_JOIN . "
@@ -560,11 +617,13 @@ if ($action === 'summary') {
           AND " . SM_REP_NAME . " IN ({$repPh})";
     $stmt = $db->prepare($clientSql);
     $stmt->execute(array_merge([$cid], $fyParams, $repNames));
-    $names = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $clientId) {
+        $keys[smClientKey((int)$clientId)] = true;
+    }
 
     // 外注先: 管理者がその人たちの、スタッフ区分アライアンスの案件に出てくる外注先
     $allianceSql = "
-        SELECT DISTINCT al.alliance_name AS name
+        SELECT DISTINCT al.id AS alliance_id
         FROM sales_cases sc
         JOIN sales_alliances al ON sc.alliance_id = al.id
         " . SM_MGR_JOIN . "
@@ -574,13 +633,9 @@ if ($action === 'summary') {
           AND " . SM_MGR_NAME . " IN ({$repPh})";
     $stmt = $db->prepare($allianceSql);
     $stmt->execute(array_merge([$cid], $fyParams, $repNames));
-    $names = array_merge($names, $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-
-    // 表記ゆれを吸収したうえで重複を除く
-    $keys = [];
-    foreach ($names as $n) {
-        $k = smNameKey((string)$n);
-        if ($k !== '') $keys[$k] = true;
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $allianceId) {
+        $aid = (int)$allianceId;
+        $keys[smAllianceKey($aid, $allyMap[$aid] ?? null)] = true;
     }
 
     echo json_encode([

@@ -29,9 +29,15 @@ $initYear   = (int)$_prev->format('Y');
 $initMonth  = (int)$_prev->format('n');
 
 // 商談報告フォームの選択候補
-// ※会社名は手入力。営業担当者だけは案件フォームと同じ基準にして表記ゆれを防ぐ
+// ※会社も営業担当者も選択式。手入力を受け付けないので表記ゆれが起きない
 $repCandidates = getSalesRepCandidates($cid);   // 社員一覧で「営業担当」にチェックがある人
 $negStatuses   = ['取引開始', '取引候補', '温度感低め', '合わない', '倒産', 'その他'];
+
+// 商談報告の会社は取引先一覧から選ぶ。表記名の順に並べる。
+// 削除済みの取引先も選択肢には出すが選べないようにする（過去の商談報告を開いたときに
+// 会社名が空欄になってしまうのを防ぐため。新しく選ぶことはできない）
+$negClients = getSalesClients($cid, false);
+usort($negClients, fn($a, $b) => strcmp(clientLabel($a), clientLabel($b)));
 
 // 商談報告の対象年月は当月を既定にする（過去にさかのぼって入力もできる）
 $_today    = new DateTimeImmutable('today');
@@ -242,12 +248,18 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-medium">会社名 <span class="text-danger">*</span></label>
-                        <?php /* 手入力のみ。会社数は会社名で突き合わせるため、既存の取引先と表記を揃えて入力する */ ?>
-                        <input type="text" class="form-control" id="smNegClient"
-                               placeholder="会社名を入力" autocomplete="off" maxlength="200" required>
+                        <?php /* 取引先一覧から選ぶ方式。会社数は取引先IDで数えるため、表記ゆれも重複も起きない */ ?>
+                        <select class="form-select" id="smNegClient" required>
+                            <option value="">-- 取引先一覧から選択 --</option>
+                            <?php foreach ($negClients as $_nc): $_off = (int)$_nc['is_active'] !== 1; ?>
+                            <option value="<?= (int)$_nc['id'] ?>"<?= $_off ? ' disabled' : '' ?>>
+                                <?= h(clientLabel($_nc)) ?><?= $_off ? '（削除済み）' : '' ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
                         <div class="form-text" style="font-size:.7rem">
                             同じ会社はまとめて1件で管理されます（重複登録はできません）。<br>
-                            すでに取引のある会社は、取引先一覧と同じ表記で入力してください。
+                            一覧に無い会社は、先に<a href="<?= BASE_PATH ?>/public/clients.php">取引先一覧</a>へ追加してください。
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -933,7 +945,8 @@ function smNegOpen(row) {
     smNegShowError('');
     document.getElementById('smNegId').value     = row ? row.id : '';
     document.getElementById('smNegRep').value    = row ? (row.rep_name || '') : '';
-    document.getElementById('smNegClient').value = row ? row.client_name : '';
+    // 会社は取引先一覧から選ぶ。編集時は保存されている取引先を選択状態にする
+    document.getElementById('smNegClient').value = row && row.client_id ? row.client_id : '';
     document.getElementById('smNegStatus').value = row ? row.status : '';
     document.getElementById('smNegOther').value  = row ? (row.status_other || '') : '';
     document.getElementById('smNegNote').value   = row ? (row.note || '') : '';
@@ -954,12 +967,15 @@ function smNegSave() {
     var parts = ym.split('-');
     if (parts.length !== 2) { smNegShowError('対象年月を選択してください'); return; }
 
+    var clientId = document.getElementById('smNegClient').value;
+    if (!clientId) { smNegShowError('会社を取引先一覧から選んでください'); return; }
+
     var fd = new FormData();
     fd.append('csrf', smCsrf);
     fd.append('action', 'save_negotiation');
     fd.append('id', document.getElementById('smNegId').value || '');
     fd.append('rep_name', document.getElementById('smNegRep').value);
-    fd.append('client_name', document.getElementById('smNegClient').value.trim());
+    fd.append('client_id', clientId);
     fd.append('status', document.getElementById('smNegStatus').value);
     fd.append('status_other', document.getElementById('smNegOther').value.trim());
     fd.append('note', document.getElementById('smNegNote').value.trim());

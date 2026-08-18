@@ -155,17 +155,41 @@ function toggleSalesClient(int $id, int $companyId, bool $active): void {
     $db->prepare('UPDATE sales_clients SET is_active=? WHERE id=? AND company_id=?')->execute([$active ? 1 : 0, $id, $companyId]);
 }
 
+/**
+ * 外注先フォームの「同じ会社の取引先」の値を取り出す
+ * 未選択・空欄なら NULL（紐づけなし）
+ */
+function allianceClientIdInput(array $data): ?int {
+    $v = $data['client_id'] ?? '';
+    if ($v === '' || $v === null) return null;
+    $id = (int)$v;
+    return $id > 0 ? $id : null;
+}
+
 function createSalesAlliance(int $companyId, array $data): int {
     $db = getDB();
-    $stmt = $db->prepare('INSERT INTO sales_alliances (company_id, alliance_name, alliance_type, contact_person, phone, note, sort_order) VALUES (?,?,?,?,?,?,?)');
-    $stmt->execute([$companyId, $data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0)]);
+    $clientId = allianceClientIdInput($data);
+    try {
+        $stmt = $db->prepare('INSERT INTO sales_alliances (company_id, alliance_name, alliance_type, contact_person, phone, note, sort_order, client_id) VALUES (?,?,?,?,?,?,?,?)');
+        $stmt->execute([$companyId, $data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $clientId]);
+    } catch (PDOException $e) {
+        // client_id カラム未追加の環境でも動作するようフォールバック
+        $stmt = $db->prepare('INSERT INTO sales_alliances (company_id, alliance_name, alliance_type, contact_person, phone, note, sort_order) VALUES (?,?,?,?,?,?,?)');
+        $stmt->execute([$companyId, $data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0)]);
+    }
     return (int)$db->lastInsertId();
 }
 
 function updateSalesAlliance(int $id, int $companyId, array $data): void {
     $db = getDB();
-    $stmt = $db->prepare('UPDATE sales_alliances SET alliance_name=?, alliance_type=?, contact_person=?, phone=?, note=?, sort_order=? WHERE id=? AND company_id=?');
-    $stmt->execute([$data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $id, $companyId]);
+    $clientId = allianceClientIdInput($data);
+    try {
+        $stmt = $db->prepare('UPDATE sales_alliances SET alliance_name=?, alliance_type=?, contact_person=?, phone=?, note=?, sort_order=?, client_id=? WHERE id=? AND company_id=?');
+        $stmt->execute([$data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $clientId, $id, $companyId]);
+    } catch (PDOException $e) {
+        $stmt = $db->prepare('UPDATE sales_alliances SET alliance_name=?, alliance_type=?, contact_person=?, phone=?, note=?, sort_order=? WHERE id=? AND company_id=?');
+        $stmt->execute([$data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $id, $companyId]);
+    }
 }
 
 function toggleSalesAlliance(int $id, int $companyId, bool $active): void {

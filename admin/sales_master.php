@@ -103,6 +103,12 @@ $brands    = getSalesStoreBrands($cid, !$showInactive);
 $areas     = getSalesAreas($cid, !$showInactive);
 $workers   = getSalesWorkers($cid, null, !$showInactive);
 
+// 外注先の「同じ会社の取引先」欄で使う。紐づけ先の表示と選択肢に使うため、
+// 無効な取引先も含めた全件を ID で引ける形にしておく
+$allClients  = getSalesClients($cid, false);
+$clientById  = [];
+foreach ($allClients as $_c) { $clientById[(int)$_c['id']] = $_c; }
+
 $csrf = getCsrfToken();
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -266,13 +272,21 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr><th>外注先名</th><th>種別</th><th>担当者</th><th>電話</th><th>順序</th><th class="text-center">状態</th><th></th></tr>
+                    <tr><th>外注先名</th><th>種別</th><th>同じ会社の取引先</th><th>担当者</th><th>電話</th><th>順序</th><th class="text-center">状態</th><th></th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($alliances as $item): ?>
                     <tr class="<?= $item['is_active'] ? '' : 'table-secondary' ?>">
                         <td class="fw-medium"><?= h($item['alliance_name']) ?></td>
                         <td><span class="tag"><?= h($item['alliance_type']) ?></span></td>
+                        <td class="small">
+                            <?php $_lk = $clientById[(int)($item['client_id'] ?? 0)] ?? null; ?>
+                            <?php if ($_lk): ?>
+                                <i class="bi bi-link-45deg text-primary"></i> <?= h(clientLabel($_lk)) ?>
+                            <?php else: ?>
+                                <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= h($item['contact_person'] ?? '') ?></td>
                         <td><?= h($item['phone'] ?? '') ?></td>
                         <td><?= $item['sort_order'] ?></td>
@@ -298,6 +312,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="modal-body">
                     <div class="mb-3"><label class="form-label">外注先名 <span class="text-danger">*</span></label><input type="text" name="alliance_name" class="form-control" required></div>
                     <div class="mb-3"><label class="form-label">種別</label><select name="alliance_type" class="form-select"><option value="アライアンス">アライアンス</option><option value="個人外注">個人外注</option></select></div>
+                    <div class="mb-3">
+                        <label class="form-label">同じ会社の取引先</label>
+                        <select name="client_id" class="form-select">
+                            <option value="">-- 紐づけなし --</option>
+                            <?php foreach ($allClients as $_c): ?>
+                            <option value="<?= (int)$_c['id'] ?>"><?= h(clientLabel($_c)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">取引先一覧にも同じ会社が登録されている場合に選びます。戦略会議の会社数で1社として数えるために使います。</div>
+                    </div>
                     <div class="row"><div class="col-md-6 mb-3"><label class="form-label">担当者</label><input type="text" name="contact_person" class="form-control"></div><div class="col-md-6 mb-3"><label class="form-label">電話</label><input type="text" name="phone" class="form-control"></div></div>
                     <div class="mb-3"><label class="form-label">備考</label><textarea name="note" class="form-control" rows="2"></textarea></div>
                     <div class="mb-3"><label class="form-label">表示順</label><input type="number" name="sort_order" class="form-control" value="0"></div>
@@ -314,6 +338,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="modal-body">
                     <div class="mb-3"><label class="form-label">外注先名 <span class="text-danger">*</span></label><input type="text" name="alliance_name" id="edit_alliance_name" class="form-control" required></div>
                     <div class="mb-3"><label class="form-label">種別</label><select name="alliance_type" id="edit_alliance_type" class="form-select"><option value="アライアンス">アライアンス</option><option value="個人外注">個人外注</option></select></div>
+                    <div class="mb-3">
+                        <label class="form-label">同じ会社の取引先</label>
+                        <select name="client_id" id="edit_alliance_client_id" class="form-select">
+                            <option value="">-- 紐づけなし --</option>
+                            <?php foreach ($allClients as $_c): ?>
+                            <option value="<?= (int)$_c['id'] ?>"><?= h(clientLabel($_c)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">取引先一覧にも同じ会社が登録されている場合に選びます。戦略会議の会社数で1社として数えるために使います。</div>
+                    </div>
                     <div class="row"><div class="col-md-6 mb-3"><label class="form-label">担当者</label><input type="text" name="contact_person" id="edit_contact_person" class="form-control"></div><div class="col-md-6 mb-3"><label class="form-label">電話</label><input type="text" name="phone" id="edit_phone" class="form-control"></div></div>
                     <div class="mb-3"><label class="form-label">備考</label><textarea name="note" id="edit_note" class="form-control" rows="2"></textarea></div>
                     <div class="mb-3"><label class="form-label">表示順</label><input type="number" name="sort_order" id="edit_sort_order" class="form-control"></div>
@@ -543,6 +577,7 @@ function editAlliance(d) {
     document.getElementById('edit_id').value = d.id;
     document.getElementById('edit_alliance_name').value = d.alliance_name;
     document.getElementById('edit_alliance_type').value = d.alliance_type;
+    document.getElementById('edit_alliance_client_id').value = d.client_id || '';
     document.getElementById('edit_contact_person').value = d.contact_person || '';
     document.getElementById('edit_phone').value = d.phone || '';
     document.getElementById('edit_note').value = d.note || '';

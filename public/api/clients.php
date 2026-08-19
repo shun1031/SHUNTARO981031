@@ -19,8 +19,18 @@ if (!canViewSalesPages()) { http_response_code(403); echo json_encode(['error' =
 
 $db = getDB();
 
+/**
+ * 「登録中」の一覧に出す条件: 常勤・イベントの案件が1件でもある取引先だけ。
+ * キャンセル済みの案件は数えない。期間の制限は無し（過去に1件でもあれば表示）。
+ * ※削除済みの一覧はこの絞り込みをかけない（復元したいものを探せなくなるため）
+ */
+const CL_HAS_CASE = "EXISTS (SELECT 1 FROM sales_cases sc
+                             WHERE sc.company_id = sales_clients.company_id
+                               AND sc.client_id  = sales_clients.id
+                               AND sc.status <> 'cancelled')";
+
 /** 1件を一覧表示用に整形 */
-function clientRowOut(array $r): array {
+function clientRowOut(array $r, array $alsoAlliance = []): array {
     $link = clientContractLink($r);
     return [
         'id'                 => (int)$r['id'],
@@ -34,6 +44,8 @@ function clientRowOut(array $r): array {
         'contract_url'       => (string)($r['contract_url'] ?? ''),
         'has_contract'       => $link['has'],
         'contract_link'      => $link['url'],
+        // 外注先にも同じ会社が登録されていれば「外注先にもあり」バッジを出す
+        'also_alliance'      => isset($alsoAlliance[(int)$r['id']]),
     ];
 }
 
@@ -52,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     // show=deleted で削除済み（is_active=0）の取引先を表示し、復元できるようにする
     $show   = ($_GET['show'] ?? '') === 'deleted' ? 'deleted' : 'active';
     $where  = 'company_id = ? AND is_active = ' . ($show === 'deleted' ? '0' : '1');
+    // 登録中の一覧は「案件がある取引先」だけに絞る（削除済みは絞らない）
+    if ($show === 'active') $where .= ' AND ' . CL_HAS_CASE;
     $params = [$cid];
     if ($q !== '') {
         // 会社名・表記名・担当者名のいずれかに部分一致
@@ -68,7 +82,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $offset = ($page - 1) * $per;
         $lStmt = $db->prepare("SELECT * FROM sales_clients WHERE $where ORDER BY sort_order, client_name LIMIT $per OFFSET $offset");
         $lStmt->execute($params);
-        $rows = array_map('clientRowOut', $lStmt->fetchAll(PDO::FETCH_ASSOC));
+        $pageRows = $lStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // このページに出す取引先のうち、外注先にも登録があるもの（バッジ用）
+        $alsoAlliance = [];
+        $ids = array_map(fn($r) => (int)$r['id'], $pageRows);
+        if ($ids) {
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $aStmt = $db->prepare("SELECT DISTINCT client_id FROM sales_alliances
+                                   WHERE company_id = ? AND is_active = 1 AND client_id IN ($ph)");
+            $aStmt->execute(array_merge([$cid], $ids));
+            foreach ($aStmt->fetchAll(PDO::FETCH_COLUMN) as $v) $alsoAlliance[(int)$v] = true;
+        }
+        $rows = array_map(fn($r) => clientRowOut($r, $alsoAlliance), $pageRows);
     } catch (PDOException $e) {
         echo json_encode(['error' => 'データの取得に失敗しました']); exit;
     }
@@ -160,6 +186,18 @@ try {
                 contract_file_id=?, contract_file_name=?, contract_url=?, updated_at=NOW()
             WHERE id=? AND company_id=?");
         $up->execute([$name, $display, $person, $email, $phone, $fileId, $fileName, $rawUrl, $id, $cid]);
+
+        // 同じ会社が外注先にも登録されている場合は、外注先の名前も同じに揃える。
+        // 取引先一覧だけ直せば案件一覧・アライアンス別売上などの表示もすべて追従する
+        try {
+            $db->prepare('UPDATE sales_alliances SET alliance_name = ?, display_name = ?, updated_at = NOW()
+                          WHERE company_id = ? AND client_id = ?')
+               ->execute([$name, $display, $cid, $id]);
+        } catch (PDOException $e) {
+            // 外注先名が他と重複する等で失敗しても、取引先の保存自体は成功させる
+            error_log('[clients sync alliance] ' . $e->getMessage());
+        }
+
         $g = $db->prepare('SELECT * FROM sales_clients WHERE id = ? AND company_id = ?');
         $g->execute([$id, $cid]);
         $row = $g->fetch(PDO::FETCH_ASSOC);

@@ -25,9 +25,20 @@ $db = getDB();
 
 const AL_TYPES = ['アライアンス', '個人外注'];
 
+/**
+ * 「登録中」の一覧に出す条件: 常勤・イベントの案件が1件でもある外注先だけ。
+ * キャンセル済みの案件は数えない。期間の制限は無し。
+ * ※削除済みの一覧はこの絞り込みをかけない（復元したいものを探せなくなるため）
+ */
+const AL_HAS_CASE = "EXISTS (SELECT 1 FROM sales_cases sc
+                             WHERE sc.company_id  = sales_alliances.company_id
+                               AND sc.alliance_id = sales_alliances.id
+                               AND sc.status <> 'cancelled')";
+
 /** 1件を一覧表示用に整形 */
-function allianceRowOut(array $r, array $clientById): array {
-    $linked = $clientById[(int)($r['client_id'] ?? 0)] ?? null;
+function allianceRowOut(array $r, array $clientById, array $alsoClient = []): array {
+    $cid = (int)($r['client_id'] ?? 0);
+    $linked = $clientById[$cid] ?? null;
     return [
         'id'             => (int)$r['id'],
         'alliance_name'  => (string)($r['alliance_name'] ?? ''),
@@ -38,6 +49,8 @@ function allianceRowOut(array $r, array $clientById): array {
         'phone'          => (string)($r['phone'] ?? ''),
         'client_id'      => $r['client_id'] !== null ? (int)$r['client_id'] : null,
         'client_label'   => $linked ? clientLabel($linked) : '',
+        // 紐づけ先の取引先が取引先タブにも出ていれば「取引先にもあり」バッジを出す
+        'also_client'    => isset($alsoClient[$cid]),
     ];
 }
 
@@ -61,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
     $show   = ($_GET['show'] ?? '') === 'deleted' ? 'deleted' : 'active';
     $where  = 'company_id = ? AND is_active = ' . ($show === 'deleted' ? '0' : '1');
+    // 登録中の一覧は「案件がある外注先」だけに絞る（削除済みは絞らない）
+    if ($show === 'active') $where .= ' AND ' . AL_HAS_CASE;
     $params = [$cid];
     if ($q !== '') {
         // 正式名称・表記名・担当者名のいずれかに部分一致
@@ -77,7 +92,25 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $offset = ($page - 1) * $per;
         $lStmt = $db->prepare("SELECT * FROM sales_alliances WHERE $where ORDER BY sort_order, alliance_name LIMIT $per OFFSET $offset");
         $lStmt->execute($params);
-        $rows = array_map(fn($r) => allianceRowOut($r, $clientById), $lStmt->fetchAll(PDO::FETCH_ASSOC));
+        $pageRows = $lStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // このページの紐づけ先のうち、取引先タブにも出ている取引先（バッジ用）
+        $alsoClient = [];
+        $linkIds = [];
+        foreach ($pageRows as $r) { if (!empty($r['client_id'])) $linkIds[(int)$r['client_id']] = true; }
+        if ($linkIds) {
+            $ids = array_keys($linkIds);
+            $ph  = implode(',', array_fill(0, count($ids), '?'));
+            $cSt = $db->prepare("SELECT id FROM sales_clients cl
+                                 WHERE cl.company_id = ? AND cl.is_active = 1 AND cl.id IN ($ph)
+                                   AND EXISTS (SELECT 1 FROM sales_cases sc
+                                               WHERE sc.company_id = cl.company_id
+                                                 AND sc.client_id  = cl.id
+                                                 AND sc.status <> 'cancelled')");
+            $cSt->execute(array_merge([$cid], $ids));
+            foreach ($cSt->fetchAll(PDO::FETCH_COLUMN) as $v) $alsoClient[(int)$v] = true;
+        }
+        $rows = array_map(fn($r) => allianceRowOut($r, $clientById, $alsoClient), $pageRows);
     } catch (PDOException $e) {
         echo json_encode(['error' => 'データの取得に失敗しました']); exit;
     }

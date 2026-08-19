@@ -185,19 +185,35 @@ require_once __DIR__ . '/../includes/header.php';
     background: #f1f5f9; color: #94a3b8; font-size: .75rem;
 }
 .cl-drive-icon { width: 16px; height: 16px; vertical-align: -3px; margin-right: .3rem; }
+/* 取引先・外注先の両方に登録がある会社の目印 */
+.cl-also-badge {
+    display: inline-block; margin-left: .4rem; padding: .05rem .4rem;
+    border: 1px solid #c7d2fe; border-radius: .7rem; background: #eef2ff;
+    color: #4338ca; font-size: .68rem; text-decoration: none; white-space: nowrap;
+}
+.cl-also-badge:hover { background: #e0e7ff; color: #3730a3; }
 </style>
 
 <?php
 $clApi = json_encode(BASE_PATH . '/public/api/clients.php');
+$clAllianceUrl = json_encode(BASE_PATH . '/public/alliances.php');
 $clIsAdmin = isAdmin() ? 'true' : 'false';
 $inlineJs = <<<CLJS
 var CL_API  = {$clApi};
+var CL_ALLIANCE_URL = {$clAllianceUrl};
 var CL_CSRF = '{$csrf}';
 var CL_CAN_EDIT = {$clIsAdmin};   // 編集・削除・復元は管理者のみ
 CLJS;
 $inlineJs .= <<<'CLJS2'
 
 var clPage = 1, clQuery = '', clTimer = null, clModalBs = null, clShow = 'active';
+
+// 外注先タブのバッジから来たときは、その会社で検索した状態で開く
+(function () {
+    var m = /[?&]q=([^&]*)/.exec(window.location.search);
+    if (!m) return;
+    clQuery = decodeURIComponent(m[1].replace(/\+/g, ' '));
+})();
 
 function clEsc(s) {
     return String(s == null ? '' : s)
@@ -240,8 +256,13 @@ function clRender(d) {
                 ? '<a class="cl-contract-link" href="' + clEsc(c.contract_link) + '" target="_blank" rel="noopener noreferrer" title="'
                   + clEsc(c.contract_file_name || '契約書をGoogleドライブで開く') + '">' + CL_DRIVE_ICON + '契約書を開く</a>'
                 : '<span class="cl-contract-none">無し</span>';
+            // 外注先にも同じ会社が登録されている場合の目印。押すと外注先タブへ移動する
+            var alsoBadge = c.also_alliance
+                ? ' <a href="' + CL_ALLIANCE_URL + '?q=' + encodeURIComponent(c.display_name || c.client_name)
+                  + '" class="cl-also-badge" title="外注先タブでこの会社を開く">外注先にもあり</a>'
+                : '';
             html += '<tr>'
-                 +  '<td>' + clEsc(c.client_name) + '</td>'
+                 +  '<td>' + clEsc(c.client_name) + alsoBadge + '</td>'
                  +  '<td>' + clEsc(c.display_name) + '</td>'
                  +  '<td>' + (c.contact_person ? clEsc(c.contact_person) : '<span class="text-muted">-</span>') + '</td>'
                  +  '<td>' + (c.email ? clEsc(c.email) : '<span class="text-muted">-</span>') + '</td>'
@@ -402,7 +423,10 @@ function clDelete() {
     clPost(fd, function () { clLoad(); });
 }
 
-document.addEventListener('DOMContentLoaded', clLoad);
+document.addEventListener('DOMContentLoaded', function () {
+    if (clQuery) document.getElementById('clSearch').value = clQuery;
+    clLoad();
+});
 CLJS2;
 require_once __DIR__ . '/../includes/footer.php';
 ?>

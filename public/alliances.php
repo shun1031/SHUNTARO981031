@@ -174,19 +174,35 @@ require_once __DIR__ . '/../includes/header.php';
 .cl-table th { font-size: .78rem; color: #475569; font-weight: 600; white-space: nowrap; }
 .cl-table td { font-size: .82rem; color: #1e293b; }
 .cl-table tbody tr td { padding-top: .7rem; padding-bottom: .7rem; }
+/* 取引先・外注先の両方に登録がある会社の目印 */
+.cl-also-badge {
+    display: inline-block; margin-left: .4rem; padding: .05rem .4rem;
+    border: 1px solid #c7d2fe; border-radius: .7rem; background: #eef2ff;
+    color: #4338ca; font-size: .68rem; text-decoration: none; white-space: nowrap;
+}
+.cl-also-badge:hover { background: #e0e7ff; color: #3730a3; }
 </style>
 
 <?php
-$alApi     = json_encode(BASE_PATH . '/public/api/alliances.php');
+$alApi       = json_encode(BASE_PATH . '/public/api/alliances.php');
+$alClientUrl = json_encode(BASE_PATH . '/public/clients.php');
 $alIsAdmin = isAdmin() ? 'true' : 'false';
 $inlineJs = <<<ALJS
 var AL_API  = {$alApi};
+var AL_CLIENT_URL = {$alClientUrl};
 var AL_CSRF = '{$csrf}';
 var AL_CAN_EDIT = {$alIsAdmin};   // 編集・削除・復元は管理者のみ
 ALJS;
 $inlineJs .= <<<'ALJS2'
 
 var alPage = 1, alQuery = '', alTimer = null, alModalBs = null, alShow = 'active';
+
+// 取引先タブのバッジから来たときは、その会社で検索した状態で開く
+(function () {
+    var m = /[?&]q=([^&]*)/.exec(window.location.search);
+    if (!m) return;
+    alQuery = decodeURIComponent(m[1].replace(/\+/g, ' '));
+})();
 var alRowMap = {}, alClientOptions = [], alTypes = [];
 
 function alEsc(s) {
@@ -215,8 +231,13 @@ function alRender(d) {
     } else {
         var html = '';
         d.alliances.forEach(function (a) {
+            // 取引先にも同じ会社が登録されている場合の目印。押すと取引先タブへ移動する
+            var alsoBadge = a.also_client
+                ? ' <a href="' + AL_CLIENT_URL + '?q=' + encodeURIComponent(a.display_name || a.alliance_name)
+                  + '" class="cl-also-badge" title="取引先タブでこの会社を開く">取引先にもあり</a>'
+                : '';
             html += '<tr>'
-                 +  '<td>' + alEsc(a.alliance_name) + '</td>'
+                 +  '<td>' + alEsc(a.alliance_name) + alsoBadge + '</td>'
                  +  '<td>' + alEsc(a.display_name) + '</td>'
                  +  '<td><span class="badge bg-light text-dark border">' + alEsc(a.alliance_type) + '</span></td>'
                  +  '<td>' + (a.client_label
@@ -379,7 +400,10 @@ function alDelete() {
     alPost(fd, function () { alLoad(); });
 }
 
-document.addEventListener('DOMContentLoaded', alLoad);
+document.addEventListener('DOMContentLoaded', function () {
+    if (alQuery) document.getElementById('alSearch').value = alQuery;
+    alLoad();
+});
 ALJS2;
 require_once __DIR__ . '/../includes/footer.php';
 ?>

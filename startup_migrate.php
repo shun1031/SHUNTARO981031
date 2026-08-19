@@ -343,6 +343,8 @@ $migrations = [
     "ALTER TABLE sales_alliances ADD COLUMN display_name VARCHAR(100) DEFAULT NULL COMMENT '表記名（アプリ内表示名）'",
     // 表記名が未設定の既存データは外注先名で初期化（表示崩れ防止）
     "UPDATE sales_alliances SET display_name = alliance_name WHERE display_name IS NULL OR display_name = ''",
+    // 取引先一覧の「外注先」タブで担当者メールも管理できるようにする
+    "ALTER TABLE sales_alliances ADD COLUMN email VARCHAR(191) DEFAULT NULL COMMENT '担当者メールアドレス'",
 
     // ---- strategy_meeting_negotiations: 取引先IDでの重複禁止 ----
     // 商談報告は「1社につき1件」。取引先を選ぶ方式に変えたので、同じ取引先の

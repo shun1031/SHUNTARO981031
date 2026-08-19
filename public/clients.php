@@ -23,7 +23,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1><i class="bi bi-people me-2"></i>取引先一覧</h1>
-                <p>登録されている取引先の情報および契約書の登録状況を一覧で確認できます。</p>
+                <p>登録されている取引先・外注先の情報および契約書の登録状況を一覧で確認できます。</p>
             </div>
             <?php if (isAdmin()): /* 取引先の追加は管理者のみ */ ?>
             <button type="button" class="btn btn-primary" onclick="clOpenForm()">
@@ -32,6 +32,19 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
         </div>
     </div>
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link active" href="<?= BASE_PATH ?>/public/clients.php">
+                <i class="bi bi-building me-1"></i>取引先
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= BASE_PATH ?>/public/alliances.php">
+                <i class="bi bi-people me-1"></i>外注先
+            </a>
+        </li>
+    </ul>
 
     <div class="card mb-3">
         <div class="card-body">

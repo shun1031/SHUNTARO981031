@@ -29,7 +29,7 @@ function calcSalesCaseAmounts(array &$data): void {
 
 function getSalesCase(int $id, int $companyId): array|false {
     $db = getDB();
-    $stmt = $db->prepare('SELECT sc.*, cl.client_name, cl.display_name AS client_display_name, al.alliance_name, sb.brand_name, sb.brand_code, sa.area_name
+    $stmt = $db->prepare('SELECT sc.*, cl.client_name, cl.display_name AS client_display_name, al.alliance_name, al.display_name AS alliance_display_name, sb.brand_name, sb.brand_code, sa.area_name
         FROM sales_cases sc
         LEFT JOIN sales_clients cl ON sc.client_id = cl.id
         LEFT JOIN sales_alliances al ON sc.alliance_id = al.id
@@ -94,7 +94,7 @@ function getSalesCases(int $companyId, array $filters = [], int $limit = 200, in
         $params[] = $filters['employee_name'];
     }
 
-    $sql = 'SELECT sc.*, cl.client_name, cl.display_name AS client_display_name, al.alliance_name, sb.brand_name, sb.brand_code, sa.area_name
+    $sql = 'SELECT sc.*, cl.client_name, cl.display_name AS client_display_name, al.alliance_name, al.display_name AS alliance_display_name, sb.brand_name, sb.brand_code, sa.area_name
         FROM sales_cases sc
         LEFT JOIN sales_clients cl ON sc.client_id = cl.id
         LEFT JOIN sales_alliances al ON sc.alliance_id = al.id

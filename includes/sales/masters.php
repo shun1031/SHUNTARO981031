@@ -27,6 +27,27 @@ function clientLabelSql(string $alias = 'cl'): string {
 }
 
 // ----------------------------------------------------------------
+// 外注先の表示名（取引先とまったく同じ考え方）
+// ----------------------------------------------------------------
+
+/**
+ * ポータル内で表示する外注先名を返す（表記名 → なければ正式名称）
+ * 請求書管理のアライアンスタブなど、正式名称で出す画面では alliance_name を直接使うこと
+ *
+ * @param array $row alliance_name / display_name（または alliance_display_name）を含む行
+ */
+function allianceLabel(array $row): string {
+    $disp = trim((string)($row['display_name'] ?? $row['alliance_display_name'] ?? ''));
+    if ($disp !== '') return $disp;
+    return trim((string)($row['alliance_name'] ?? ''));
+}
+
+/** SQL用: 表記名があれば表記名、なければ正式名称を返す式 */
+function allianceLabelSql(string $alias = 'al'): string {
+    return "COALESCE(NULLIF(TRIM({$alias}.display_name), ''), {$alias}.alliance_name)";
+}
+
+// ----------------------------------------------------------------
 // マスタ取得
 // ----------------------------------------------------------------
 
@@ -169,9 +190,12 @@ function allianceClientIdInput(array $data): ?int {
 function createSalesAlliance(int $companyId, array $data): int {
     $db = getDB();
     $clientId = allianceClientIdInput($data);
+    // 表記名は未指定なら正式名称と同じ値を入れる（画面表示が空欄になるのを防ぐ）
+    $display = trim((string)($data['display_name'] ?? '')) !== ''
+        ? $data['display_name'] : $data['alliance_name'];
     try {
-        $stmt = $db->prepare('INSERT INTO sales_alliances (company_id, alliance_name, alliance_type, contact_person, phone, note, sort_order, client_id) VALUES (?,?,?,?,?,?,?,?)');
-        $stmt->execute([$companyId, $data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $clientId]);
+        $stmt = $db->prepare('INSERT INTO sales_alliances (company_id, alliance_name, display_name, alliance_type, contact_person, phone, note, sort_order, client_id) VALUES (?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$companyId, $data['alliance_name'], $display, $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $clientId]);
     } catch (PDOException $e) {
         // client_id カラム未追加の環境でも動作するようフォールバック
         $stmt = $db->prepare('INSERT INTO sales_alliances (company_id, alliance_name, alliance_type, contact_person, phone, note, sort_order) VALUES (?,?,?,?,?,?,?)');
@@ -183,9 +207,11 @@ function createSalesAlliance(int $companyId, array $data): int {
 function updateSalesAlliance(int $id, int $companyId, array $data): void {
     $db = getDB();
     $clientId = allianceClientIdInput($data);
+    $display = trim((string)($data['display_name'] ?? '')) !== ''
+        ? $data['display_name'] : $data['alliance_name'];
     try {
-        $stmt = $db->prepare('UPDATE sales_alliances SET alliance_name=?, alliance_type=?, contact_person=?, phone=?, note=?, sort_order=?, client_id=? WHERE id=? AND company_id=?');
-        $stmt->execute([$data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $clientId, $id, $companyId]);
+        $stmt = $db->prepare('UPDATE sales_alliances SET alliance_name=?, display_name=?, alliance_type=?, contact_person=?, phone=?, note=?, sort_order=?, client_id=? WHERE id=? AND company_id=?');
+        $stmt->execute([$data['alliance_name'], $display, $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $clientId, $id, $companyId]);
     } catch (PDOException $e) {
         $stmt = $db->prepare('UPDATE sales_alliances SET alliance_name=?, alliance_type=?, contact_person=?, phone=?, note=?, sort_order=? WHERE id=? AND company_id=?');
         $stmt->execute([$data['alliance_name'], $data['alliance_type'] ?? 'アライアンス', $data['contact_person'] ?? null, $data['phone'] ?? null, $data['note'] ?? null, (int)($data['sort_order'] ?? 0), $id, $companyId]);

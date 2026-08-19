@@ -126,10 +126,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <nav aria-label="breadcrumb" style="font-size:.8rem">
                     <ol class="breadcrumb mb-1">
                         <li class="breadcrumb-item"><a href="<?= BASE_PATH ?>/public/sales_cost.php?year=<?= $year ?>&month=<?= $month ?>">アライアンス別売上</a></li>
-                        <li class="breadcrumb-item active"><?= h($alliance['alliance_name']) ?></li>
+                        <li class="breadcrumb-item active"><?= h(allianceLabel($alliance)) ?></li>
                     </ol>
                 </nav>
-                <h1><i class="bi bi-building me-2"></i><?= h($alliance['alliance_name']) ?></h1>
+                <h1><i class="bi bi-building me-2"></i><?= h(allianceLabel($alliance)) ?></h1>
                 <p><?= $year ?>年<?= $month ?>月 / 原価詳細</p>
             </div>
             <!-- 年月フィルター -->

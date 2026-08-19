@@ -16,7 +16,7 @@ $extraCss  = ['sales.css'];
 $allianceNames = [];
 try {
     $_anStmt = getDB()->prepare("
-        SELECT DISTINCT al.alliance_name
+        SELECT DISTINCT COALESCE(NULLIF(TRIM(al.display_name),''), al.alliance_name) AS alliance_name
         FROM sales_cases sc
         JOIN sales_alliances al ON sc.alliance_id = al.id
         WHERE sc.company_id = ?
@@ -25,7 +25,7 @@ try {
           AND sc.worker_name IS NOT NULL
           AND TRIM(sc.worker_name) != ''
           AND sc.status != 'cancelled'
-        ORDER BY al.alliance_name COLLATE utf8mb4_unicode_ci
+        ORDER BY alliance_name COLLATE utf8mb4_unicode_ci
     ");
     $_anStmt->execute([$cid]);
     $allianceNames = $_anStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];

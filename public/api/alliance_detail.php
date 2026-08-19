@@ -29,7 +29,7 @@ if (!$allianceId) { echo json_encode(['error' => 'alliance_idが必要です']);
 session_write_close(); // 長めの集計中に他リクエストをブロックしない
 
 // アライアンス会社名
-$aSt = $db->prepare('SELECT alliance_name FROM sales_alliances WHERE id = ? AND company_id = ?');
+$aSt = $db->prepare("SELECT COALESCE(NULLIF(TRIM(display_name),''), alliance_name) AS alliance_name FROM sales_alliances WHERE id = ? AND company_id = ?");
 $aSt->execute([$allianceId, $cid]);
 $allianceName = $aSt->fetchColumn();
 if ($allianceName === false) { echo json_encode(['error' => 'アライアンス会社が見つかりません']); exit; }

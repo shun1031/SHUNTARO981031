@@ -272,12 +272,13 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr><th>外注先名</th><th>種別</th><th>同じ会社の取引先</th><th>担当者</th><th>電話</th><th>順序</th><th class="text-center">状態</th><th></th></tr>
+                    <tr><th>正式名称</th><th>表記名 <span class="text-muted fw-normal" style="font-size:.7rem">（アプリ内表示名）</span></th><th>種別</th><th>同じ会社の取引先</th><th>担当者</th><th>電話</th><th>順序</th><th class="text-center">状態</th><th></th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($alliances as $item): ?>
                     <tr class="<?= $item['is_active'] ? '' : 'table-secondary' ?>">
                         <td class="fw-medium"><?= h($item['alliance_name']) ?></td>
+                        <td><?= h(allianceLabel($item)) ?></td>
                         <td><span class="tag"><?= h($item['alliance_type']) ?></span></td>
                         <td class="small">
                             <?php $_lk = $clientById[(int)($item['client_id'] ?? 0)] ?? null; ?>
@@ -310,7 +311,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="create">
                 <div class="modal-header"><h5 class="modal-title">外注先追加</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3"><label class="form-label">外注先名 <span class="text-danger">*</span></label><input type="text" name="alliance_name" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">正式名称 <span class="text-danger">*</span></label><input type="text" name="alliance_name" class="form-control" placeholder="株式会社エックス通信" required></div>
+                    <div class="mb-3"><label class="form-label">表記名（アプリ内表示名）</label><input type="text" name="display_name" class="form-control" placeholder="エックス通信"><div class="form-text">未入力なら正式名称がそのまま使われます。請求書管理のアライアンスタブだけは正式名称で表示されます。</div></div>
                     <div class="mb-3"><label class="form-label">種別</label><select name="alliance_type" class="form-select"><option value="アライアンス">アライアンス</option><option value="個人外注">個人外注</option></select></div>
                     <div class="mb-3">
                         <label class="form-label">同じ会社の取引先</label>
@@ -336,7 +338,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="action" value="update"><input type="hidden" name="id" id="edit_id">
                 <div class="modal-header"><h5 class="modal-title">外注先編集</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3"><label class="form-label">外注先名 <span class="text-danger">*</span></label><input type="text" name="alliance_name" id="edit_alliance_name" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">正式名称 <span class="text-danger">*</span></label><input type="text" name="alliance_name" id="edit_alliance_name" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">表記名（アプリ内表示名）</label><input type="text" name="display_name" id="edit_alliance_display_name" class="form-control"><div class="form-text">未入力なら正式名称がそのまま使われます。</div></div>
                     <div class="mb-3"><label class="form-label">種別</label><select name="alliance_type" id="edit_alliance_type" class="form-select"><option value="アライアンス">アライアンス</option><option value="個人外注">個人外注</option></select></div>
                     <div class="mb-3">
                         <label class="form-label">同じ会社の取引先</label>
@@ -578,6 +581,7 @@ function editAlliance(d) {
     document.getElementById('edit_alliance_name').value = d.alliance_name;
     document.getElementById('edit_alliance_type').value = d.alliance_type;
     document.getElementById('edit_alliance_client_id').value = d.client_id || '';
+    document.getElementById('edit_alliance_display_name').value = d.display_name || '';
     document.getElementById('edit_contact_person').value = d.contact_person || '';
     document.getElementById('edit_phone').value = d.phone || '';
     document.getElementById('edit_note').value = d.note || '';

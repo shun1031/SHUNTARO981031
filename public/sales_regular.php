@@ -252,7 +252,7 @@ else { foreach ($cases as $c):
 ?><tr id="row_<?= $c['id'] ?>" data-rev="<?= (int)$c['revenue'] ?>" data-profit="<?= (int)$c['gross_profit'] ?>" data-price-in="<?= (int)$c['unit_price_in'] ?>" data-price-out="<?= (int)$c['unit_price_out'] ?>" class="<?= $c['status'] === 'cancelled' ? 'table-secondary' : '' ?>">
     <td class="fw-medium"><?= h(clientLabel($c)) ?></td>
     <td class="small"><?= h($c['sales_rep']) ?></td>
-    <td class="small"><?= h($c['alliance_name'] ?? '') ?></td>
+    <td class="small"><?= h(allianceLabel($c)) ?></td>
     <td class="fw-medium"><?= h($c['worker_name']) ?></td>
     <td class="small"><?= h($c['carrier'] ?? '') ?></td>
     <td class="small"><?= h($c['trade_name'] ?? '') ?></td>
@@ -543,7 +543,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <select name="alliance_id" id="f_alliance_id" class="form-select">
                             <option value="">-- 選択 --</option>
                             <?php foreach ($alliances as $al): ?>
-                            <option value="<?= $al['id'] ?>"><?= h($al['alliance_name']) ?></option>
+                            <option value="<?= $al['id'] ?>"><?= h(allianceLabel($al)) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>

@@ -55,7 +55,7 @@ $empFilter    = getSalesPageNameFilter();
 $_startDate = sprintf('%04d-%02d-01', $year, $month);
 $_endDate   = date('Y-m-t', strtotime($_startDate));
 $_cSql = "SELECT sc.id, COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name, sc.store_name, sc.worker_name, sc.worker_type,
-                 al.alliance_name, sc.start_date, sc.end_date
+                 COALESCE(NULLIF(TRIM(al.display_name),''), al.alliance_name) AS alliance_name, sc.start_date, sc.end_date
           FROM sales_cases sc
           LEFT JOIN sales_clients cl ON sc.client_id = cl.id
           LEFT JOIN sales_alliances al ON sc.alliance_id = al.id

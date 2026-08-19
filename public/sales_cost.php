@@ -31,6 +31,7 @@ $listSql = "
 SELECT
     a.id   AS alliance_id,
     a.alliance_name,
+    a.display_name,
     SUM(CASE WHEN sc.case_type = 'regular' THEN 1 ELSE 0 END) AS regular_count,
     COALESCE(SUM(CASE WHEN sc.case_type = 'regular' THEN sc.cost ELSE 0 END), 0) AS regular_cost,
     SUM(CASE WHEN sc.case_type = 'event' THEN 1 ELSE 0 END)   AS event_count,
@@ -40,7 +41,7 @@ SELECT
 FROM sales_alliances a
 INNER JOIN sales_cases sc ON sc.alliance_id = a.id AND $baseWhere
 WHERE a.company_id = ?
-GROUP BY a.id, a.alliance_name
+GROUP BY a.id, a.alliance_name, a.display_name
 ORDER BY total_cost DESC
 ";
 $listStmt = $db->prepare($listSql);
@@ -64,7 +65,7 @@ if (isset($_GET['export'])) {
     echo implode(',', $cols) . "\n";
     foreach ($rows as $r) {
         echo implode(',', [
-            '"' . str_replace('"','""',$r['alliance_name']) . '"',
+            '"' . str_replace('"','""', allianceLabel($r)) . '"',
             $r['regular_count'], $r['regular_cost'],
             $r['event_count'],   $r['event_cost'],
             $r['total_count'],   $r['total_cost'],
@@ -87,7 +88,7 @@ if (empty($rows)) {
     <td>
         <a href="<?= BASE_PATH ?>/public/sales_cost_detail.php?alliance_id=<?= $r['alliance_id'] ?>&year=<?= $year ?>&month=<?= $month ?>"
            class="fw-medium text-decoration-none" style="color:#2563eb">
-            <?= h($r['alliance_name']) ?>
+            <?= h(allianceLabel($r)) ?>
         </a>
     </td>
     <td class="text-center"><?= $r['regular_count'] ?>件</td>

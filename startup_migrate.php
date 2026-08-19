@@ -337,6 +337,13 @@ $migrations = [
     "ALTER TABLE sales_alliances ADD COLUMN client_id INT DEFAULT NULL COMMENT '同じ会社の取引先ID（戦略会議の名寄せ用）'",
     "ALTER TABLE sales_alliances ADD INDEX idx_sa_client (company_id, client_id)",
 
+    // ---- sales_alliances: 表記名（取引先と同じ考え方） ----
+    // alliance_name = 正式名称（請求書管理など社外向けの並びで使う）
+    // display_name  = 表記名（案件一覧など画面表示で使う）
+    "ALTER TABLE sales_alliances ADD COLUMN display_name VARCHAR(100) DEFAULT NULL COMMENT '表記名（アプリ内表示名）'",
+    // 表記名が未設定の既存データは外注先名で初期化（表示崩れ防止）
+    "UPDATE sales_alliances SET display_name = alliance_name WHERE display_name IS NULL OR display_name = ''",
+
     // ---- strategy_meeting_negotiations: 取引先IDでの重複禁止 ----
     // 商談報告は「1社につき1件」。取引先を選ぶ方式に変えたので、同じ取引先の
     // 2件目をDB側で拒否する。client_id が NULL の行は対象外（MySQLのUNIQUEはNULLを重複と見ない）

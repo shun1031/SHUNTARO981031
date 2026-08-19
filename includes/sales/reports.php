@@ -112,14 +112,14 @@ function getSalesClientReport(int $companyId, int $year, ?string $employeeName =
 function getSalesAllianceCostReport(int $companyId, int $year): array {
     $db = getDB();
     $stmt = $db->prepare("SELECT
-        al.id as alliance_id, al.alliance_name,
+        al.id as alliance_id, COALESCE(NULLIF(TRIM(al.display_name),''), al.alliance_name) AS alliance_name,
         sc.case_month,
         COALESCE(SUM(sc.cost),0) as cost,
         COUNT(*) as case_count
     FROM sales_cases sc
     JOIN sales_alliances al ON sc.alliance_id = al.id
     WHERE sc.company_id = ? AND sc.case_year = ? AND sc.status = 'confirmed'
-    GROUP BY al.id, al.alliance_name, sc.case_month
+    GROUP BY al.id, al.display_name, al.alliance_name, sc.case_month
     ORDER BY al.alliance_name, sc.case_month");
     $stmt->execute([$companyId, $year]);
 

@@ -28,7 +28,7 @@ $sql = "SELECT
     sc.start_date,
     sc.end_date,
     sc.alliance_id,
-    al.alliance_name
+    COALESCE(NULLIF(TRIM(al.display_name),''), al.alliance_name) AS alliance_name
 FROM sales_cases sc
 JOIN sales_alliances al ON sc.alliance_id = al.id
 WHERE sc.company_id = :cid

@@ -484,13 +484,13 @@ $clientFyRows = $_s->fetchAll();
 // アライアンス別売上（当月。営業マン別売上と期間を統一）
 // ※会社名クリックで開く実績詳細は従来どおり年度（9月〜翌8月）集計のまま
 $_allianceFySql = "
-    SELECT al.id AS alliance_id, al.alliance_name AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
+    SELECT al.id AS alliance_id, COALESCE(NULLIF(TRIM(al.display_name), ''), al.alliance_name) AS name, COALESCE(SUM(sc.revenue),0) AS revenue, COALESCE(SUM(sc.gross_profit),0) AS profit
     FROM sales_cases sc
     JOIN sales_alliances al ON sc.alliance_id = al.id
     WHERE sc.company_id = ? AND sc.status = 'confirmed'
       AND sc.case_year = ? AND sc.case_month = ?
       $_ctf
-    GROUP BY al.id, al.alliance_name ORDER BY revenue DESC";
+    GROUP BY al.id, al.alliance_name, al.display_name ORDER BY revenue DESC";
 $_s = $_sDb->prepare($_allianceFySql);
 $_s->execute(array_merge([$cid, $year, $month], $_ctp));
 $allianceFyRows = $_s->fetchAll();

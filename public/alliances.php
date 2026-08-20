@@ -56,7 +56,15 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
                 <span class="text-muted small">年度</span>
-                <div class="btn-group btn-group-sm" role="group" id="alFyBtns"></div>
+                <div class="tr-fynav" id="alFyNav">
+                    <button type="button" class="tr-fynav-btn" onclick="alShiftFy(-1)" title="前の年度">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="tr-fynav-label" id="alFyLabel">-</span>
+                    <button type="button" class="tr-fynav-btn" onclick="alShiftFy(1)" title="次の年度">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
             </div>
             <div class="tr-summary small" id="alSummary"></div>
         </div>
@@ -194,6 +202,20 @@ require_once __DIR__ . '/../includes/header.php';
 /* 年度バー。削除済み表示中は年度で絞っていないので薄く見せる */
 .tr-fybar .tr-summary { white-space: nowrap; }
 .tr-fybar-off { opacity: .45; }
+/* 年度の切替（戦略会議の月送りと同じ見た目） */
+.tr-fynav {
+    display: inline-flex; align-items: center; gap: .15rem;
+    border: 1px solid #e2e8f0; border-radius: 8px; padding: .1rem .2rem; background: #fff;
+}
+.tr-fynav-btn {
+    border: none; background: transparent; color: #2563eb;
+    font-size: .8rem; line-height: 1; padding: .3rem .45rem; border-radius: 5px;
+}
+.tr-fynav-btn:hover:not(:disabled) { background: #eff6ff; }
+.tr-fynav-btn:disabled { color: #cbd5e1; cursor: default; }
+.tr-fynav-label {
+    font-size: .8rem; font-weight: 700; min-width: 170px; text-align: center; white-space: nowrap;
+}
 </style>
 
 <?php
@@ -209,7 +231,8 @@ ALJS;
 $inlineJs .= <<<'ALJS2'
 
 var alPage = 1, alQuery = '', alTimer = null, alModalBs = null, alShow = 'active';
-var alFy = 0;   // 表示中の年度（0ならサーバーが決めた年度に従う）
+var alFy = 0;       // 表示中の年度（0ならサーバーが決めた年度に従う）
+var alFyList = [];  // 選べる年度（古い順）
 
 // URLの ?fy= と ?q= を読む（取引先タブからの移動やタブ切替で引き継ぐ）
 (function () {
@@ -238,11 +261,15 @@ function alRenderFy(d) {
     // もう片方のタブへ移動しても同じ年度を見られるようにリンクを更新する
     var link = document.querySelector('.nav-tabs a[href*="clients.php"]');
     if (link) link.href = link.href.split('?')[0] + '?fy=' + d.fy;
-    var box = document.getElementById('alFyBtns');
-    box.innerHTML = (d.fy_options || []).map(function (o) {
-        return '<button type="button" class="btn ' + (o.fy === d.fy ? 'btn-primary' : 'btn-outline-secondary')
-             + '" onclick="alSetFy(' + o.fy + ')">' + o.label + '</button>';
-    }).join('');
+    alFyList = (d.fy_options || []).map(function (o) { return o.fy; }).sort(function (a, b) { return a - b; });
+    document.getElementById('alFyLabel').textContent = (d.fy - 1) + '年9月〜' + d.fy + '年8月';
+    // 端まで来たら矢印を押せなくする
+    var i = alFyList.indexOf(d.fy);
+    var btns = document.querySelectorAll('#alFyNav .tr-fynav-btn');
+    if (btns.length === 2) {
+        btns[0].disabled = (i <= 0);
+        btns[1].disabled = (i < 0 || i >= alFyList.length - 1);
+    }
 
     // 「削除済み」表示中は年度で絞っていないので、年度バーを控えめにする
     var bar = document.querySelector('.tr-fybar');
@@ -256,6 +283,15 @@ function alRenderFy(d) {
       + ' <span class="text-muted mx-1">→</span>'
       + ' <span class="fw-bold text-primary">合計 ' + (sm.total || 0) + '社</span>'
       + ' <span class="text-muted">（重複を除く）</span>';
+}
+
+// 前後の年度へ移動する。画面は再読み込みせず、一覧だけ差し替える
+function alShiftFy(delta) {
+    var i = alFyList.indexOf(alFy);
+    if (i < 0) return;
+    var next = alFyList[i + delta];
+    if (next === undefined) return;
+    alSetFy(next);
 }
 
 // 年度を切り替える。画面は再読み込みせず、一覧だけ差し替える

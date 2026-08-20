@@ -44,25 +44,21 @@ $akey = function (int $aid) use ($allyClient, $ckey) {
 // 取引先一覧に出ている会社（＝今の画面の条件）
 // ============================================================
 $listClients = [];
-$st = $db->prepare("SELECT cl.id, " . clientLabelSql('cl') . " AS label
-                    FROM sales_clients cl
-                    WHERE cl.company_id = ? AND cl.is_active = 1
-                      AND EXISTS (SELECT 1 FROM sales_cases sc
-                                  WHERE sc.company_id = cl.company_id AND sc.client_id = cl.id
-                                    AND sc.status <> 'cancelled')");
-$st->execute([$cid]);
+[$clSql, $clParams] = tradeClientHasCaseSql($fy, $repNames);
+$st = $db->prepare("SELECT id, " . clientLabelSql('sales_clients') . " AS label
+                    FROM sales_clients
+                    WHERE company_id = ? AND is_active = 1 AND {$clSql}");
+$st->execute(array_merge([$cid], $clParams));
 foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $listClients[(int)$r['id']] = (string)$r['label'];
 }
 
 $listAlliances = [];
-$st = $db->prepare("SELECT al.id, " . allianceLabelSql('al') . " AS label
-                    FROM sales_alliances al
-                    WHERE al.company_id = ? AND al.is_active = 1
-                      AND EXISTS (SELECT 1 FROM sales_cases sc
-                                  WHERE sc.company_id = al.company_id AND sc.alliance_id = al.id
-                                    AND sc.status <> 'cancelled')");
-$st->execute([$cid]);
+[$alSql, $alParams] = tradeAllianceHasCaseSql($fy, $repNames);
+$st = $db->prepare("SELECT id, " . allianceLabelSql('sales_alliances') . " AS label
+                    FROM sales_alliances
+                    WHERE company_id = ? AND is_active = 1 AND {$alSql}");
+$st->execute(array_merge([$cid], $alParams));
 foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $listAlliances[(int)$r['id']] = (string)$r['label'];
 }

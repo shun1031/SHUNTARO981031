@@ -51,6 +51,16 @@ require_once __DIR__ . '/../includes/header.php';
         </li>
     </ul>
 
+
+    <div class="card mb-3 tr-fybar">
+        <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">年度</span>
+                <div class="btn-group btn-group-sm" role="group" id="alFyBtns"></div>
+            </div>
+            <div class="tr-summary small" id="alSummary"></div>
+        </div>
+    </div>
     <div class="card mb-3">
         <div class="card-body">
             <!-- 検索欄 -->
@@ -181,6 +191,9 @@ require_once __DIR__ . '/../includes/header.php';
     color: #4338ca; font-size: .68rem; text-decoration: none; white-space: nowrap;
 }
 .cl-also-badge:hover { background: #e0e7ff; color: #3730a3; }
+/* 年度バー。削除済み表示中は年度で絞っていないので薄く見せる */
+.tr-fybar .tr-summary { white-space: nowrap; }
+.tr-fybar-off { opacity: .45; }
 </style>
 
 <?php
@@ -196,6 +209,14 @@ ALJS;
 $inlineJs .= <<<'ALJS2'
 
 var alPage = 1, alQuery = '', alTimer = null, alModalBs = null, alShow = 'active';
+var alFy = 0;   // 表示中の年度（0ならサーバーが決めた年度に従う）
+
+// URLの ?fy= と ?q= を読む（取引先タブからの移動やタブ切替で引き継ぐ）
+(function () {
+    var p = new URLSearchParams(window.location.search);
+    if (p.get('fy')) alFy = parseInt(p.get('fy'), 10) || 0;
+    if (p.get('q'))  alQuery = p.get('q');
+})();
 
 // 取引先タブのバッジから来たときは、その会社で検索した状態で開く
 (function () {
@@ -211,7 +232,42 @@ function alEsc(s) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// 年度ボタンと「合計◯社」を描き直す
+function alRenderFy(d) {
+    alFy = d.fy;
+    // もう片方のタブへ移動しても同じ年度を見られるようにリンクを更新する
+    var link = document.querySelector('.nav-tabs a[href*="clients.php"]');
+    if (link) link.href = link.href.split('?')[0] + '?fy=' + d.fy;
+    var box = document.getElementById('alFyBtns');
+    box.innerHTML = (d.fy_options || []).map(function (o) {
+        return '<button type="button" class="btn ' + (o.fy === d.fy ? 'btn-primary' : 'btn-outline-secondary')
+             + '" onclick="alSetFy(' + o.fy + ')">' + o.label + '</button>';
+    }).join('');
+
+    // 「削除済み」表示中は年度で絞っていないので、年度バーを控えめにする
+    var bar = document.querySelector('.tr-fybar');
+    if (bar) bar.classList.toggle('tr-fybar-off', d.show === 'deleted');
+
+    var sm = d.summary || {};
+    document.getElementById('alSummary').innerHTML =
+        '<span class="text-muted">取引先</span> <span class="fw-semibold">' + (sm.clients || 0) + '</span>社'
+      + ' <span class="text-muted mx-1">/</span>'
+      + ' <span class="text-muted">外注先</span> <span class="fw-semibold">' + (sm.alliances || 0) + '</span>社'
+      + ' <span class="text-muted mx-1">→</span>'
+      + ' <span class="fw-bold text-primary">合計 ' + (sm.total || 0) + '社</span>'
+      + ' <span class="text-muted">（重複を除く）</span>';
+}
+
+// 年度を切り替える。画面は再読み込みせず、一覧だけ差し替える
+function alSetFy(fy) {
+    if (alFy === fy) return;
+    alFy = fy;
+    alPage = 1;
+    alLoad();
+}
+
 function alRender(d) {
+    alRenderFy(d);
     var tb = document.getElementById('alTbody');
     alRowMap = {};
     d.alliances.forEach(function (a) { alRowMap[a.id] = a; });
@@ -233,7 +289,7 @@ function alRender(d) {
         d.alliances.forEach(function (a) {
             // 取引先にも同じ会社が登録されている場合の目印。押すと取引先タブへ移動する
             var alsoBadge = a.also_client
-                ? ' <a href="' + AL_CLIENT_URL + '?q=' + encodeURIComponent(a.display_name || a.alliance_name)
+                ? ' <a href="' + AL_CLIENT_URL + '?fy=' + alFy + '&q=' + encodeURIComponent(a.display_name || a.alliance_name)
                   + '" class="cl-also-badge" title="取引先タブでこの会社を開く">取引先にもあり</a>'
                 : '';
             html += '<tr>'
@@ -274,6 +330,7 @@ function alRender(d) {
 
 function alLoad() {
     var url = AL_API + '?page=' + alPage + '&show=' + alShow
+            + (alFy ? '&fy=' + alFy : '')
             + (alQuery ? '&q=' + encodeURIComponent(alQuery) : '');
     fetch(url, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })

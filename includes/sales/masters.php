@@ -48,6 +48,134 @@ function allianceLabelSql(string $alias = 'al'): string {
 }
 
 // ----------------------------------------------------------------
+// 取引先一覧の絞り込み（戦略会議のパートナー数と同じ数え方）
+//
+// 取引先一覧に出すのは「その年度に実際に取引がある会社」だけ。
+// 戦略会議の「パートナー数」とまったく同じ条件で数えるため、
+// 条件はここ1か所にまとめて両方の画面から使う。
+// ----------------------------------------------------------------
+
+/** 年度（9月始まり）の月範囲条件。パラメータは [$fy-1, $fy] を渡す */
+const TRADE_FY_WHERE = "((sc.case_year = ? AND sc.case_month >= 9) OR (sc.case_year = ? AND sc.case_month <= 8))";
+
+/** 年月から年度を求める（9〜12月は翌年度） */
+function tradeFyOf(int $year, int $month): int {
+    return $month >= 9 ? $year + 1 : $year;
+}
+
+/** 今日時点の年度 */
+function tradeCurrentFy(): int {
+    return tradeFyOf((int)date('Y'), (int)date('n'));
+}
+
+/** 年度の表示ラベル（例: 25.9-26.8）。戦略会議の表記に合わせる */
+function tradeFyLabel(int $fy): string {
+    return substr((string)($fy - 1), 2) . '.9-' . substr((string)$fy, 2) . '.8';
+}
+
+/**
+ * 画面に出す年度の選択肢。案件データがある年度だけを新しい順で返す。
+ * データが1件も無い場合は今年度だけを返す（ボタンが消えないように）
+ */
+function tradeFyOptions(int $companyId): array {
+    $db = getDB();
+    $fys = [];
+    try {
+        $stmt = $db->prepare("SELECT DISTINCT case_year, case_month FROM sales_cases
+                              WHERE company_id = ? AND status = 'confirmed'");
+        $stmt->execute([$companyId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $fys[tradeFyOf((int)$r['case_year'], (int)$r['case_month'])] = true;
+        }
+    } catch (PDOException $e) {
+        error_log('[tradeFyOptions] ' . $e->getMessage());
+    }
+    $cur = tradeCurrentFy();
+    $fys[$cur] = true;             // 今年度は案件が無くても選べるようにする
+    $list = array_keys($fys);
+    rsort($list);
+    return $list;
+}
+
+/**
+ * その年度に取引がある取引先か（戦略会議の「取引先」と同じ条件）
+ *   確定案件 / その年度 / 営業担当が営業マン一覧の人
+ * @return array{0:string,1:array} [EXISTS句, 追加パラメータ]
+ */
+function tradeClientHasCaseSql(int $fy, array $repNames): array {
+    if (!$repNames) return ['0', []];   // 営業マンが1人もいなければ該当なし
+    $ph  = implode(',', array_fill(0, count($repNames), '?'));
+    $sql = "EXISTS (SELECT 1 FROM sales_cases sc
+                    LEFT JOIN employees er ON er.id = sc.sales_rep_id AND er.company_id = sc.company_id
+                    WHERE sc.company_id = sales_clients.company_id
+                      AND sc.client_id  = sales_clients.id
+                      AND sc.status = 'confirmed'
+                      AND " . TRADE_FY_WHERE . "
+                      AND COALESCE(er.name, sc.sales_rep) IN ({$ph}))";
+    return [$sql, array_merge([$fy - 1, $fy], $repNames)];
+}
+
+/**
+ * その年度に取引がある外注先か（戦略会議の「外注先」と同じ条件）
+ *   確定案件 / その年度 / スタッフ区分がアライアンス / 管理者が営業マン一覧の人
+ * @return array{0:string,1:array} [EXISTS句, 追加パラメータ]
+ */
+function tradeAllianceHasCaseSql(int $fy, array $repNames): array {
+    if (!$repNames) return ['0', []];
+    $ph  = implode(',', array_fill(0, count($repNames), '?'));
+    $sql = "EXISTS (SELECT 1 FROM sales_cases sc
+                    LEFT JOIN employees em ON em.id = sc.manager_id AND em.company_id = sc.company_id
+                    WHERE sc.company_id  = sales_alliances.company_id
+                      AND sc.alliance_id = sales_alliances.id
+                      AND sc.status = 'confirmed'
+                      AND sc.worker_type = 'アライアンス'
+                      AND " . TRADE_FY_WHERE . "
+                      AND COALESCE(em.name, sc.manager) IN ({$ph}))";
+    return [$sql, array_merge([$fy - 1, $fy], $repNames)];
+}
+
+/**
+ * 画面上部に出す件数のまとめ。
+ * 合計は「同じ会社の取引先」で名寄せしたうえで重複を除くため、
+ * 戦略会議のパートナー数とまったく同じ数字になる。
+ *
+ * @return array{clients:int, alliances:int, total:int, fy:int, fy_label:string}
+ */
+function tradeCompanySummary(PDO $db, int $companyId, int $fy, array $repNames): array {
+    $clients = 0; $alliances = 0; $keys = [];
+
+    if ($repNames) {
+        [$clSql, $clParams] = tradeClientHasCaseSql($fy, $repNames);
+        $st = $db->prepare("SELECT id FROM sales_clients
+                            WHERE company_id = ? AND is_active = 1 AND {$clSql}");
+        $st->execute(array_merge([$companyId], $clParams));
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $id) {
+            $clients++;
+            $keys['C' . (int)$id] = true;
+        }
+
+        [$alSql, $alParams] = tradeAllianceHasCaseSql($fy, $repNames);
+        $st = $db->prepare("SELECT id, client_id FROM sales_alliances
+                            WHERE company_id = ? AND is_active = 1 AND {$alSql}");
+        $st->execute(array_merge([$companyId], $alParams));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $alliances++;
+            // 同じ会社の取引先が指定されていれば、その取引先と同じ1社として数える
+            $linked = (int)($r['client_id'] ?? 0);
+            $keys[$linked > 0 ? 'C' . $linked : 'A' . (int)$r['id']] = true;
+        }
+    }
+
+    return [
+        'clients'   => $clients,
+        'alliances' => $alliances,
+        'total'     => count($keys),
+        'fy'        => $fy,
+        'fy_label'  => tradeFyLabel($fy),
+    ];
+}
+
+// ----------------------------------------------------------------
 // マスタ取得
 // ----------------------------------------------------------------
 

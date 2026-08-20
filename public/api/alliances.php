@@ -25,16 +25,6 @@ $db = getDB();
 
 const AL_TYPES = ['アライアンス', '個人外注'];
 
-/**
- * 「登録中」の一覧に出す条件: 常勤・イベントの案件が1件でもある外注先だけ。
- * キャンセル済みの案件は数えない。期間の制限は無し。
- * ※削除済みの一覧はこの絞り込みをかけない（復元したいものを探せなくなるため）
- */
-const AL_HAS_CASE = "EXISTS (SELECT 1 FROM sales_cases sc
-                             WHERE sc.company_id  = sales_alliances.company_id
-                               AND sc.alliance_id = sales_alliances.id
-                               AND sc.status <> 'cancelled')";
-
 /** 1件を一覧表示用に整形 */
 function allianceRowOut(array $r, array $clientById, array $alsoClient = []): array {
     $cid = (int)($r['client_id'] ?? 0);
@@ -72,11 +62,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $per  = (int)($_GET['per'] ?? 20);
     if ($per < 1 || $per > 100) $per = 20;
 
+    // 表示する年度（9月始まり）。戦略会議のパートナー数と同じ数え方に揃える
+    $fyList = tradeFyOptions($cid);
+    $fy     = (int)($_GET['fy'] ?? 0);
+    if (!in_array($fy, $fyList, true)) $fy = $fyList[0] ?? tradeCurrentFy();
+    $repNames = getSalesRepCandidates($cid);
+
     $show   = ($_GET['show'] ?? '') === 'deleted' ? 'deleted' : 'active';
     $where  = 'company_id = ? AND is_active = ' . ($show === 'deleted' ? '0' : '1');
-    // 登録中の一覧は「案件がある外注先」だけに絞る（削除済みは絞らない）
-    if ($show === 'active') $where .= ' AND ' . AL_HAS_CASE;
     $params = [$cid];
+    // 登録中の一覧は「その年度に取引がある外注先」だけに絞る（削除済みは絞らない）
+    if ($show === 'active') {
+        [$hasCaseSql, $hasCaseParams] = tradeAllianceHasCaseSql($fy, $repNames);
+        $where .= ' AND ' . $hasCaseSql;
+        $params = array_merge($params, $hasCaseParams);
+    }
     if ($q !== '') {
         // 正式名称・表記名・担当者名のいずれかに部分一致
         $where .= ' AND (alliance_name LIKE ? OR display_name LIKE ? OR contact_person LIKE ?)';
@@ -98,22 +98,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $alsoClient = [];
         $linkIds = [];
         foreach ($pageRows as $r) { if (!empty($r['client_id'])) $linkIds[(int)$r['client_id']] = true; }
-        if ($linkIds) {
+        if ($linkIds && $repNames) {
+            [$clSql, $clParams] = tradeClientHasCaseSql($fy, $repNames);
             $ids = array_keys($linkIds);
             $ph  = implode(',', array_fill(0, count($ids), '?'));
-            $cSt = $db->prepare("SELECT id FROM sales_clients cl
-                                 WHERE cl.company_id = ? AND cl.is_active = 1 AND cl.id IN ($ph)
-                                   AND EXISTS (SELECT 1 FROM sales_cases sc
-                                               WHERE sc.company_id = cl.company_id
-                                                 AND sc.client_id  = cl.id
-                                                 AND sc.status <> 'cancelled')");
-            $cSt->execute(array_merge([$cid], $ids));
+            $cSt = $db->prepare("SELECT id FROM sales_clients
+                                 WHERE company_id = ? AND is_active = 1 AND id IN ($ph)
+                                   AND {$clSql}");
+            $cSt->execute(array_merge([$cid], $ids, $clParams));
             foreach ($cSt->fetchAll(PDO::FETCH_COLUMN) as $v) $alsoClient[(int)$v] = true;
         }
         $rows = array_map(fn($r) => allianceRowOut($r, $clientById, $alsoClient), $pageRows);
     } catch (PDOException $e) {
         echo json_encode(['error' => 'データの取得に失敗しました']); exit;
     }
+
+    // 上部に出す「合計◯社（重複を除く）」。戦略会議のパートナー数と同じ数え方
+    $summary = tradeCompanySummary($db, $cid, $fy, $repNames);
 
     try {
         $dStmt = $db->prepare('SELECT COUNT(*) FROM sales_alliances WHERE company_id = ? AND is_active = 0');
@@ -133,6 +134,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         'ok'            => true,
         'show'          => $show,
         'deleted_count' => $deletedCount,
+        'fy'            => $fy,
+        'fy_label'      => tradeFyLabel($fy),
+        'fy_options'    => array_map(fn($v) => ['fy' => $v, 'label' => tradeFyLabel($v)], $fyList),
+        'summary'       => $summary,
         'alliances'     => $rows,
         'client_options'=> $clientOptions,
         'types'         => AL_TYPES,

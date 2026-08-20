@@ -350,6 +350,12 @@ $migrations = [
     // 商談報告は「1社につき1件」。取引先を選ぶ方式に変えたので、同じ取引先の
     // 2件目をDB側で拒否する。client_id が NULL の行は対象外（MySQLのUNIQUEはNULLを重複と見ない）
     "ALTER TABLE strategy_meeting_negotiations ADD UNIQUE KEY uk_smn_client (company_id, client_id)",
+
+    // ---- strategy_meeting_negotiations: 区分（光AD / 常勤 / イベント） ----
+    // パートナー候補は案件がまだ無いため、案件データから区分を計算できない。
+    // 戦略会議の候補一覧で区分を出せるように、商談報告フォームで直接持たせる。
+    // 既存の行は空欄（画面では「-」表示）。戦略会議だけが読む列で、既存の集計は参照しない
+    "ALTER TABLE strategy_meeting_negotiations ADD COLUMN division VARCHAR(10) NOT NULL DEFAULT '' COMMENT '光AD/常勤/イベント（候補一覧の表示用）' AFTER status_other",
 ];
 
 $ok = 0;

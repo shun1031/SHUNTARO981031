@@ -84,6 +84,25 @@ function smPeriod(string $period, int $year, int $month): array {
     return ['(sc.case_year = ? AND sc.case_month = ?)', [$year, $month], $year . '年' . $month . '月'];
 }
 
+/**
+ * 集計期間の「終わりの年月」YYYYMM。
+ * パートナー数・パートナー候補数は「その時点でどの状態か」で数えるので、
+ * 期間の終端を決めて、そこまでに起きたステータス変更だけを見る。
+ *   月別 … その年月       / 年度 … その年度の8月
+ */
+function smPeriodEndYm(string $period, int $year, int $month): int {
+    if ($period === 'fy') return smFyOf($year, $month) * 100 + 8;
+    return $year * 100 + $month;
+}
+
+/** 年度の始まり（9月）の YYYYMM */
+function smFyStartYm(int $year, int $month): int {
+    return (smFyOf($year, $month) - 1) * 100 + 9;
+}
+
+/** 商談報告で選べる区分（候補一覧の表示用。案件が無い会社は案件から区分を作れないため） */
+const SM_DIVISIONS = ['光AD', '常勤', 'イベント'];
+
 // 担当者名を「社員IDがあればその社員、無ければ案件に入っている名前」で求める。
 // ※既存の売上集計（総合ダッシュボード・担当者別売上）と完全に同じ判定にするため
 const SM_REP_NAME  = "COALESCE(er.name, sc.sales_rep)";
@@ -145,6 +164,134 @@ function smAllianceClientMap(PDO $db, int $companyId): array {
         error_log('[strategy_meeting alliance map] ' . $e->getMessage());
         return [];
     }
+}
+
+/**
+ * 商談報告を営業担当者ごとに仕分けする。
+ *
+ * パートナー数・パートナー候補数は「期間の終端の時点でどの状態か」で数える。
+ * ステータスが変わった年月（candidate_ym / active_ym / excluded_ym）を見るので、
+ * あとから過去の月の数字が変わることはない。
+ *
+ * 会社の識別は取引先ID（smClientKey）。案件側と同じ鍵なので、
+ * 同じ会社を商談報告と案件の両方から数えても二重にならない。
+ *
+ * @return array<string, array{partners:array,candidates:array,month_new:int,total_new:int}>
+ */
+function smNegotiationsByRep(PDO $db, int $companyId, int $endYm, int $targetYm, int $fyStartYm): array {
+    $stmt = $db->prepare("SELECT n.client_id, n.rep_name, n.division, n.note,
+                                 n.first_report_ym, n.candidate_ym, n.active_ym, n.excluded_ym,
+                                 COALESCE(" . clientLabelSql('cl') . ", n.client_name) AS client_name
+                          FROM strategy_meeting_negotiations n
+                          LEFT JOIN sales_clients cl ON cl.id = n.client_id AND cl.company_id = n.company_id
+                          WHERE n.company_id = ?");
+    $stmt->execute([$companyId]);
+
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $rep = trim((string)$r['rep_name']);
+        // 営業担当者が入っていない行は、誰のカードにも出しようがないので飛ばす
+        if ($rep === '') continue;
+        if (!isset($out[$rep])) {
+            $out[$rep] = ['partners' => [], 'candidates' => [], 'month_new' => 0, 'total_new' => 0];
+        }
+
+        // 新規商談数は「初回登録の年月」で数える。累計の起点は年度の始まり（9月）
+        $first = (int)$r['first_report_ym'];
+        if ($first === $targetYm)                            $out[$rep]['month_new']++;
+        if ($first >= $fyStartYm && $first <= $targetYm)      $out[$rep]['total_new']++;
+
+        // 取引先が選ばれていない古い行は会社の鍵が作れないため、社数には数えない
+        if ($r['client_id'] === null) continue;
+
+        $cand     = $r['candidate_ym'] !== null ? (int)$r['candidate_ym'] : null;
+        $active   = $r['active_ym']    !== null ? (int)$r['active_ym']    : null;
+        $excluded = $r['excluded_ym']  !== null ? (int)$r['excluded_ym']  : null;
+
+        // その時点で会社数から外れていれば、パートナーにも候補にも数えない
+        if ($excluded !== null && $excluded <= $endYm) continue;
+
+        $key = smClientKey((int)$r['client_id']);
+        $row = [
+            'client_id'   => (int)$r['client_id'],
+            'client_name' => (string)$r['client_name'],
+            'division'    => (string)$r['division'],
+            'note'        => (string)($r['note'] ?? ''),
+        ];
+        if ($active !== null && $active <= $endYm) {
+            $out[$rep]['partners'][$key] = $row;
+        } elseif ($cand !== null && $cand <= $endYm) {
+            $out[$rep]['candidates'][$key] = $row;
+        }
+    }
+    return $out;
+}
+
+/**
+ * 期間内に案件がある会社を、営業担当者ごとの「会社の鍵」の集合にする。
+ * 取引先は営業担当基準、外注先（アライアンス）は管理者基準。
+ * この使い分けは既存の全社集計（action=summary）と同じ。
+ *
+ * @return array<string, array<string, true>> 営業担当者名 => [会社の鍵 => true]
+ */
+function smCaseKeysByRep(PDO $db, int $companyId, string $perWhere, array $perParams, array $allyMap): array {
+    $out = [];
+    $add = function (string $name, string $key) use (&$out) {
+        $n = trim($name);
+        if ($n === '' || $n === '該当者なし') return;
+        $out[$n][$key] = true;
+    };
+
+    // 取引先（営業担当基準）
+    $stmt = $db->prepare("SELECT DISTINCT " . SM_REP_NAME . " AS name, sc.client_id
+        FROM sales_cases sc " . SM_REP_JOIN . "
+        WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.client_id IS NOT NULL
+          AND {$perWhere}");
+    $stmt->execute(array_merge([$companyId], $perParams));
+    foreach ($stmt->fetchAll() as $r) {
+        $add((string)$r['name'], smClientKey((int)$r['client_id']));
+    }
+
+    // 外注先（管理者基準）
+    $stmt = $db->prepare("SELECT DISTINCT " . SM_MGR_NAME . " AS name, sc.alliance_id
+        FROM sales_cases sc " . SM_MGR_JOIN . "
+        WHERE sc.company_id = ? AND sc.status = 'confirmed'
+          AND sc.worker_type = 'アライアンス' AND sc.alliance_id IS NOT NULL
+          AND {$perWhere}");
+    $stmt->execute(array_merge([$companyId], $perParams));
+    foreach ($stmt->fetchAll() as $r) {
+        $aid = (int)$r['alliance_id'];
+        $add((string)$r['name'], smAllianceKey($aid, $allyMap[$aid] ?? null));
+    }
+    return $out;
+}
+
+/**
+ * 営業マン1人分の4つの数字を作る。
+ * 営業マンカードと担当企業一覧の両方から呼ぶので、両者の数字が食い違わない。
+ *
+ * パートナー数     … 期間内に案件がある会社 ＋ 商談報告で「取引開始」の会社（重複なし）
+ * パートナー候補数 … 商談報告で「取引候補」の会社。すでにパートナーの会社は数えない
+ * 当月新規商談数   … 対象年月に初回登録された商談報告の件数
+ * 累計新規商談数   … 年度の始まり（9月）から対象年月までの初回登録件数
+ */
+function smRepCounts(array $caseKeys, ?array $neg): array {
+    $neg = $neg ?? ['partners' => [], 'candidates' => [], 'month_new' => 0, 'total_new' => 0];
+
+    $partners = $caseKeys;
+    foreach ($neg['partners'] as $k => $_) { $partners[$k] = true; }
+
+    $candidates = [];
+    foreach ($neg['candidates'] as $k => $_) {
+        if (!isset($partners[$k])) $candidates[$k] = true;
+    }
+
+    return [
+        'partner_count'   => count($partners),
+        'candidate_count' => count($candidates),
+        'month_neg_count' => (int)$neg['month_new'],
+        'total_neg_count' => (int)$neg['total_new'],
+    ];
 }
 
 /** 目標企業数を取得（未設定なら既定の100社） */
@@ -211,6 +358,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status     = trim($_POST['status'] ?? '');
         $statusOther= trim($_POST['status_other'] ?? '');
         $note       = trim($_POST['note'] ?? '');
+        // 区分（光AD/常勤/イベント）。候補一覧に出すためだけの項目なので未選択でもよい
+        $negDivision = trim($_POST['division'] ?? '');
+        if (!in_array($negDivision, SM_DIVISIONS, true)) $negDivision = '';
         // 変更が起きた年月。まとめて入力するときのために過去の月も指定できる
         $ym = smYm((int)($_POST['ym_year'] ?? 0), (int)($_POST['ym_month'] ?? 0));
 
@@ -257,12 +407,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // --- 新規登録 ---
                 $ins = $db->prepare("INSERT INTO strategy_meeting_negotiations
                     (company_id, client_id, client_name, client_name_key, rep_name, rep_employee_id,
-                     status, status_other, note, first_report_ym, candidate_ym, active_ym, excluded_ym)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                     status, status_other, division, note, first_report_ym, candidate_ym, active_ym, excluded_ym)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                 $ins->execute([
                     $cid, $clientId, $clientName, $key, $repName,
                     resolveEmployeeIdByName($cid, $repName),
-                    $status, ($status === 'その他' ? $statusOther : null), ($note !== '' ? $note : null),
+                    $status, ($status === 'その他' ? $statusOther : null), $negDivision, ($note !== '' ? $note : null),
                     $ym,
                     $counted ? $ym : null,
                     $status === '取引開始' ? $ym : null,
@@ -290,12 +440,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $upd = $db->prepare("UPDATE strategy_meeting_negotiations
                 SET client_id = ?, client_name = ?, client_name_key = ?, rep_name = ?, rep_employee_id = ?,
-                    status = ?, status_other = ?, note = ?,
+                    status = ?, status_other = ?, division = ?, note = ?,
                     candidate_ym = ?, active_ym = ?, excluded_ym = ?, updated_at = NOW()
                 WHERE id = ? AND company_id = ?");
             $upd->execute([
                 $clientId, $clientName, $key, $repName, resolveEmployeeIdByName($cid, $repName),
-                $status, ($status === 'その他' ? $statusOther : null), ($note !== '' ? $note : null),
+                $status, ($status === 'その他' ? $statusOther : null), $negDivision, ($note !== '' ? $note : null),
                 $candidateYm, $activeYm, $excludedYm,
                 (int)$cur['id'], $cid,
             ]);
@@ -545,7 +695,7 @@ if ($action === 'negotiations') {
     // （取引先が選ばれていない古い行だけ、保存されている会社名を使う）
     $stmt = $db->prepare("SELECT n.id, n.client_id,
                                  COALESCE(" . clientLabelSql('cl') . ", n.client_name) AS client_name,
-                                 n.rep_name, n.status, n.status_other, n.note,
+                                 n.rep_name, n.status, n.status_other, n.division, n.note,
                                  n.first_report_ym, n.candidate_ym, n.active_ym, n.excluded_ym
                           FROM strategy_meeting_negotiations n
                           LEFT JOIN sales_clients cl ON cl.id = n.client_id AND cl.company_id = n.company_id
@@ -567,6 +717,7 @@ if ($action === 'negotiations') {
             'rep_name'      => $r['rep_name'],
             'status'        => $r['status'],
             'status_other'  => $r['status_other'],
+            'division'      => (string)($r['division'] ?? ''),
             'note'          => $r['note'],
             'first_label'   => $ymLabel($r['first_report_ym']),
             'first_year'    => (int)floor((int)$r['first_report_ym'] / 100),
@@ -653,85 +804,36 @@ if ($action === 'reps') {
     // 表示対象は「社員一覧で営業担当にチェックが入っている在籍中の正社員・自社外注」。
     // 既存関数をそのまま使うので、チェックの変更は次の表示から自動で反映される
     $repNames = getSalesRepCandidates($cid);
+    $allyMap  = smAllianceClientMap($db, $cid);
 
-    // 営業マンカードは区分で絞り込まない（区分の切替は担当企業一覧にだけ効かせる）。
-    // カードの売上金額は常に全区分の合計で、既存の売上集計と同じ数字になる
-    $divCond = '';
+    // 営業マンカードは区分で絞り込まない（区分の切替は担当企業一覧にだけ効かせる）
+    $endYm     = smPeriodEndYm($period, $pYear, $pMonth);
+    $targetYm  = $pYear * 100 + $pMonth;
+    $fyStartYm = smFyStartYm($pYear, $pMonth);
 
-    // --- 売上金額（選択期間）: 既存の50/50分割と完全に同じロジック ---
-    // 営業担当に50%、紹介元（管理者→採用者→直営業）に50%
-    $revSql = "
-        SELECT name, SUM(rev) AS revenue FROM (
-            SELECT " . SM_REP_NAME . " AS name, FLOOR(sc.revenue / 2) AS rev
-            FROM sales_cases sc " . SM_REP_JOIN . "
-            WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.sales_rep != ''
-              AND {$perWhere} {$divCond}
-            UNION ALL
-            SELECT CASE WHEN em.name IS NOT NULL THEN em.name
-                        WHEN COALESCE(sc.manager, '')   NOT IN ('', '該当者なし') THEN sc.manager
-                        WHEN erc.name IS NOT NULL THEN erc.name
-                        WHEN COALESCE(sc.recruiter, '') NOT IN ('', '該当者なし') THEN sc.recruiter
-                        ELSE '直営業' END AS name,
-                   sc.revenue - FLOOR(sc.revenue / 2) AS rev
-            FROM sales_cases sc
-            " . SM_MGR_JOIN . "
-            LEFT JOIN employees erc ON erc.id = sc.recruiter_id AND erc.company_id = sc.company_id
-            WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.sales_rep != ''
-              AND {$perWhere} {$divCond}
-        ) t
-        WHERE t.name NOT IN ('直営業', '', '該当者なし')
-        GROUP BY t.name";
-    $stmt = $db->prepare($revSql);
-    $stmt->execute(array_merge([$cid], $perParams, [$cid], $perParams));
-    $revMap = [];
-    foreach ($stmt->fetchAll() as $r) { $revMap[$r['name']] = (int)$r['revenue']; }
-
-    // --- クライアント数（選択期間・重複なし）: その営業マンが「営業担当」の案件の企業数 ---
-    $clientSql = "
-        SELECT " . SM_REP_NAME . " AS name, COUNT(DISTINCT sc.client_id) AS cnt
-        FROM sales_cases sc " . SM_REP_JOIN . "
-        WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.client_id IS NOT NULL
-          AND {$perWhere} {$divCond}
-        GROUP BY " . SM_REP_NAME;
-    $stmt = $db->prepare($clientSql);
-    $stmt->execute(array_merge([$cid], $perParams));
-    $clientMap = [];
-    foreach ($stmt->fetchAll() as $r) { $clientMap[$r['name']] = (int)$r['cnt']; }
-
-    // --- アライアンス数（選択期間・重複なし） ---
-    // 判定基準は「管理者」。スタッフ区分がアライアンスの案件に出てくる外注先の社数
-    $allianceSql = "
-        SELECT " . SM_MGR_NAME . " AS name, COUNT(DISTINCT sc.alliance_id) AS cnt
-        FROM sales_cases sc " . SM_MGR_JOIN . "
-        WHERE sc.company_id = ? AND sc.status = 'confirmed'
-          AND sc.worker_type = 'アライアンス' AND sc.alliance_id IS NOT NULL
-          AND {$perWhere} {$divCond}
-        GROUP BY " . SM_MGR_NAME;
-    $stmt = $db->prepare($allianceSql);
-    $stmt->execute(array_merge([$cid], $perParams));
-    $allianceMap = [];
-    foreach ($stmt->fetchAll() as $r) {
-        $n = trim((string)$r['name']);
-        if ($n === '' || $n === '該当者なし') continue;
-        $allianceMap[$n] = (int)$r['cnt'];
-    }
+    $caseKeys = smCaseKeysByRep($db, $cid, $perWhere, $perParams, $allyMap);
+    $negByRep = smNegotiationsByRep($db, $cid, $endYm, $targetYm, $fyStartYm);
 
     $reps = [];
     foreach ($repNames as $name) {
-        $reps[] = [
-            'name'           => $name,
-            'client_count'   => $clientMap[$name]   ?? 0,
-            'alliance_count' => $allianceMap[$name] ?? 0,
-            'revenue'        => $revMap[$name]      ?? 0,
-        ];
+        $counts = smRepCounts($caseKeys[$name] ?? [], $negByRep[$name] ?? null);
+        $reps[] = array_merge(['name' => $name], $counts);
     }
-    // 売上の多い順（画像と同じく実績順に並べる）
-    usort($reps, fn($a, $b) => $b['revenue'] <=> $a['revenue']);
+
+    // 並び順は「パートナー数＋パートナー候補数」の多い順。
+    // 同数のときはパートナー数が多い方を先に出す
+    usort($reps, function ($a, $b) {
+        $sa = $a['partner_count'] + $a['candidate_count'];
+        $sb = $b['partner_count'] + $b['candidate_count'];
+        if ($sa !== $sb) return $sb <=> $sa;
+        return $b['partner_count'] <=> $a['partner_count'];
+    });
 
     echo json_encode([
         'reps'         => $reps,
         'period'       => $period,
         'period_label' => $perLabel,
+        'month_label'  => $pYear . '年' . $pMonth . '月',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -745,13 +847,30 @@ if ($action === 'companies') {
 
     $divExpr   = smDivisionExpr();
     $frameExpr = smFrameCountExpr();
-    // 企業は「取引先マスタの表記名」で表示する。
-    // 取引先一覧で表記名を変えれば、ここもJOINで引くので次の表示から反映される
+    $allyMap   = smAllianceClientMap($db, $cid);
+
+    $endYm     = smPeriodEndYm($period, $pYear, $pMonth);
+    $targetYm  = $pYear * 100 + $pMonth;
+    $fyStartYm = smFyStartYm($pYear, $pMonth);
+
+    // --- 4つの集計カード ---
+    // 区分の絞り込みは効かせない（営業マンカードと同じ数字にするため）
+    $caseKeys = smCaseKeysByRep($db, $cid, $perWhere, $perParams, $allyMap);
+    $negByRep = smNegotiationsByRep($db, $cid, $endYm, $targetYm, $fyStartYm);
+    $neg      = $negByRep[$rep] ?? ['partners' => [], 'candidates' => [], 'month_new' => 0, 'total_new' => 0];
+    $kpi      = smRepCounts($caseKeys[$rep] ?? [], $neg);
+
+    // --- 担当パートナー ---
+    // 会社は「取引先マスタの表記名」で表示する。取引先一覧で表記名を変えれば次の表示から反映される。
     // 枠数は既存の総合ダッシュボード「月別枠数」に合わせ、区分が1次・2次以降の案件だけを数える。
     // 取引金額はその企業との実際の取引額を出したいので、区分では絞らず全件を合計する
+    $partners = [];   // 表示する行（同じ会社でも区分が違えば別の行になる）
+    $shownKeys = [];  // 何社ぶん出したかを数えるための鍵
+
+    // (1) 取引先（営業担当基準）
     $sql = "
         SELECT cl.id AS client_id,
-               COALESCE(NULLIF(TRIM(cl.display_name), ''), cl.client_name) AS client_name,
+               " . clientLabelSql('cl') . " AS client_name,
                {$divExpr} AS division,
                {$frameExpr} AS frame_count,
                COALESCE(SUM(sc.revenue), 0) AS revenue
@@ -766,26 +885,104 @@ if ($action === 'companies') {
         ORDER BY revenue DESC, client_name";
     $stmt = $db->prepare($sql);
     $stmt->execute(array_merge([$cid], $perParams, [$rep]));
-
-    $companies = [];
     foreach ($stmt->fetchAll() as $r) {
-        $companies[] = [
-            'client_id'     => (int)$r['client_id'],
+        $key = smClientKey((int)$r['client_id']);
+        $shownKeys[$key] = true;
+        $partners[] = [
+            'key'         => $key,
+            'client_id'   => (int)$r['client_id'],
             // 光ADの行は会社名の末尾に（光AD）を付ける
-            'label'         => $r['division'] === '光AD' ? $r['client_name'] . '（光AD）' : $r['client_name'],
-            'division'      => $r['division'],
-            'frame_count'   => (int)$r['frame_count'],
+            'label'       => $r['division'] === '光AD' ? $r['client_name'] . '（光AD）' : $r['client_name'],
+            'kind'        => 'パートナー',
+            'division'    => $r['division'],
+            'frame_count' => (int)$r['frame_count'],
             // 単位: イベントは「コマ」、それ以外は「枠」（既存ダッシュボードと同じ呼び分け）
-            'frame_unit'    => $r['division'] === 'イベント' ? 'コマ' : '枠',
-            'revenue'       => (int)$r['revenue'],
+            'frame_unit'  => $r['division'] === 'イベント' ? 'コマ' : '枠',
+            'revenue'     => (int)$r['revenue'],
         ];
     }
 
+    // (2) 外注先（管理者基準）。取引先として既に出ている会社は重ねて出さない
+    $sql = "
+        SELECT al.id AS alliance_id,
+               " . allianceLabelSql('al') . " AS alliance_name,
+               {$divExpr} AS division,
+               {$frameExpr} AS frame_count,
+               COALESCE(SUM(sc.revenue), 0) AS revenue
+        FROM sales_cases sc
+        JOIN sales_alliances al ON sc.alliance_id = al.id
+        " . SM_MGR_JOIN . "
+        WHERE sc.company_id = ? AND sc.status = 'confirmed'
+          AND sc.worker_type = 'アライアンス'
+          AND {$perWhere}
+          AND " . SM_MGR_NAME . " = ?
+          {$divCond}
+        GROUP BY al.id, al.display_name, al.alliance_name, {$divExpr}
+        ORDER BY revenue DESC, alliance_name";
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$cid], $perParams, [$rep]));
+    foreach ($stmt->fetchAll() as $r) {
+        $aid    = (int)$r['alliance_id'];
+        $linked = $allyMap[$aid] ?? null;
+        $key    = smAllianceKey($aid, $linked);
+        if (isset($shownKeys[$key])) continue;   // 同じ会社の取引先が既に出ている
+        $shownKeys[$key] = true;
+        $partners[] = [
+            'key'         => $key,
+            // 年推移は取引先を見る画面なので、取引先が紐づいている外注先だけ開ける
+            'client_id'   => $linked ? (int)$linked : null,
+            'label'       => ($r['division'] === '光AD' ? $r['alliance_name'] . '（光AD）' : $r['alliance_name']) . '（外注先）',
+            'kind'        => 'パートナー',
+            'division'    => $r['division'],
+            'frame_count' => (int)$r['frame_count'],
+            'frame_unit'  => $r['division'] === 'イベント' ? 'コマ' : '枠',
+            'revenue'     => (int)$r['revenue'],
+        ];
+    }
+
+    // (3) 商談報告で「取引開始」だが、この期間に案件がまだ無い会社。
+    //     案件が無いので区分は商談報告に入力されたものを使い、枠数・取引金額は「-」にする
+    foreach ($neg['partners'] as $key => $n) {
+        if (isset($shownKeys[$key])) continue;
+        if ($division !== '' && $n['division'] !== $division) continue;  // 区分の絞り込み
+        $shownKeys[$key] = true;
+        $partners[] = [
+            'key'         => $key,
+            'client_id'   => $n['client_id'],
+            'label'       => $n['client_name'],
+            'kind'        => 'パートナー',
+            'division'    => $n['division'],
+            'frame_count' => null,
+            'frame_unit'  => '',
+            'revenue'     => null,
+        ];
+    }
+
+    // --- 担当パートナー候補 ---
+    // 案件がまだ無い会社なので、区分の絞り込みは効かせない（⑥の方針）
+    $candidates = [];
+    foreach ($neg['candidates'] as $key => $n) {
+        if (isset($shownKeys[$key])) continue;   // すでにパートナーの会社は候補に出さない
+        $candidates[] = [
+            'client_id' => $n['client_id'],
+            'label'     => $n['client_name'],
+            'kind'      => '候補',
+            'division'  => $n['division'],
+            'note'      => $n['note'],
+        ];
+    }
+    usort($candidates, fn($a, $b) => strcmp($a['label'], $b['label']));
+
     echo json_encode([
-        'rep'          => $rep,
-        'companies'    => $companies,
-        'period'       => $period,
-        'period_label' => $perLabel,
+        'rep'             => $rep,
+        'kpi'             => $kpi,
+        'partners'        => $partners,
+        'partner_total'   => count($shownKeys),
+        'candidates'      => $candidates,
+        'candidate_total' => count($candidates),
+        'period'          => $period,
+        'period_label'    => $perLabel,
+        'month_label'     => $pYear . '年' . $pMonth . '月',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -809,6 +1006,9 @@ if ($action === 'trend') {
     $repJoin = $rep !== '' ? SM_REP_JOIN : '';
     $repCond = $rep !== '' ? ' AND ' . SM_REP_NAME . ' = ?' : '';
 
+    // 表示の単位。fy=期別（今までどおり） / month=月別で1年度分（9月〜8月）
+    $scale = ($_GET['scale'] ?? '') === 'month' ? 'month' : 'fy';
+
     // 枠数の数え方は担当企業一覧と揃える（カードの枠数とグラフの枠数が食い違わないように）
     $frameExpr = smFrameCountExpr();
     $sql = "
@@ -821,30 +1021,55 @@ if ($action === 'trend') {
         GROUP BY sc.case_year, sc.case_month";
     $stmt = $db->prepare($sql);
     $stmt->execute($rep !== '' ? [$cid, $clientId, $rep] : [$cid, $clientId]);
+    $rows = $stmt->fetchAll();
 
-    // 月別の実績を年度（9月〜翌8月）ごとにまとめる
-    $byFy = [];
-    foreach ($stmt->fetchAll() as $r) {
-        $f = smFyOf((int)$r['case_year'], (int)$r['case_month']);
-        if (!isset($byFy[$f])) $byFy[$f] = ['revenue' => 0, 'frame_count' => 0];
-        $byFy[$f]['revenue']     += (int)$r['revenue'];
-        $byFy[$f]['frame_count'] += (int)$r['frame_count'];
-    }
-    ksort($byFy);
+    $periods    = [];
+    $rangeLabel = '期：9月〜8月';
 
-    // データがある最初の期から最後の期まで、間の空白期も0で埋めて連続表示する
-    $periods = [];
-    if ($byFy) {
-        $keys  = array_keys($byFy);
-        $first = (int)$keys[0];
-        $last  = (int)end($keys);
-        for ($f = $first; $f <= $last; $f++) {
+    if ($scale === 'month') {
+        // 月別: 対象年月が属する年度の9月〜翌8月を、実績が無い月も0で並べる
+        $fy   = smFyOf($pYear, $pMonth);
+        $byYm = [];
+        foreach ($rows as $r) {
+            $byYm[(int)$r['case_year'] * 100 + (int)$r['case_month']] =
+                ['revenue' => (int)$r['revenue'], 'frame_count' => (int)$r['frame_count']];
+        }
+        for ($i = 0; $i < 12; $i++) {
+            $m  = $i < 4 ? 9 + $i : $i - 3;              // 9,10,11,12,1,2,...,8
+            $y  = $i < 4 ? $fy - 1 : $fy;
+            $ym = $y * 100 + $m;
             $periods[] = [
-                'fy'          => $f,
-                'label'       => smFyLabel($f),
-                'revenue'     => $byFy[$f]['revenue']     ?? 0,
-                'frame_count' => $byFy[$f]['frame_count'] ?? 0,
+                'fy'          => $fy,
+                'label'       => $m . '月',
+                'revenue'     => $byYm[$ym]['revenue']     ?? 0,
+                'frame_count' => $byYm[$ym]['frame_count'] ?? 0,
             ];
+        }
+        $rangeLabel = '年度（' . smFyLabel($fy) . '）の月別';
+    } else {
+        // 期別: 月別の実績を年度（9月〜翌8月）ごとにまとめる
+        $byFy = [];
+        foreach ($rows as $r) {
+            $f = smFyOf((int)$r['case_year'], (int)$r['case_month']);
+            if (!isset($byFy[$f])) $byFy[$f] = ['revenue' => 0, 'frame_count' => 0];
+            $byFy[$f]['revenue']     += (int)$r['revenue'];
+            $byFy[$f]['frame_count'] += (int)$r['frame_count'];
+        }
+        ksort($byFy);
+
+        // データがある最初の期から最後の期まで、間の空白期も0で埋めて連続表示する
+        if ($byFy) {
+            $keys  = array_keys($byFy);
+            $first = (int)$keys[0];
+            $last  = (int)end($keys);
+            for ($f = $first; $f <= $last; $f++) {
+                $periods[] = [
+                    'fy'          => $f,
+                    'label'       => smFyLabel($f),
+                    'revenue'     => $byFy[$f]['revenue']     ?? 0,
+                    'frame_count' => $byFy[$f]['frame_count'] ?? 0,
+                ];
+            }
         }
     }
 
@@ -875,6 +1100,8 @@ if ($action === 'trend') {
         'client_name'  => $division === '光AD' ? $clientName . '（光AD）' : $clientName,
         'division'     => $divLabel,
         'frame_unit'   => $division === 'イベント' ? 'コマ' : '枠',
+        'scale'        => $scale,
+        'range_label'  => $rangeLabel,
         'periods'      => $periods,
         'memo'         => $memo,
     ], JSON_UNESCAPED_UNICODE);

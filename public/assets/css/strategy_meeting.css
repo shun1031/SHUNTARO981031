@@ -447,9 +447,10 @@
     font-size: .84rem;
 }
 .sm-stat-ico { width: 20px; text-align: center; font-size: .95rem; flex: 0 0 auto; }
-.sm-stat-ico.is-client   { color: var(--sm-blue-strong); }
-.sm-stat-ico.is-alliance { color: var(--sm-green); }
-.sm-stat-ico.is-revenue  { color: var(--sm-amber); }
+.sm-stat-ico.is-partner   { color: var(--sm-blue-strong); }
+.sm-stat-ico.is-candidate { color: var(--sm-green); }
+.sm-stat-ico.is-negmonth  { color: var(--sm-amber); }
+.sm-stat-ico.is-negtotal  { color: #8b5cf6; }
 .sm-stat-label { color: #374151; flex: 1 1 auto; }
 .sm-stat-value { font-weight: 700; white-space: nowrap; }
 
@@ -483,24 +484,133 @@
 /* ============================================================
    担当企業一覧
    ============================================================ */
-.sm-company-list { display: flex; flex-direction: column; gap: .7rem; }
-
-.sm-company-card {
+/* ---- 4つの集計カード ---- */
+.sm-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .6rem;
+    margin-bottom: 1.1rem;
+}
+.sm-kpi {
+    border: 1px solid var(--sm-border);
+    border-radius: 11px;
+    padding: .6rem .75rem;
+    background: #fff;
+    min-width: 0;
+}
+.sm-kpi-label {
     display: flex;
     align-items: center;
-    gap: .9rem;
-    width: 100%;
-    text-align: left;
-    background: #fff;
+    gap: .35rem;
+    font-size: .68rem;
+    color: var(--sm-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sm-kpi-label .is-partner   { color: var(--sm-blue-strong); }
+.sm-kpi-label .is-candidate { color: var(--sm-green); }
+.sm-kpi-label .is-negmonth  { color: var(--sm-amber); }
+.sm-kpi-label .is-negtotal  { color: #8b5cf6; }
+.sm-kpi-value {
+    display: block;
+    margin-top: .2rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+@media (max-width: 575.98px) {
+    .sm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- 担当パートナー / 担当パートナー候補 / 新規商談状況 ---- */
+.sm-section + .sm-section,
+.sm-section + .sm-negbox { margin-top: 1.3rem; }
+
+.sm-section-head {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+    margin-bottom: .5rem;
+}
+.sm-section-title {
+    font-size: .88rem;
+    font-weight: 700;
+    color: var(--sm-blue);
+    margin: 0;
+}
+.sm-section-count { font-size: .75rem; color: var(--sm-muted); }
+
+.sm-table-wrap {
     border: 1px solid var(--sm-border);
-    border-radius: 12px;
-    padding: .85rem 1rem;
+    border-radius: 11px;
+    overflow-x: auto;
 }
-.sm-company-card:hover { border-color: var(--sm-blue-strong); }
-.sm-company-card.is-active {
-    border-color: var(--sm-blue-strong);
-    box-shadow: 0 0 0 1px var(--sm-blue-strong) inset;
+.sm-ptable { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.sm-ptable th {
+    background: #f7f9fc;
+    color: var(--sm-muted);
+    font-weight: 600;
+    font-size: .68rem;
+    text-align: left;
+    padding: .5rem .7rem;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--sm-border);
 }
+.sm-ptable td {
+    padding: .55rem .7rem;
+    border-bottom: 1px solid var(--sm-border-soft);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.sm-ptable tr:last-child td { border-bottom: none; }
+.sm-ptable .sm-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.sm-prow.is-clickable { cursor: pointer; }
+.sm-prow.is-clickable:hover { background: #f5f8ff; }
+.sm-prow.is-active { background: var(--sm-blue-soft); }
+
+.sm-pname { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
+.sm-pname .sm-company-ico { width: 26px; height: 26px; font-size: .85rem; border-radius: 7px; }
+.sm-note { white-space: normal; color: var(--sm-muted); min-width: 8rem; }
+
+.sm-kind {
+    display: inline-block;
+    padding: .1rem .5rem;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 600;
+}
+.sm-kind.is-partner   { background: var(--sm-blue-soft); color: var(--sm-blue-strong); }
+.sm-kind.is-candidate { background: #e8f7ee;             color: var(--sm-green); }
+
+.sm-more {
+    margin-top: .45rem;
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--sm-blue-strong);
+    font-size: .76rem;
+    font-weight: 600;
+}
+.sm-more:hover { text-decoration: underline; }
+
+.sm-negbox-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+}
+.sm-negbox-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    border: 1px solid var(--sm-border);
+    border-radius: 11px;
+    padding: .7rem .9rem;
+}
+.sm-negbox-label { font-size: .75rem; color: var(--sm-muted); }
+.sm-negbox-value { font-size: 1.15rem; font-weight: 700; }
 
 .sm-company-ico {
     width: 34px; height: 34px;
@@ -511,46 +621,8 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 1.05rem;
 }
-.sm-company-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    font-weight: 700;
-    font-size: .9rem;
-    overflow-wrap: anywhere;
-}
-/* 列幅を固定して、カードが縦に並んだときに数値の位置が揃うようにする */
-.sm-company-metrics {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: 104px 108px 124px;
-    gap: 1rem;
-}
-.sm-metric { min-width: 0; }
-.sm-metric-label {
-    display: block;
-    font-size: .63rem;
-    color: var(--sm-muted);
-    white-space: nowrap;
-    line-height: 1.5;
-}
-.sm-metric-value {
-    display: block;
-    font-size: .92rem;
-    font-weight: 700;
-    white-space: nowrap;
-    line-height: 1.5;
-}
-.sm-company-chevron { flex: 0 0 auto; color: #9aa3af; font-size: 1.05rem; }
-
 @media (max-width: 767.98px) {
-    .sm-company-card { flex-wrap: wrap; }
-    .sm-company-metrics {
-        width: 100%;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: .5rem;
-    }
-    .sm-metric-label, .sm-metric-value { white-space: normal; }
-    .sm-company-chevron { display: none; }
+    .sm-negbox-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ============================================================

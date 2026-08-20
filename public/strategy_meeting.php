@@ -152,10 +152,93 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <span class="sm-head-note" id="smCompPeriodNote"><?= $initYear ?>年<?= $initMonth ?>月</span>
                 </div>
-                <div class="sm-company-list" id="smCompanyList">
-                    <div class="sm-empty">
+                <?php /* 4つの集計カード。営業マンカードの数字と同じ（区分の絞り込みは効かせない） */ ?>
+                <div class="sm-kpis d-none" id="smKpis">
+                    <div class="sm-kpi">
+                        <span class="sm-kpi-label"><i class="bi bi-people-fill is-partner"></i>パートナー数</span>
+                        <span class="sm-kpi-value" id="smKpiPartner">-</span>
+                    </div>
+                    <div class="sm-kpi">
+                        <span class="sm-kpi-label"><i class="bi bi-person-plus-fill is-candidate"></i>パートナー候補数</span>
+                        <span class="sm-kpi-value" id="smKpiCandidate">-</span>
+                    </div>
+                    <div class="sm-kpi">
+                        <span class="sm-kpi-label"><i class="bi bi-chat-dots-fill is-negmonth"></i>当月新規商談数</span>
+                        <span class="sm-kpi-value" id="smKpiNegMonth">-</span>
+                    </div>
+                    <div class="sm-kpi">
+                        <span class="sm-kpi-label"><i class="bi bi-graph-up-arrow is-negtotal"></i>累計新規商談数</span>
+                        <span class="sm-kpi-value" id="smKpiNegTotal">-</span>
+                    </div>
+                </div>
+
+                <div class="sm-company-body" id="smCompanyBody">
+                    <div class="sm-empty" id="smCompanyEmpty">
                         <i class="bi bi-hand-index-thumb"></i>
                         営業マンカードの「＋」を押すと、担当企業が表示されます
+                    </div>
+
+                    <?php /* 担当パートナー: 案件がある会社＋商談報告で取引開始の会社 */ ?>
+                    <div class="sm-section d-none" id="smPartnerSection">
+                        <div class="sm-section-head">
+                            <h4 class="sm-section-title">担当パートナー</h4>
+                            <span class="sm-section-count" id="smPartnerCount"></span>
+                        </div>
+                        <div class="sm-table-wrap">
+                            <table class="sm-ptable">
+                                <thead>
+                                    <tr>
+                                        <th>企業名</th>
+                                        <th>種別</th>
+                                        <th>光AD / 常勤 / イベント</th>
+                                        <th>枠数（イベントはコマ数）</th>
+                                        <th class="sm-num" id="smPartnerAmountHead">取引金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="smPartnerBody"></tbody>
+                            </table>
+                        </div>
+                        <button type="button" class="sm-more d-none" id="smPartnerMore"></button>
+                    </div>
+
+                    <?php /* 担当パートナー候補: 商談報告で「取引候補」の会社（案件はまだ無い） */ ?>
+                    <div class="sm-section d-none" id="smCandidateSection">
+                        <div class="sm-section-head">
+                            <h4 class="sm-section-title">担当パートナー候補</h4>
+                            <span class="sm-section-count" id="smCandidateCount"></span>
+                        </div>
+                        <div class="sm-table-wrap">
+                            <table class="sm-ptable">
+                                <thead>
+                                    <tr>
+                                        <th>企業名</th>
+                                        <th>種別</th>
+                                        <th>光AD / 常勤 / イベント</th>
+                                        <th>枠数</th>
+                                        <th>備考</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="smCandidateBody"></tbody>
+                            </table>
+                        </div>
+                        <button type="button" class="sm-more d-none" id="smCandidateMore"></button>
+                    </div>
+
+                    <?php /* 新規商談状況 */ ?>
+                    <div class="sm-negbox d-none" id="smNegBox">
+                        <div class="sm-section-head">
+                            <h4 class="sm-section-title">新規商談状況</h4>
+                        </div>
+                        <div class="sm-negbox-grid">
+                            <div class="sm-negbox-cell">
+                                <span class="sm-negbox-label">当月新規商談数</span>
+                                <span class="sm-negbox-value" id="smNegBoxMonth">-</span>
+                            </div>
+                            <div class="sm-negbox-cell">
+                                <span class="sm-negbox-label">累計新規商談数</span>
+                                <span class="sm-negbox-value" id="smNegBoxTotal">-</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -170,7 +253,12 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="sm-trend-head">
-                    <span class="sm-trend-period">期：9月〜8月</span>
+                    <span class="sm-trend-period" id="smTrendRange">期：9月〜8月</span>
+                    <?php /* 期ごとの合計と、1年度分の月別推移を切り替える */ ?>
+                    <div class="sm-metric-switch ms-auto" id="smScaleSwitch">
+                        <button type="button" class="active" data-scale="fy">期別</button>
+                        <button type="button" data-scale="month">月別</button>
+                    </div>
                     <div class="sm-metric-switch" id="smMetricSwitch">
                         <button type="button" class="active" data-metric="revenue">売上金額</button>
                         <button type="button" data-metric="frame">枠数</button>
@@ -271,6 +359,17 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-medium">区分</label>
+                        <?php /* パートナー候補は案件がまだ無く、案件データから区分を出せないためここで持たせる */ ?>
+                        <select class="form-select" id="smNegDivision">
+                            <option value="">-- 未選択 --</option>
+                            <?php foreach (['光AD', '常勤', 'イベント'] as $_d): ?>
+                            <option value="<?= h($_d) ?>"><?= h($_d) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text" style="font-size:.7rem">戦略会議の「担当パートナー候補」一覧に表示されます</div>
+                    </div>
                     <div class="col-md-6 d-none" id="smNegOtherWrap">
                         <label class="form-label fw-medium">その他の内容 <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="smNegOther" maxlength="100">
@@ -314,6 +413,10 @@ var smState = {
     year:          smInitYear,  // 「月別」のときの対象年
     month:         smInitMonth, // 「月別」のときの対象月
     metric:    'revenue',
+    trendScale: 'fy',    // 年推移の単位: 'fy'=期別 / 'month'=月別で1年度分
+    companyData:   null, // 担当企業一覧の取得結果（すべて表示の開閉で使い回す）
+    partnerOpen:   false,
+    candidateOpen: false,
     periods:   [],
     frameUnit: '枠',
     chart:     null,
@@ -411,6 +514,13 @@ function smLoadReps() {
         }
         box.innerHTML = d.reps.map(function (r) {
             var active = (r.name === smState.rep) ? ' is-active' : '';
+            var stat = function (ico, cls, label, value) {
+                return '<div class="sm-stat">' +
+                    '<span class="sm-stat-ico ' + cls + '"><i class="bi bi-' + ico + '"></i></span>' +
+                    '<span class="sm-stat-label">' + label + '</span>' +
+                    '<span class="sm-stat-value">' + value + '</span>' +
+                '</div>';
+            };
             return '' +
             '<div class="sm-rep-row' + active + '">' +
               '<div class="sm-rep-card">' +
@@ -419,21 +529,10 @@ function smLoadReps() {
                   '<span class="sm-rep-name">' + smEsc(r.name) + '</span>' +
                 '</div>' +
                 '<div class="sm-rep-stats">' +
-                  '<div class="sm-stat">' +
-                    '<span class="sm-stat-ico is-client"><i class="bi bi-building"></i></span>' +
-                    '<span class="sm-stat-label">クライアント数</span>' +
-                    '<span class="sm-stat-value">' + r.client_count + '社</span>' +
-                  '</div>' +
-                  '<div class="sm-stat">' +
-                    '<span class="sm-stat-ico is-alliance"><i class="bi bi-people-fill"></i></span>' +
-                    '<span class="sm-stat-label">アライアンス数</span>' +
-                    '<span class="sm-stat-value">' + r.alliance_count + '社</span>' +
-                  '</div>' +
-                  '<div class="sm-stat">' +
-                    '<span class="sm-stat-ico is-revenue"><i class="bi bi-currency-yen"></i></span>' +
-                    '<span class="sm-stat-label">売上金額</span>' +
-                    '<span class="sm-stat-value">' + smYen(r.revenue) + '</span>' +
-                  '</div>' +
+                  stat('people-fill',     'is-partner',   'パートナー数',     r.partner_count + '社') +
+                  stat('person-plus-fill','is-candidate', 'パートナー候補数', r.candidate_count + '社') +
+                  stat('chat-dots-fill',  'is-negmonth',  '当月新規商談数',   r.month_neg_count + '件') +
+                  stat('graph-up-arrow',  'is-negtotal',  '累計新規商談数',   r.total_neg_count + '件') +
                 '</div>' +
               '</div>' +
               '<div class="sm-rep-branch">' +
@@ -448,13 +547,41 @@ function smLoadReps() {
     });
 }
 
-// ---------- 担当企業一覧 ----------
+// ---------- 担当企業一覧（集計カード＋担当パートナー＋候補＋新規商談状況） ----------
+var SM_ROWS_SHOWN = 5;   // 既定で見せる行数。残りは「すべて表示」で開く
+
+// 一覧をいったん空にして、案内文だけを出す
+function smCompanyReset(icon, text) {
+    ['smKpis', 'smPartnerSection', 'smCandidateSection', 'smNegBox'].forEach(function (id) {
+        document.getElementById(id).classList.add('d-none');
+    });
+    var empty = document.getElementById('smCompanyEmpty');
+    empty.classList.remove('d-none');
+    empty.innerHTML = '<i class="bi bi-' + icon + '"></i>' + smEsc(text);
+}
+
+// 表の行を描く。既定は5行までで、残りは「すべて表示（残り○社）」で開く
+function smRenderRows(bodyId, moreId, rows, expanded, build) {
+    var limit = expanded ? rows.length : Math.min(rows.length, SM_ROWS_SHOWN);
+    document.getElementById(bodyId).innerHTML = rows.slice(0, limit).map(build).join('');
+
+    var more = document.getElementById(moreId);
+    var rest = rows.length - limit;
+    if (rest > 0) {
+        more.textContent = 'すべて表示（残り' + rest + '社）';
+        more.classList.remove('d-none');
+    } else if (rows.length > SM_ROWS_SHOWN) {
+        more.textContent = '表示を減らす';
+        more.classList.remove('d-none');
+    } else {
+        more.classList.add('d-none');
+    }
+}
+
 function smLoadCompanies(rep) {
-    var box   = document.getElementById('smCompanyList');
-    var title = document.getElementById('smCompanyTitle');
     smState.rep = rep;
-    title.textContent = rep + 'の担当企業一覧';
-    box.innerHTML = smEmpty('hourglass-split', '読み込み中...');
+    document.getElementById('smCompanyTitle').textContent = rep + 'の担当企業一覧';
+    smCompanyReset('hourglass-split', '読み込み中...');
 
     var qs = smPeriodParams(smState.compPeriod);
     qs.action = 'companies';
@@ -462,37 +589,71 @@ function smLoadCompanies(rep) {
     qs.division = smState.division;
     return smGet(qs).then(function (d) {
         if (d.period_label) document.getElementById('smCompPeriodNote').textContent = d.period_label;
-        if (d.error) { box.innerHTML = smEmpty('exclamation-triangle', d.error); return; }
-        if (!d.companies || !d.companies.length) {
-            box.innerHTML = smEmpty('inbox', (d.period_label || 'この期間') + 'の担当企業がありません');
-            return;
-        }
-        box.innerHTML = d.companies.map(function (c) {
-            var active = (String(c.client_id) === String(smState.clientId)) ? ' is-active' : '';
-            return '' +
-            '<button type="button" class="sm-company-card' + active + '"' +
-                   ' data-client-id="' + c.client_id + '" data-division="' + smEsc(c.division) + '">' +
-              '<span class="sm-company-ico"><i class="bi bi-building"></i></span>' +
-              '<span class="sm-company-name">' + smEsc(c.label) + '</span>' +
-              '<span class="sm-company-metrics">' +
-                '<span class="sm-metric">' +
-                  '<span class="sm-metric-label">光AD / 常勤 / イベント</span>' +
-                  '<span class="sm-metric-value">' + smEsc(c.division) + '</span>' +
-                '</span>' +
-                '<span class="sm-metric">' +
-                  '<span class="sm-metric-label">枠数（イベントはコマ数）</span>' +
-                  '<span class="sm-metric-value">' + c.frame_count + smEsc(c.frame_unit) + '</span>' +
-                '</span>' +
-                '<span class="sm-metric">' +
-                  '<span class="sm-metric-label">取引金額（' + smEsc(d.period_label) + '）</span>' +
-                  '<span class="sm-metric-value">' + smYen(c.revenue) + '</span>' +
-                '</span>' +
-              '</span>' +
-              '<span class="sm-company-chevron"><i class="bi bi-chevron-right"></i></span>' +
-            '</button>';
-        }).join('');
+        if (d.error) { smCompanyReset('exclamation-triangle', d.error); return; }
+        smState.companyData = d;
+        smRenderCompanies();
     }).catch(function () {
-        box.innerHTML = smEmpty('wifi-off', '通信エラーが発生しました');
+        smCompanyReset('wifi-off', '通信エラーが発生しました');
+    });
+}
+
+function smRenderCompanies() {
+    var d = smState.companyData;
+    if (!d) return;
+    var partners   = d.partners   || [];
+    var candidates = d.candidates || [];
+    var k          = d.kpi || {};
+
+    // 4つの集計カードと新規商談状況は、営業マンカードと同じ数字（区分の絞り込みは効かない）
+    document.getElementById('smKpis').classList.remove('d-none');
+    document.getElementById('smNegBox').classList.remove('d-none');
+    document.getElementById('smKpiPartner').textContent   = (k.partner_count   || 0) + '社';
+    document.getElementById('smKpiCandidate').textContent = (k.candidate_count || 0) + '社';
+    document.getElementById('smKpiNegMonth').textContent  = (k.month_neg_count || 0) + '件';
+    document.getElementById('smKpiNegTotal').textContent  = (k.total_neg_count || 0) + '件';
+    document.getElementById('smNegBoxMonth').textContent  = (k.month_neg_count || 0) + '件';
+    document.getElementById('smNegBoxTotal').textContent  = (k.total_neg_count || 0) + '件';
+    document.getElementById('smPartnerAmountHead').textContent = '取引金額（' + (d.period_label || '') + '）';
+
+    // どちらも0件のときだけ案内を出す
+    var none = (partners.length === 0 && candidates.length === 0);
+    var empty = document.getElementById('smCompanyEmpty');
+    empty.classList.toggle('d-none', !none);
+    if (none) {
+        empty.innerHTML = '<i class="bi bi-inbox"></i>' +
+            smEsc((d.period_label || 'この期間') + 'の担当パートナー・候補がありません');
+    }
+
+    // --- 担当パートナー ---
+    document.getElementById('smPartnerSection').classList.toggle('d-none', partners.length === 0);
+    document.getElementById('smPartnerCount').textContent = '（' + (d.partner_total || 0) + '社）';
+    smRenderRows('smPartnerBody', 'smPartnerMore', partners, smState.partnerOpen, function (c) {
+        // 年推移は取引先を見る画面なので、取引先が分かる行だけ押せるようにする
+        var cls = 'sm-prow' + (c.client_id ? ' is-clickable' : '');
+        if (c.client_id && String(c.client_id) === String(smState.clientId)) cls += ' is-active';
+        return '<tr class="' + cls + '" data-client-id="' + (c.client_id || '') + '"' +
+                   ' data-division="' + smEsc(c.division || '') + '">' +
+            '<td class="sm-pname"><span class="sm-company-ico"><i class="bi bi-building"></i></span>' +
+              '<span>' + smEsc(c.label) + '</span></td>' +
+            '<td><span class="sm-kind is-partner">' + smEsc(c.kind) + '</span></td>' +
+            '<td>' + (c.division ? smEsc(c.division) : '-') + '</td>' +
+            '<td>' + (c.frame_count === null ? '-' : c.frame_count + smEsc(c.frame_unit || '')) + '</td>' +
+            '<td class="sm-num">' + (c.revenue === null ? '-' : smYen(c.revenue)) + '</td>' +
+        '</tr>';
+    });
+
+    // --- 担当パートナー候補（案件がまだ無いので枠数・取引金額は出せない） ---
+    document.getElementById('smCandidateSection').classList.toggle('d-none', candidates.length === 0);
+    document.getElementById('smCandidateCount').textContent = '（' + (d.candidate_total || 0) + '社）';
+    smRenderRows('smCandidateBody', 'smCandidateMore', candidates, smState.candidateOpen, function (c) {
+        return '<tr class="sm-prow">' +
+            '<td class="sm-pname"><span class="sm-company-ico"><i class="bi bi-building"></i></span>' +
+              '<span>' + smEsc(c.label) + '</span></td>' +
+            '<td><span class="sm-kind is-candidate">' + smEsc(c.kind) + '</span></td>' +
+            '<td>' + (c.division ? smEsc(c.division) : '-') + '</td>' +
+            '<td>-</td>' +
+            '<td class="sm-note">' + (c.note ? smEsc(c.note) : '-') + '</td>' +
+        '</tr>';
     });
 }
 
@@ -508,10 +669,14 @@ function smLoadTrend(clientId, division) {
         action:    'trend',
         client_id: clientId,
         rep:       smState.rep || '',
-        division:  smState.trendDivision || ''
+        division:  smState.trendDivision || '',
+        scale:     smState.trendScale,
+        year:      smState.year,
+        month:     smState.month
     }).then(function (d) {
         if (d.error) { title.textContent = d.error; return; }
-        title.textContent = d.client_name + 'の年推移（期別）';
+        title.textContent = d.client_name + 'の年推移（' + (d.scale === 'month' ? '月別' : '期別') + '）';
+        document.getElementById('smTrendRange').textContent = d.range_label || '期：9月〜8月';
         smState.periods   = d.periods || [];
         smState.frameUnit = d.frame_unit || '枠';
         document.getElementById('smSumDivision').textContent = d.division || '-';
@@ -640,9 +805,15 @@ function smRenderTrend() {
         plugins: [smValueLabelPlugin]
     });
 
-    // サマリーは最新期（一番右）を表示する
+    // サマリーは最新期（一番右）を表示する。月別のときは選んでいる対象月を出す
     var latest = periods[periods.length - 1];
-    document.getElementById('smSummaryTitle').textContent = '最新期（' + latest.label + '）のサマリー';
+    var kind   = '最新期';
+    if (smState.trendScale === 'month') {
+        kind = '対象月';
+        var target = periods.filter(function (p) { return p.label === smState.month + '月'; })[0];
+        if (target) latest = target;
+    }
+    document.getElementById('smSummaryTitle').textContent = kind + '（' + latest.label + '）のサマリー';
     document.getElementById('smSumRevenue').textContent = smYen(latest.revenue);
     document.getElementById('smSumFrame').textContent   = latest.frame_count + smState.frameUnit;
 }
@@ -948,6 +1119,7 @@ function smNegOpen(row) {
     // 会社は取引先一覧から選ぶ。編集時は保存されている取引先を選択状態にする
     document.getElementById('smNegClient').value = row && row.client_id ? row.client_id : '';
     document.getElementById('smNegStatus').value = row ? row.status : '';
+    document.getElementById('smNegDivision').value = row ? (row.division || '') : '';
     document.getElementById('smNegOther').value  = row ? (row.status_other || '') : '';
     document.getElementById('smNegNote').value   = row ? (row.note || '') : '';
     document.getElementById('smNegModalTitle').textContent = row ? '商談報告の編集' : '商談報告';
@@ -977,6 +1149,7 @@ function smNegSave() {
     fd.append('rep_name', document.getElementById('smNegRep').value);
     fd.append('client_id', clientId);
     fd.append('status', document.getElementById('smNegStatus').value);
+    fd.append('division', document.getElementById('smNegDivision').value);
     fd.append('status_other', document.getElementById('smNegOther').value.trim());
     fd.append('note', document.getElementById('smNegNote').value.trim());
     fd.append('ym_year', parseInt(parts[0], 10));
@@ -993,6 +1166,9 @@ function smNegSave() {
             smLoadNegotiations();
             smLoadGoal();     // 取引企業数の進捗にも反映する
             smLoadTrend2();   // 年間推移グラフ・表にも反映する
+            // パートナー数・候補数・新規商談数にも効くので、カードと右側も取り直す
+            smLoadReps();
+            if (smState.rep) smLoadCompanies(smState.rep);
         })
         .catch(function () { btn.disabled = false; smNegShowError('通信エラーが発生しました'); });
 }
@@ -1013,6 +1189,9 @@ function smNegDelete() {
             smLoadNegotiations();
             smLoadGoal();
             smLoadTrend2();
+            // パートナー数・候補数・新規商談数にも効くので、カードと右側も取り直す
+            smLoadReps();
+            if (smState.rep) smLoadCompanies(smState.rep);
         })
         .catch(function () { smNegShowError('通信エラーが発生しました'); });
 }
@@ -1086,6 +1265,8 @@ document.addEventListener('DOMContentLoaded', function () {
         var btn = e.target.closest('.sm-branch-btn');
         if (!btn) return;
         smState.clientId = null;
+        smState.partnerOpen = false;
+        smState.candidateOpen = false;
         this.querySelectorAll('.sm-rep-row').forEach(function (r) { r.classList.remove('is-active'); });
         var row = btn.closest('.sm-rep-row');
         if (row) row.classList.add('is-active');
@@ -1093,14 +1274,34 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('smCompanyPanel').scrollIntoView({behavior: 'smooth', block: 'nearest'});
     });
 
-    // 企業カード → 年推移
-    document.getElementById('smCompanyList').addEventListener('click', function (e) {
-        var card = e.target.closest('.sm-company-card');
-        if (!card) return;
-        this.querySelectorAll('.sm-company-card').forEach(function (c) { c.classList.remove('is-active'); });
-        card.classList.add('is-active');
-        smLoadTrend(card.dataset.clientId, card.dataset.division || '');
+    // 担当パートナーの行 → 年推移（今までの企業カードと同じ動き）
+    document.getElementById('smCompanyBody').addEventListener('click', function (e) {
+        var row = e.target.closest('.sm-prow.is-clickable');
+        if (!row || !row.dataset.clientId) return;
+        this.querySelectorAll('.sm-prow').forEach(function (r) { r.classList.remove('is-active'); });
+        row.classList.add('is-active');
+        smLoadTrend(row.dataset.clientId, row.dataset.division || '');
         document.getElementById('smTrendPanel').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+
+    // 「すべて表示（残り○社）」／「表示を減らす」
+    document.getElementById('smPartnerMore').addEventListener('click', function () {
+        smState.partnerOpen = !smState.partnerOpen;
+        smRenderCompanies();
+    });
+    document.getElementById('smCandidateMore').addEventListener('click', function () {
+        smState.candidateOpen = !smState.candidateOpen;
+        smRenderCompanies();
+    });
+
+    // 年推移の 期別 / 月別 の切替
+    document.getElementById('smScaleSwitch').addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn || btn.dataset.scale === smState.trendScale) return;
+        this.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        smState.trendScale = btn.dataset.scale;
+        if (smState.clientId) smLoadTrend(smState.clientId);
     });
 
     // 売上金額 / 枠数 の切替
@@ -1116,16 +1317,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // 戻る
     document.getElementById('smCompanyBack').addEventListener('click', function () {
         smState.rep = null; smState.clientId = null;
+        smState.companyData = null;
+        smState.partnerOpen = false; smState.candidateOpen = false;
         document.getElementById('smCompanyTitle').textContent = '担当企業一覧';
-        document.getElementById('smCompanyList').innerHTML =
-            smEmpty('hand-index-thumb', '営業マンカードの「＋」を押すと、担当企業が表示されます');
+        smCompanyReset('hand-index-thumb', '営業マンカードの「＋」を押すと、担当企業が表示されます');
         smLoadReps();
     });
     document.getElementById('smTrendBack').addEventListener('click', function () {
         smState.clientId = null;
         smState.trendDivision = '';
         smState.periods = [];
-        document.getElementById('smTrendTitle').textContent = '企業の年推移（期別）';
+        document.getElementById('smTrendTitle').textContent =
+            '企業の年推移（' + (smState.trendScale === 'month' ? '月別' : '期別') + '）';
         document.getElementById('smMemo').value = '';
         document.getElementById('smMemo').disabled = true;
         document.getElementById('smMemoStatus').textContent = '';

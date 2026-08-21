@@ -445,9 +445,14 @@ function smPeriodParams(period) {
     return {period: period, year: smState.year, month: smState.month};
 }
 
-// ---------- 取引企業数の合計（〇〇社 / 目標社数） ----------
-// 営業マンカードの数字の単純合計ではなく、重複を除いた社数
-//（表の「パートナー数＋パートナー候補数実績」と同じ数字）。
+// ---------- 取引のある会社数（〇〇社 / 目標社数） ----------
+// 今年度に案件がある会社の社数（重複は除く）。営業マンカードの数字の単純合計ではない。
+//
+// ※下の「パートナー数＋パートナー候補数」とは別物。
+//   あちらは商談報告だけの会社（案件がまだ無いパートナー候補）も足しているので、
+//   その分だけこちらの方が少なくなる。これは仕様どおり（ユーザー確認済み）で、
+//   ここは「実際に取引がある会社だけ」を出す場所。
+//
 // 月別/年度の切替には連動せず、今年度で固定
 function smLoadGoal() {
     return smGet({action: 'summary', year: smState.year, month: smState.month}).then(function (d) {
@@ -455,8 +460,8 @@ function smLoadGoal() {
         smState.goalTarget = d.target;
         document.getElementById('smGoalCount').textContent  = Number(d.count).toLocaleString('ja-JP');
         document.getElementById('smGoalTarget').textContent = Number(d.target).toLocaleString('ja-JP');
-        // 表の「パートナー数＋パートナー候補数実績」と同じ数字なので、呼び方を揃える
-        document.getElementById('smGoalNote').textContent   = '今年度（' + d.fy_label + '）／パートナー数＋パートナー候補数';
+        // 数えているのは「案件がある会社」だけなので、そのとおりの呼び方にする
+        document.getElementById('smGoalNote').textContent   = '今年度（' + d.fy_label + '）／取引のある会社数';
     }).catch(function () { /* 表示だけなので失敗しても他の集計は止めない */ });
 }
 

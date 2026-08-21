@@ -33,6 +33,8 @@ $staffCandidates = getStaffNameCandidates($cid, false);
 
 $carriers   = ['docomo', 'au', 'SB', '楽天', 'CATV', 'コミュファ'];
 $skillTypes = ['キャッチャー', 'クローザー'];
+// 人員の種別。案件側（常勤／イベント）と同じ言葉に揃えている
+$staffTypes = ['常勤', 'イベント'];
 $commuteOptions = ['電車（60分以内）', '電車（90分以内）', '車', '自転車・徒歩', 'その他'];
 $workerTypes= ['正社員', '自社外注', 'アライアンス', '個人外注', 'アルバイト'];
 
@@ -223,6 +225,18 @@ require_once __DIR__ . '/../includes/header.php';
                         </select>
                         <div class="form-text" style="font-size:.72rem">
                             ここで選んだ人が、この人員の営業担当になります（案件側の担当とは別です）。
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-medium mb-1">種別 <span class="text-danger">*</span></label>
+                        <select id="csbStaffType" class="form-select form-select-sm">
+                            <option value="">-- 選択してください --</option>
+                            <?php foreach ($staffTypes as $_stp): ?>
+                            <option value="<?= h($_stp) ?>"><?= h($_stp) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text" style="font-size:.72rem">
+                            この人が常勤向きかイベント向きかの目印です（案件そのものの種別とは別です）。
                         </div>
                     </div>
                     <div class="col-6">
@@ -802,7 +816,9 @@ function csbRenderStaff() {
         var note  = assigned ? (s.assigned_client || '-') : (s.note || '-');
 
         html += '<tr class="csb-tr' + hidden + '">'
-             +    '<td class="s-name"><span class="csb-strong">' + csbEsc(s.staff_name) + '</span></td>'
+             +    '<td class="s-name"><span class="csb-strong">' + csbEsc(s.staff_name) + '</span>'
+             +      (s.staff_type ? '<span class="csb-chip csb-chip-type ms-1">' + csbEsc(s.staff_type) + '</span>' : '')
+             +    '</td>'
              +    '<td class="s-affil lv3">' + csbEsc(s.affiliation || '-') + '</td>'
              +    '<td class="s-skill">' + csbEsc(s.skill_type || '-') + '</td>'
              +    '<td class="s-from">' + csbEsc(s.available_from ? csbDate(s.available_from) : '-') + '</td>'
@@ -842,6 +858,7 @@ function csbOpenStaffForm(id) {
     document.getElementById('csbStaffId').value       = s ? s.id : '';
     document.getElementById('csbStaffName').value     = s ? s.staff_name : '';
     document.getElementById('csbStaffRepSel').value   = s ? s.rep_name : '';
+    document.getElementById('csbStaffType').value     = s ? (s.staff_type || '') : '';
     document.getElementById('csbStaffAlliance').value = s && s.alliance_id ? s.alliance_id : '';
     document.getElementById('csbStaffAffil').value    = s && !s.alliance_id ? (s.affiliation || '') : '';
     document.getElementById('csbStaffSkill').value    = s ? (s.skill_type || '') : '';
@@ -858,12 +875,20 @@ function csbOpenStaffForm(id) {
 }
 
 function csbSaveStaff() {
+    // 種別は必須。未選択のまま保存させない（サーバー側でも同じ判定をしている）
+    var staffType = document.getElementById('csbStaffType').value;
+    if (!staffType) {
+        document.getElementById('csbStaffError').textContent = '種別を選んでください';
+        return;
+    }
+
     var fd = new FormData();
     fd.append('csrf', CSB_CSRF);
     fd.append('action', 'save_staff');
     fd.append('id',             document.getElementById('csbStaffId').value);
     fd.append('staff_name',     document.getElementById('csbStaffName').value.trim());
     fd.append('rep_name',       document.getElementById('csbStaffRepSel').value);
+    fd.append('staff_type',     staffType);
     fd.append('alliance_id',    document.getElementById('csbStaffAlliance').value);
     fd.append('affiliation',    document.getElementById('csbStaffAffil').value.trim());
     fd.append('skill_type',     document.getElementById('csbStaffSkill').value);
@@ -918,6 +943,14 @@ function csbOpenAssign(staffId) {
     var s = csbStaff.filter(function (x) { return x.id === staffId; })[0];
     if (!s) return;
     var c = csbSelectedCase;
+
+    // 人員の種別と案件の種別が食い違うときだけ確認する。
+    // OKなら今までどおりアサインでき、作られる案件の種別は案件（枠）の値のまま
+    if (s.staff_type && c.case_type && s.staff_type !== c.case_type) {
+        if (!confirm(s.staff_name + 'さんは「' + s.staff_type + '」ですが、この案件は「' + c.case_type + '」です。\n'
+                   + 'このままアサインを進めますか？')) return;
+    }
+
     document.getElementById('csbAssignError').textContent = '';
     document.getElementById('csbAssignStaffId').value = staffId;
     document.getElementById('csbAssignInfo').innerHTML =

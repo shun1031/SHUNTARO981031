@@ -382,6 +382,12 @@ $migrations = [
     "ALTER TABLE case_staff_candidates ADD COLUMN interview_done VARCHAR(4) DEFAULT NULL COMMENT '自社面談（済/未）'",
     "ALTER TABLE case_staff_candidates ADD COLUMN commute VARCHAR(60) DEFAULT NULL COMMENT '通勤方法'",
 
+    // ---- case_staff_candidates: 種別（常勤 / イベント） ----
+    // 「この人は常勤向きかイベント向きか」の目印。案件側の種別とは別物で、
+    // アサインで作られる案件の種別は従来どおり案件（枠）の値を使う。
+    // 既存の行は空欄（画面ではバッジなし）。読むのは案件人員一覧だけ
+    "ALTER TABLE case_staff_candidates ADD COLUMN staff_type VARCHAR(10) DEFAULT NULL COMMENT '種別（常勤/イベント）'",
+
     // ---- strategy_meeting_negotiations: 区分（光AD / 常勤 / イベント） ----
     // パートナー候補は案件がまだ無いため、案件データから区分を計算できない。
     // 戦略会議の候補一覧で区分を出せるように、商談報告フォームで直接持たせる。

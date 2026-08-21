@@ -28,6 +28,8 @@ $db = getDB();
 
 /** 人員のスキル感の選択肢 */
 const CSB_SKILL_TYPES = ['キャッチャー', 'クローザー'];
+/** 人員の種別（案件側の常勤・イベントと同じ言葉に揃えている） */
+const CSB_STAFF_TYPES = ['常勤', 'イベント'];
 /** 人員のアサイン状況 */
 const CSB_ASSIGN_STATUSES = ['検討中', 'アサイン済', '見送り'];
 /** スキルシートの有無 */
@@ -169,6 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'staff') 
             'rep_name'       => (string)$r['rep_name'],
             'affiliation'    => $aff,
             'alliance_id'    => $r['alliance_id'] !== null ? (int)$r['alliance_id'] : null,
+            'staff_type'     => (string)($r['staff_type'] ?? ''),
             'skill_type'     => (string)($r['skill_type'] ?? ''),
             'carrier'        => (string)($r['carrier'] ?? ''),
             'desired_price'  => $r['desired_price'] !== null ? (int)$r['desired_price'] : null,
@@ -308,6 +311,7 @@ if ($action === 'save_staff') {
     $empId     = ($_POST['employee_id'] ?? '') !== '' ? (int)$_POST['employee_id'] : null;
     $allianceId= ($_POST['alliance_id'] ?? '') !== '' ? (int)$_POST['alliance_id'] : null;
     $affil     = trim($_POST['affiliation'] ?? '');
+    $staffType = trim($_POST['staff_type'] ?? '');
     $skill     = trim($_POST['skill_type'] ?? '');
     $carrier   = trim($_POST['carrier'] ?? '');
     $price     = ($_POST['desired_price'] ?? '') !== '' ? max(0, (int)$_POST['desired_price']) : null;
@@ -319,6 +323,10 @@ if ($action === 'save_staff') {
 
     if ($name === '')    { echo json_encode(['error' => '氏名を入力してください']); exit; }
     if ($repName === '') { echo json_encode(['error' => '担当営業を選んでください']); exit; }
+    // 種別は必須。常勤・イベント以外の値は受け付けない
+    if (!in_array($staffType, CSB_STAFF_TYPES, true)) {
+        echo json_encode(['error' => '種別を選んでください'], JSON_UNESCAPED_UNICODE); exit;
+    }
     if ($skill !== '' && !in_array($skill, CSB_SKILL_TYPES, true)) $skill = '';
     if ($sheet !== '' && !in_array($sheet, CSB_SKILL_SHEETS, true)) $sheet = '';
     if ($interview !== '' && !in_array($interview, CSB_INTERVIEWS, true)) $interview = '';
@@ -345,22 +353,22 @@ if ($action === 'save_staff') {
         if ($id) {
             $db->prepare("UPDATE case_staff_candidates
                           SET staff_name=?, employee_id=?, rep_name=?, rep_employee_id=?, affiliation=?,
-                              alliance_id=?, skill_type=?, carrier=?, desired_price=?, available_from=?,
+                              alliance_id=?, staff_type=?, skill_type=?, carrier=?, desired_price=?, available_from=?,
                               skill_sheet=?, interview_done=?, commute=?, note=?, updated_at=NOW()
                           WHERE id=? AND company_id=?")
                ->execute([$name, $empId, $repName, $repEmpId, ($affil ?: null), $allianceId,
-                          ($skill ?: null), ($carrier ?: null), $price, ($from ?: null),
+                          $staffType, ($skill ?: null), ($carrier ?: null), $price, ($from ?: null),
                           ($sheet ?: null), ($interview ?: null), ($commute ?: null),
                           ($note ?: null), $id, $cid]);
             echo json_encode(['ok' => true, 'id' => $id], JSON_UNESCAPED_UNICODE);
         } else {
             $db->prepare("INSERT INTO case_staff_candidates
                           (company_id, staff_name, employee_id, rep_name, rep_employee_id, affiliation,
-                           alliance_id, skill_type, carrier, desired_price, available_from,
+                           alliance_id, staff_type, skill_type, carrier, desired_price, available_from,
                            skill_sheet, interview_done, commute, note)
-                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                ->execute([$cid, $name, $empId, $repName, $repEmpId, ($affil ?: null), $allianceId,
-                          ($skill ?: null), ($carrier ?: null), $price, ($from ?: null),
+                          $staffType, ($skill ?: null), ($carrier ?: null), $price, ($from ?: null),
                           ($sheet ?: null), ($interview ?: null), ($commute ?: null), ($note ?: null)]);
             echo json_encode(['ok' => true, 'id' => (int)$db->lastInsertId()], JSON_UNESCAPED_UNICODE);
         }

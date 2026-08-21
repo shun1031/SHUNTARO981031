@@ -189,7 +189,8 @@ function smNegotiationsByRep(PDO $db, int $companyId, int $endYm, int $targetYm,
                           JOIN strategy_meeting_negotiations n
                             ON n.id = r.negotiation_id AND n.company_id = r.company_id
                           LEFT JOIN sales_clients cl ON cl.id = n.client_id AND cl.company_id = n.company_id
-                          WHERE r.company_id = ?");
+                          WHERE r.company_id = ?
+                            AND (n.client_id IS NULL OR " . SM_CLIENT_ALIVE . ")");
     $stmt->execute([$companyId]);
 
     $out = [];
@@ -247,9 +248,11 @@ function smCaseKeysByRep(PDO $db, int $companyId, string $perWhere, array $perPa
         $out[$n][$key] = true;
     };
 
-    // 取引先（営業担当基準）
+    // 取引先（営業担当基準）※削除済みの取引先は数えない
     $stmt = $db->prepare("SELECT DISTINCT " . SM_REP_NAME . " AS name, sc.client_id
-        FROM sales_cases sc " . SM_REP_JOIN . "
+        FROM sales_cases sc
+        JOIN sales_clients cl ON sc.client_id = cl.id AND " . SM_CLIENT_ALIVE . "
+        " . SM_REP_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed' AND sc.client_id IS NOT NULL
           AND {$perWhere}");
     $stmt->execute(array_merge([$companyId], $perParams));
@@ -257,9 +260,11 @@ function smCaseKeysByRep(PDO $db, int $companyId, string $perWhere, array $perPa
         $add((string)$r['name'], smClientKey((int)$r['client_id']));
     }
 
-    // 外注先（管理者基準）
+    // 外注先（管理者基準）※削除済みの外注先は数えない
     $stmt = $db->prepare("SELECT DISTINCT " . SM_MGR_NAME . " AS name, sc.alliance_id
-        FROM sales_cases sc " . SM_MGR_JOIN . "
+        FROM sales_cases sc
+        JOIN sales_alliances al ON sc.alliance_id = al.id AND " . SM_ALLIANCE_ALIVE . "
+        " . SM_MGR_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND sc.worker_type = 'アライアンス' AND sc.alliance_id IS NOT NULL
           AND {$perWhere}");
@@ -327,6 +332,18 @@ function smTargetCount(PDO $db, int $companyId): int {
     }
     return 100;
 }
+
+/**
+ * パートナー数の集計から外す会社の見分け方。
+ *
+ * 取引先一覧・外注先一覧で「削除済み」にした会社は、パートナー数・パートナー候補数の
+ * どちらにも数えない（取引が終わった会社・倒産した会社をここで外す）。
+ * 案件・売上・粗利・給与・過去の履歴はそのまま残る。集計の見え方だけが変わる。
+ *
+ * ※過去の月にさかのぼって数が減る。「いま有効な会社だけを数える」という考え方のため
+ */
+const SM_CLIENT_ALIVE   = 'cl.is_active = 1';
+const SM_ALLIANCE_ALIVE = 'al.is_active = 1';
 
 /** 商談報告で選べるステータス */
 const SM_STATUSES = ['取引開始', '取引候補', '温度感低め', '合わない', '倒産', 'その他'];
@@ -593,9 +610,14 @@ if ($action === 'trend_companies') {
 
     // --- 商談報告 ---
     // 取引先が選ばれていない古い行（client_id が空）は、従来どおり会社名キーで数える
+    // 会社が削除済みになっている商談報告は数えない（取引終了・倒産した会社を外すため）
     $negs = [];
-    $stmt = $db->prepare('SELECT client_id, client_name_key, first_report_ym, candidate_ym, active_ym, excluded_ym
-                          FROM strategy_meeting_negotiations WHERE company_id = ?');
+    $stmt = $db->prepare('SELECT n.client_id, n.client_name_key, n.first_report_ym,
+                                 n.candidate_ym, n.active_ym, n.excluded_ym
+                          FROM strategy_meeting_negotiations n
+                          LEFT JOIN sales_clients cl ON cl.id = n.client_id AND cl.company_id = n.company_id
+                          WHERE n.company_id = ?
+                            AND (n.client_id IS NULL OR ' . SM_CLIENT_ALIVE . ')');
     $stmt->execute([$cid]);
     foreach ($stmt->fetchAll() as $r) {
         $k = $r['client_id'] !== null ? smClientKey((int)$r['client_id']) : 'N' . $r['client_name_key'];
@@ -622,7 +644,7 @@ if ($action === 'trend_companies') {
         $stmt = $db->prepare("SELECT cl.id AS client_id,
                                      MIN(sc.case_year * 100 + sc.case_month) AS first_ym
                               FROM sales_cases sc
-                              JOIN sales_clients cl ON sc.client_id = cl.id
+                              JOIN sales_clients cl ON sc.client_id = cl.id AND " . SM_CLIENT_ALIVE . "
                               " . SM_REP_JOIN . "
                               WHERE sc.company_id = ? AND sc.status = 'confirmed'
                                 AND " . SM_FY_WHERE . "
@@ -639,7 +661,7 @@ if ($action === 'trend_companies') {
         $stmt = $db->prepare("SELECT al.id AS alliance_id,
                                      MIN(sc.case_year * 100 + sc.case_month) AS first_ym
                               FROM sales_cases sc
-                              JOIN sales_alliances al ON sc.alliance_id = al.id
+                              JOIN sales_alliances al ON sc.alliance_id = al.id AND " . SM_ALLIANCE_ALIVE . "
                               " . SM_MGR_JOIN . "
                               WHERE sc.company_id = ? AND sc.status = 'confirmed'
                                 AND sc.worker_type = 'アライアンス'
@@ -810,11 +832,11 @@ if ($action === 'summary') {
     $allyMap  = smAllianceClientMap($db, $cid);
     $keys     = [];
 
-    // 取引先: 営業担当がその人たちの案件に出てくる取引先
+    // 取引先: 営業担当がその人たちの案件に出てくる取引先（削除済みは数えない）
     $clientSql = "
         SELECT DISTINCT cl.id AS client_id
         FROM sales_cases sc
-        JOIN sales_clients cl ON sc.client_id = cl.id
+        JOIN sales_clients cl ON sc.client_id = cl.id AND " . SM_CLIENT_ALIVE . "
         " . SM_REP_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND " . SM_FY_WHERE . "
@@ -825,11 +847,11 @@ if ($action === 'summary') {
         $keys[smClientKey((int)$clientId)] = true;
     }
 
-    // 外注先: 管理者がその人たちの、スタッフ区分アライアンスの案件に出てくる外注先
+    // 外注先: 管理者がその人たちの、スタッフ区分アライアンスの案件に出てくる外注先（削除済みは数えない）
     $allianceSql = "
         SELECT DISTINCT al.id AS alliance_id
         FROM sales_cases sc
-        JOIN sales_alliances al ON sc.alliance_id = al.id
+        JOIN sales_alliances al ON sc.alliance_id = al.id AND " . SM_ALLIANCE_ALIVE . "
         " . SM_MGR_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND sc.worker_type = 'アライアンス'
@@ -928,7 +950,7 @@ if ($action === 'companies') {
                {$frameExpr} AS frame_count,
                COALESCE(SUM(sc.revenue), 0) AS revenue
         FROM sales_cases sc
-        JOIN sales_clients cl ON sc.client_id = cl.id
+        JOIN sales_clients cl ON sc.client_id = cl.id AND " . SM_CLIENT_ALIVE . "
         " . SM_REP_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND {$perWhere}
@@ -963,7 +985,7 @@ if ($action === 'companies') {
                {$frameExpr} AS frame_count,
                COALESCE(SUM(sc.revenue), 0) AS revenue
         FROM sales_cases sc
-        JOIN sales_alliances al ON sc.alliance_id = al.id
+        JOIN sales_alliances al ON sc.alliance_id = al.id AND " . SM_ALLIANCE_ALIVE . "
         " . SM_MGR_JOIN . "
         WHERE sc.company_id = ? AND sc.status = 'confirmed'
           AND sc.worker_type = 'アライアンス'

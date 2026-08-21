@@ -334,6 +334,71 @@ foreach ($LIST as [$no, $listRep, $official, $kana, $memo]) {
     ];
 }
 
+// ============================================================
+// 画面上部の「○社 / 目標○社」の内訳を出す
+//   戦略会議の action=summary とまったく同じ条件で数え直し、
+//   その1社ずつが今回のリストに載っているかどうかを示す。
+//   ※summary は「営業担当（外注先は管理者）が営業マン一覧の人」の案件だけを数える
+// ============================================================
+$sumKeys = [];   // 会社の鍵 => ['name'=>表示名, 'kind'=>取引先/外注先]
+if ($repCandidates) {
+    $ph = implode(',', array_fill(0, count($repCandidates), '?'));
+
+    $s1 = $db->prepare("
+        SELECT DISTINCT cl.id AS cid, cl.client_name, cl.display_name
+        FROM sales_cases sc
+        JOIN sales_clients cl ON sc.client_id = cl.id
+        LEFT JOIN employees er ON er.id = sc.sales_rep_id AND er.company_id = sc.company_id
+        WHERE sc.company_id = ? AND sc.status = 'confirmed'
+          AND " . CP_FY_WHERE . "
+          AND COALESCE(er.name, sc.sales_rep) IN ({$ph})");
+    $s1->execute(array_merge([$cid], $fyParams, $repCandidates));
+    foreach ($s1->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $sumKeys['C' . (int)$r['cid']] = [
+            'name' => trim((string)$r['display_name']) ?: $r['client_name'], 'kind' => '取引先',
+        ];
+    }
+
+    $allyLink = [];
+    foreach ($allianceRows as $a) { $allyLink[(int)$a['id']] = $a['client_id'] !== null ? (int)$a['client_id'] : null; }
+
+    $s2 = $db->prepare("
+        SELECT DISTINCT al.id AS aid, al.alliance_name, al.display_name
+        FROM sales_cases sc
+        JOIN sales_alliances al ON sc.alliance_id = al.id
+        LEFT JOIN employees em ON em.id = sc.manager_id AND em.company_id = sc.company_id
+        WHERE sc.company_id = ? AND sc.status = 'confirmed'
+          AND sc.worker_type = 'アライアンス'
+          AND " . CP_FY_WHERE . "
+          AND COALESCE(em.name, sc.manager) IN ({$ph})");
+    $s2->execute(array_merge([$cid], $fyParams, $repCandidates));
+    foreach ($s2->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $aid    = (int)$r['aid'];
+        $linked = $allyLink[$aid] ?? null;
+        $key    = $linked ? 'C' . $linked : 'A' . $aid;
+        if (!isset($sumKeys[$key])) {
+            $sumKeys[$key] = [
+                'name' => (trim((string)$r['display_name']) ?: $r['alliance_name']) . '（外注先）', 'kind' => '外注先',
+            ];
+        }
+    }
+}
+// リストで特定できた取引先ID → その鍵
+$listKeys = [];
+foreach ($result as $r) {
+    if ($r['client']) $listKeys['C' . (int)$r['client']['id']] = $r;
+    foreach ($r['aHits'] as $a) {
+        $linked = $a['client_id'] !== null ? (int)$a['client_id'] : null;
+        $listKeys[$linked ? 'C' . $linked : 'A' . (int)$a['id']] = $r;
+    }
+}
+$sumInList  = [];   // 52社のうちリストに載っている
+$sumNotList = [];   // 52社のうちリストに載っていない ＝ ずれの原因
+foreach ($sumKeys as $k => $v) {
+    if (isset($listKeys[$k])) $sumInList[$k] = $v + ['no' => $listKeys[$k]['no']];
+    else                      $sumNotList[$k] = $v;
+}
+
 // ── 集計 ──
 $grpA = array_values(array_filter($result, fn($r) => $r['trading'] && $r['dupOf'] === null));
 $grpB = array_values(array_filter($result, fn($r) => $r['candidate']));
@@ -422,9 +487,82 @@ th { white-space:nowrap; }
   </div>
 </div>
 
+<!-- 上部の社数の内訳 -->
+<div class="card mb-4">
+  <div class="card-header bg-white fw-bold">
+    <i class="bi bi-calculator me-1"></i>2. 戦略会議 上部の「<?= count($sumKeys) ?>社 / 目標社数」の内訳
+  </div>
+  <div class="card-body">
+    <div class="small text-muted mb-3">
+      戦略会議の画面上部と<strong>まったく同じ条件</strong>で数え直しています
+      （今年度に確定案件があり、<strong>営業担当（外注先は管理者）が営業マン一覧の人</strong>の案件）。<br>
+      上の「A 現在取引中」は<strong>今回のリストに載っている会社だけ</strong>を数えているため、
+      リストに載っていない取引先のぶんだけ数が少なくなります。
+    </div>
+
+    <table class="table table-sm table-bordered bg-white w-auto mb-3">
+      <thead class="table-light"><tr><th>内訳</th><th class="nw">社数</th></tr></thead>
+      <tbody>
+        <tr class="fw-bold"><td>画面上部の社数（今年度に取引がある会社の合計）</td><td class="nw"><?= count($sumKeys) ?>社</td></tr>
+        <tr><td class="ps-4">├ 今回のリストに載っている</td><td class="nw"><?= count($sumInList) ?>社</td></tr>
+        <tr class="table-warning"><td class="ps-4">└ <strong>今回のリストに載っていない</strong>（＝ずれの原因）</td>
+            <td class="nw fw-bold"><?= count($sumNotList) ?>社</td></tr>
+      </tbody>
+    </table>
+
+    <div class="fw-semibold small mb-2">
+      取引があるのに今回のリストに載っていない会社（<?= count($sumNotList) ?>社）
+    </div>
+    <?php if (!$sumNotList): ?>
+      <div class="small text-success">該当なし</div>
+    <?php else: ?>
+      <div class="d-flex flex-wrap gap-1 mb-3">
+        <?php foreach ($sumNotList as $v): ?>
+          <span class="badge bg-warning text-dark border"><?= $h($v['name']) ?></span>
+        <?php endforeach; ?>
+      </div>
+      <div class="small text-muted">
+        これらは今年度に取引がありますが、いただいたパートナー候補リストには含まれていません。<br>
+        リストに追加すべき会社か、それとも意図的に外している会社かをご確認ください。
+      </div>
+    <?php endif; ?>
+
+    <?php
+    // Aに入っているのに上部の社数に入っていないもの（担当者が営業マン一覧の人でない等）
+    $aNotInSum = [];
+    foreach ($grpA as $r) {
+        $k = $r['client'] ? 'C' . (int)$r['client']['id'] : null;
+        $inSum = ($k !== null && isset($sumKeys[$k]));
+        if (!$inSum) {
+            foreach ($r['aHits'] as $a) {
+                $linked = $a['client_id'] !== null ? (int)$a['client_id'] : null;
+                if (isset($sumKeys[$linked ? 'C' . $linked : 'A' . (int)$a['id']])) { $inSum = true; break; }
+            }
+        }
+        if (!$inSum) $aNotInSum[] = $r;
+    }
+    if ($aNotInSum): ?>
+    <div class="mt-3 pt-3 border-top">
+      <div class="fw-semibold small mb-2 text-danger">
+        逆に「A 現在取引中」なのに、上部の社数に入っていない会社（<?= count($aNotInSum) ?>社）
+      </div>
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        <?php foreach ($aNotInSum as $r): ?>
+          <span class="badge bg-light text-dark border"><?= $r['no'] ?>. <?= $h($r['official']) ?></span>
+        <?php endforeach; ?>
+      </div>
+      <div class="small text-muted">
+        案件はありますが、その案件の営業担当（外注先は管理者）が「営業マン一覧の人」ではないため、
+        上部の社数には数えられていません（担当が「直営業」「該当者なし」などの場合）。
+      </div>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+
 <!-- 照合表 -->
 <div class="card mb-4">
-  <div class="card-header bg-white fw-bold"><i class="bi bi-table me-1"></i>2. 102件の照合表</div>
+  <div class="card-header bg-white fw-bold"><i class="bi bi-table me-1"></i>3. 102件の照合表</div>
   <div class="card-body">
     <div class="table-responsive sticky" style="max-height:70vh">
       <table class="table table-sm table-bordered table-hover bg-white mb-0">

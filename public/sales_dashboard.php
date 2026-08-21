@@ -1406,11 +1406,13 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="col-md-6 text-center">
                             <div class="text-muted small mb-1" style="font-size:.72rem;font-weight:600">区分別売上（1次・2次以降）</div>
                             <div class="sales-chart-wrap" style="height:130px"><canvas id="caseDivisionChart"></canvas></div>
+                            <?php /* 件数は出さず金額と構成比だけにする（件数の集計 $divCnt は
+                                      「未設定」を出すかどうかの判定に使うので残してある） */ ?>
                             <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <div><span style="color:#3b82f6">●</span> 1次 <strong><?= number_format($divRev['first']) ?>円</strong>
-                                    （<?= $_divPct($divRev['first'], $divFirstTotal) ?>%）<span class="text-muted"><?= $divCnt['first'] ?>件</span></div>
+                                    （<?= $_divPct($divRev['first'], $divFirstTotal) ?>%）</div>
                                 <div><span style="color:#059669">●</span> 2次以降 <strong><?= number_format($divRev['second']) ?>円</strong>
-                                    （<?= $_divPct($divRev['second'], $divFirstTotal) ?>%）<span class="text-muted"><?= $divCnt['second'] ?>件</span></div>
+                                    （<?= $_divPct($divRev['second'], $divFirstTotal) ?>%）</div>
                             </div>
                         </div>
                         <!-- ② 1次の内訳 -->
@@ -1419,15 +1421,15 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="sales-chart-wrap" style="height:130px"><canvas id="firstBudgetChart"></canvas></div>
                             <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <div><span style="color:#3b82f6">●</span> キャリア常勤 <strong><?= number_format($divRev['carrier']) ?>円</strong>
-                                    （<?= $_divPct($divRev['carrier'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['carrier'] ?>件</span></div>
+                                    （<?= $_divPct($divRev['carrier'], $divRev['first']) ?>%）</div>
                                 <div><span style="color:#059669">●</span> 代理店常勤 <strong><?= number_format($divRev['agency']) ?>円</strong>
-                                    （<?= $_divPct($divRev['agency'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['agency'] ?>件</span></div>
+                                    （<?= $_divPct($divRev['agency'], $divRev['first']) ?>%）</div>
                                 <div><span style="color:#f59e0b">●</span> イベント <strong><?= number_format($divRev['event']) ?>円</strong>
-                                    （<?= $_divPct($divRev['event'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['event'] ?>件</span></div>
+                                    （<?= $_divPct($divRev['event'], $divRev['first']) ?>%）</div>
                                 <?php if ($divRev['unset'] > 0 || $divCnt['unset'] > 0): ?>
                                 <!-- 予算区分が未入力の常勤1次。入力が済めば自動的に消える -->
                                 <div><span style="color:#9ca3af">●</span> 未設定 <strong><?= number_format($divRev['unset']) ?>円</strong>
-                                    （<?= $_divPct($divRev['unset'], $divRev['first']) ?>%）<span class="text-muted"><?= $divCnt['unset'] ?>件</span></div>
+                                    （<?= $_divPct($divRev['unset'], $divRev['first']) ?>%）</div>
                                 <?php endif; ?>
                             </div>
                         </div>

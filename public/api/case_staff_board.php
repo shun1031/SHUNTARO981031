@@ -30,6 +30,10 @@ $db = getDB();
 const CSB_SKILL_TYPES = ['キャッチャー', 'クローザー'];
 /** 人員のアサイン状況 */
 const CSB_ASSIGN_STATUSES = ['検討中', 'アサイン済', '見送り'];
+/** スキルシートの有無 */
+const CSB_SKILL_SHEETS = ['有', '無'];
+/** 自社面談の状況 */
+const CSB_INTERVIEWS = ['済', '未'];
 
 // 追加・編集・削除は管理者のみ
 if ($_SERVER['REQUEST_METHOD'] === 'POST') { requireAdminWrite(true); }
@@ -60,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'cases') 
         $sql = "SELECT sc.id, sc.case_type, sc.case_year, sc.case_month, sc.carrier, sc.trade_name,
                        sc.store_name, sc.start_date, sc.end_date, sc.worker_name, sc.worker_type,
                        sc.recruitment_count, sc.status, sc.case_division, sc.note,
-                       sc.unit_price_in, sc.unit_price_out,
+                       sc.unit_price_in, sc.unit_price_out, sc.updated_at,
                        COALESCE(er.name, sc.sales_rep) AS rep_name,
                        " . clientLabelSql('cl') . " AS client_name,
                        " . allianceLabelSql('al') . " AS alliance_name,
@@ -99,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'cases') 
             'note'           => (string)($r['note'] ?? ''),
             'unit_price_in'  => (int)round((float)($r['unit_price_in'] ?? 0)),
             'unit_price_out' => (int)round((float)($r['unit_price_out'] ?? 0)),
+            'updated_at'     => (string)($r['updated_at'] ?? ''),
             'client_name' => (string)($r['client_name'] ?? ''),
             'carrier'     => (string)($r['carrier'] ?? ''),
             'trade_name'  => (string)($r['trade_name'] ?? ''),
@@ -168,6 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'staff') 
             'carrier'        => (string)($r['carrier'] ?? ''),
             'desired_price'  => $r['desired_price'] !== null ? (int)$r['desired_price'] : null,
             'available_from' => (string)($r['available_from'] ?? ''),
+            'skill_sheet'    => (string)($r['skill_sheet'] ?? ''),
+            'interview_done' => (string)($r['interview_done'] ?? ''),
+            'commute'        => (string)($r['commute'] ?? ''),
             'note'           => (string)($r['note'] ?? ''),
             'assign_status'  => (string)$r['assign_status'],
             'assigned_client'=> (string)($r['assigned_client'] ?? ''),
@@ -305,10 +313,15 @@ if ($action === 'save_staff') {
     $price     = ($_POST['desired_price'] ?? '') !== '' ? max(0, (int)$_POST['desired_price']) : null;
     $from      = trim($_POST['available_from'] ?? '');
     $note      = trim($_POST['note'] ?? '');
+    $sheet     = trim($_POST['skill_sheet'] ?? '');
+    $interview = trim($_POST['interview_done'] ?? '');
+    $commute   = trim($_POST['commute'] ?? '');
 
     if ($name === '')    { echo json_encode(['error' => '氏名を入力してください']); exit; }
     if ($repName === '') { echo json_encode(['error' => '担当営業を選んでください']); exit; }
     if ($skill !== '' && !in_array($skill, CSB_SKILL_TYPES, true)) $skill = '';
+    if ($sheet !== '' && !in_array($sheet, CSB_SKILL_SHEETS, true)) $sheet = '';
+    if ($interview !== '' && !in_array($interview, CSB_INTERVIEWS, true)) $interview = '';
     if ($from !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = '';
 
     // 同じ人を二重に登録しない（検討中のうちは氏名で重複を止める）
@@ -333,19 +346,22 @@ if ($action === 'save_staff') {
             $db->prepare("UPDATE case_staff_candidates
                           SET staff_name=?, employee_id=?, rep_name=?, rep_employee_id=?, affiliation=?,
                               alliance_id=?, skill_type=?, carrier=?, desired_price=?, available_from=?,
-                              note=?, updated_at=NOW()
+                              skill_sheet=?, interview_done=?, commute=?, note=?, updated_at=NOW()
                           WHERE id=? AND company_id=?")
                ->execute([$name, $empId, $repName, $repEmpId, ($affil ?: null), $allianceId,
                           ($skill ?: null), ($carrier ?: null), $price, ($from ?: null),
+                          ($sheet ?: null), ($interview ?: null), ($commute ?: null),
                           ($note ?: null), $id, $cid]);
             echo json_encode(['ok' => true, 'id' => $id], JSON_UNESCAPED_UNICODE);
         } else {
             $db->prepare("INSERT INTO case_staff_candidates
                           (company_id, staff_name, employee_id, rep_name, rep_employee_id, affiliation,
-                           alliance_id, skill_type, carrier, desired_price, available_from, note)
-                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+                           alliance_id, skill_type, carrier, desired_price, available_from,
+                           skill_sheet, interview_done, commute, note)
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                ->execute([$cid, $name, $empId, $repName, $repEmpId, ($affil ?: null), $allianceId,
-                          ($skill ?: null), ($carrier ?: null), $price, ($from ?: null), ($note ?: null)]);
+                          ($skill ?: null), ($carrier ?: null), $price, ($from ?: null),
+                          ($sheet ?: null), ($interview ?: null), ($commute ?: null), ($note ?: null)]);
             echo json_encode(['ok' => true, 'id' => (int)$db->lastInsertId()], JSON_UNESCAPED_UNICODE);
         }
     } catch (PDOException $e) {

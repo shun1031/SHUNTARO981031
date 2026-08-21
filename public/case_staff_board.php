@@ -33,6 +33,7 @@ $staffCandidates = getStaffNameCandidates($cid, false);
 
 $carriers   = ['docomo', 'au', 'SB', '楽天', 'CATV', 'コミュファ'];
 $skillTypes = ['キャッチャー', 'クローザー'];
+$commuteOptions = ['電車（60分以内）', '電車（90分以内）', '車', '自転車・徒歩', 'その他'];
 $workerTypes= ['正社員', '自社外注', 'アライアンス', '個人外注', 'アルバイト'];
 
 require_once __DIR__ . '/../includes/header.php';
@@ -48,9 +49,9 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
-    <div class="row g-3">
-        <!-- ============ 左：案件 ============ -->
-        <div class="col-lg-7">
+    <div class="csb-cols">
+        <!-- ============ 左：案件（画像に合わせて47%）============ -->
+        <div class="csb-col csb-col-case">
             <div class="card csb-panel h-100">
                 <div class="card-header csb-head">
                     <div class="d-flex align-items-center flex-wrap gap-2">
@@ -83,8 +84,27 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="csb-list" id="csbCaseList">
-                        <div class="csb-empty"><span class="spinner-border spinner-border-sm me-2"></span>読み込み中...</div>
+                    <div class="csb-tablewrap">
+                        <table class="csb-table" id="csbCaseTable">
+                            <thead>
+                                <tr>
+                                    <th class="c-name">案件名</th>
+                                    <th class="c-carrier">キャリア</th>
+                                    <th class="c-store">勤務地/店舗</th>
+                                    <th class="c-period">期間（予定）</th>
+                                    <th class="c-need">必要人員</th>
+                                    <th class="c-assign">アサイン状況</th>
+                                    <th class="c-memo lv2">担当者メモ</th>
+                                    <th class="c-updated lv3">最終更新日</th>
+                                    <th class="c-act"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="csbCaseList">
+                                <tr><td colspan="9" class="csb-empty">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>読み込み中...
+                                </td></tr>
+                            </tbody>
+                        </table>
                     </div>
                     <div class="csb-more">
                         <span class="csb-count" id="csbCaseCount"></span>
@@ -96,8 +116,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
 
-        <!-- ============ 右：人員 ============ -->
-        <div class="col-lg-5">
+        <!-- ============ 右：人員（画像に合わせて53%）============ -->
+        <div class="csb-col csb-col-staff">
             <div class="card csb-panel h-100">
                 <div class="card-header csb-head">
                     <div class="d-flex align-items-center flex-wrap gap-2">
@@ -125,8 +145,29 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="csb-list" id="csbStaffList">
-                        <div class="csb-empty"><span class="spinner-border spinner-border-sm me-2"></span>読み込み中...</div>
+                    <div class="csb-tablewrap">
+                        <table class="csb-table" id="csbStaffTable">
+                            <thead>
+                                <tr>
+                                    <th class="s-name">氏名</th>
+                                    <th class="s-affil lv3">所属</th>
+                                    <th class="s-skill">スキル感</th>
+                                    <th class="s-from">開始時期</th>
+                                    <th class="s-carrier">希望キャリア</th>
+                                    <th class="s-price">希望単価</th>
+                                    <th class="s-sheet">スキルシート</th>
+                                    <th class="s-interview">自社面談</th>
+                                    <th class="s-commute">通勤方法</th>
+                                    <th class="s-note lv2">備考</th>
+                                    <th class="s-act"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="csbStaffList">
+                                <tr><td colspan="11" class="csb-empty">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>読み込み中...
+                                </td></tr>
+                            </tbody>
+                        </table>
                     </div>
                     <div class="csb-more">
                         <span class="csb-count" id="csbStaffCount"></span>
@@ -222,6 +263,32 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="col-6">
                         <label class="form-label small fw-medium mb-1">稼働開始可能日</label>
                         <input type="date" id="csbStaffFrom" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-medium mb-1">スキルシート</label>
+                        <select id="csbStaffSheet" class="form-select form-select-sm">
+                            <option value="">-- 未設定 --</option>
+                            <option value="有">有</option>
+                            <option value="無">無</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-medium mb-1">自社面談</label>
+                        <select id="csbStaffInterview" class="form-select form-select-sm">
+                            <option value="">-- 未設定 --</option>
+                            <option value="済">済</option>
+                            <option value="未">未</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small fw-medium mb-1">通勤方法</label>
+                        <input type="text" id="csbStaffCommute" class="form-control form-control-sm"
+                               list="csbCommuteList" placeholder="選択または入力" autocomplete="off">
+                        <datalist id="csbCommuteList">
+                            <?php foreach ($commuteOptions as $_co): ?>
+                            <option value="<?= h($_co) ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
                     </div>
                     <div class="col-12">
                         <label class="form-label small fw-medium mb-1">備考</label>
@@ -421,24 +488,48 @@ require_once __DIR__ . '/../includes/header.php';
 .csb-filter-btn:hover { background: #f8fafc; }
 .csb-filter-btn.is-active { background: #2563eb; border-color: #2563eb; color: #fff; }
 
-/* 一覧。開いてもページが伸びきらないようスクロール領域にする */
-.csb-list { max-height: 460px; overflow-y: auto; }
-.csb-row {
-    display: flex; gap: .6rem; align-items: flex-start;
-    padding: .65rem 1rem; border-bottom: 1px solid #f1f5f9; cursor: default;
+/* 左右の並び。画像に合わせて 案件47% : 人員53%（人員のほうが列が多いため） */
+.csb-cols { display: flex; flex-wrap: wrap; gap: 1rem; }
+.csb-col-case  { flex: 1 1 47%; min-width: 0; }
+.csb-col-staff { flex: 1 1 53%; min-width: 0; }
+@media (max-width: 991.98px) {
+    .csb-col-case, .csb-col-staff { flex: 1 1 100%; }
 }
-.csb-row:last-child { border-bottom: none; }
-.csb-row.is-hidden { display: none; }
-.csb-row-main { flex: 1 1 auto; min-width: 0; }
-.csb-row-side { flex: 0 0 auto; text-align: right; }
-.csb-name { font-size: .84rem; font-weight: 600; color: #1e293b; }
-.csb-sub { font-size: .74rem; color: #64748b; margin-top: .15rem; }
-.csb-sub span + span::before { content: '／'; color: #cbd5e1; margin: 0 .35rem; }
 
-/* 案件は選択できる（アサイン先になる） */
-.csb-row.csb-selectable { cursor: pointer; }
-.csb-row.csb-selectable:hover { background: #f8fafc; }
-.csb-row.is-selected { background: #eff6ff; box-shadow: inset 3px 0 0 #2563eb; }
+/* 一覧の表。開いてもページが伸びきらないようスクロール領域にする（縦だけ） */
+.csb-tablewrap { max-height: 460px; overflow-y: auto; overflow-x: hidden; }
+.csb-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.csb-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    font-size: .7rem; font-weight: 600; color: #64748b;
+    padding: .45rem .5rem; text-align: left; white-space: nowrap;
+}
+.csb-table tbody td {
+    font-size: .74rem; color: #334155;
+    padding: .5rem .5rem; border-bottom: 1px solid #f1f5f9;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.csb-table tbody tr:last-child td { border-bottom: none; }
+.csb-strong { font-weight: 600; color: #1e293b; }
+
+/* 幅が足りないときに隠す列。lv2から先に隠れる */
+.csb-table.hide-lv2 .lv2 { display: none; }
+.csb-table.hide-lv3 .lv3 { display: none; }
+
+/* メモ・備考は長くなるので上限を決めて省略表示にする */
+.csb-table .c-memo, .csb-table .s-note { max-width: 150px; }
+.csb-table .c-name { max-width: 190px; }
+.csb-table .c-store, .csb-table .s-affil, .csb-table .s-commute { max-width: 130px; }
+.csb-table .c-need, .csb-table .s-sheet, .csb-table .s-interview { text-align: center; }
+.csb-table .s-price { text-align: right; }
+.csb-table .c-act, .csb-table .s-act { text-align: right; }
+
+.csb-tr.is-hidden { display: none; }
+/* 案件はクリックでアサイン先に選べる */
+.csb-tr.csb-selectable { cursor: pointer; }
+.csb-tr.csb-selectable:hover { background: #f8fafc; }
+.csb-tr.is-selected { background: #eff6ff; box-shadow: inset 3px 0 0 #2563eb; }
 
 .csb-chip {
     display: inline-block; padding: .05rem .45rem; border-radius: .7rem;
@@ -448,11 +539,6 @@ require_once __DIR__ . '/../includes/header.php';
 .csb-chip-ok   { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 .csb-chip-warn { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
 .csb-chip-lack { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-
-/* 行ごとの編集・削除（常勤案件一覧と同じボタンを使う） */
-.csb-actions { display: flex; gap: .25rem; justify-content: flex-end; margin-top: .3rem; }
-.csb-actions .btn { padding: .15rem .45rem; line-height: 1.1; }
-.csb-actions .btn i { font-size: .78rem; }
 
 .csb-empty { padding: 1.6rem 1rem; text-align: center; color: #94a3b8; font-size: .82rem; }
 .csb-more {
@@ -499,6 +585,39 @@ function csbEsc(s) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+/** 2026-08-19 14:30:00 → 08/19 14:30 */
+function csbDateTime(s) {
+    if (!s) return '-';
+    var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s));
+    if (!m) return csbDate(s);
+    return m[2] + '/' + m[3] + ' ' + m[4] + ':' + m[5];
+}
+
+/**
+ * 表の幅を測って、入りきらない列を隠す。
+ * 画面の解像度や拡大率が何であっても横スクロールが出ないようにするため、
+ * 決め打ちの画面幅ではなく「実際の枠の幅」で判断する。
+ * lv2 = 先に隠す（担当者メモ・備考） / lv3 = 次に隠す（最終更新日・所属）
+ */
+function csbFitColumns() {
+    [['csbCaseTable', 9], ['csbStaffTable', 11]].forEach(function (t) {
+        var table = document.getElementById(t[0]);
+        if (!table) return;
+        var wrap = table.parentElement;
+
+        // いったん全部出してから、はみ出す分だけ順に隠す
+        table.classList.remove('hide-lv2', 'hide-lv3');
+        if (table.scrollWidth > wrap.clientWidth) table.classList.add('hide-lv2');
+        if (table.scrollWidth > wrap.clientWidth) table.classList.add('hide-lv3');
+    });
+}
+
+var csbFitTimer = null;
+window.addEventListener('resize', function () {
+    clearTimeout(csbFitTimer);
+    csbFitTimer = setTimeout(csbFitColumns, 150);
+});
 
 /** 2026-04-01 → 26/4 のように短く表示する */
 function csbDate(s) {
@@ -549,7 +668,7 @@ function csbLoadCases() {
 function csbRenderCases() {
     var box = document.getElementById('csbCaseList');
     if (!csbCases.length) {
-        box.innerHTML = '<div class="csb-empty">該当する案件がありません</div>';
+        box.innerHTML = '<tr><td colspan="9" class="csb-empty">該当する案件がありません</td></tr>';
         document.getElementById('csbCaseCount').textContent = '0件';
         document.getElementById('csbCaseMore').classList.add('d-none');
         return;
@@ -559,24 +678,20 @@ function csbRenderCases() {
         var hidden = (!csbCaseOpen && i >= CSB_LIMIT) ? ' is-hidden' : '';
         var sel    = (csbSelectedCase && csbSelectedCase.id === c.id) ? ' is-selected' : '';
 
-        // 必要人数に対する充足バッジ
-        var badge = '';
+        // アサイン状況。残り人数で色を変える（赤=誰も居ない / 黄=あと少し / 緑=充足）
+        var assign;
         if (c.need_count !== null && c.need_count !== undefined) {
-            var cls = c.remaining === 0 ? 'csb-chip-ok' : (c.remaining <= 1 ? 'csb-chip-warn' : 'csb-chip-lack');
-            badge = '<span class="csb-chip ' + cls + '">必要' + c.need_count + '名'
-                  + '（済' + c.assigned + '／残' + c.remaining + '）</span>';
-        } else if (c.worker_name) {
-            badge = '<span class="csb-chip csb-chip-type">稼働者あり</span>';
+            var cls = c.remaining === 0 ? 'csb-chip-ok' : (c.assigned === 0 ? 'csb-chip-lack' : 'csb-chip-warn');
+            assign = '<span class="csb-chip ' + cls + '">アサイン済（' + c.assigned + '名）</span>';
+        } else {
+            assign = c.worker_name
+                ? '<span class="csb-chip csb-chip-ok">稼働者あり</span>'
+                : '<span class="csb-chip csb-chip-type">未設定</span>';
         }
 
-        var sub = [];
-        if (c.carrier)    sub.push('<span>' + csbEsc(c.carrier) + '</span>');
-        if (c.trade_name) sub.push('<span>' + csbEsc(c.trade_name) + '</span>');
-        if (c.store_name) sub.push('<span>' + csbEsc(c.store_name) + '</span>');
+        var period = c.start_date ? csbDate(c.start_date) + '〜' + (c.end_date ? csbDate(c.end_date) : '長期') : '-';
+        var store  = [c.trade_name, c.store_name].filter(Boolean).join(' / ') || '-';
 
-        var period = c.start_date ? csbDate(c.start_date) + (c.end_date ? '〜' + csbDate(c.end_date) : '〜') : '';
-
-        // 編集・削除（管理者のみ）。行の選択と重ならないよう、押したときは選択を止める
         var actions = CSB_CAN_EDIT
             ? '<div class="csb-actions" onclick="event.stopPropagation()">'
             +   '<button type="button" class="btn btn-sm btn-outline-primary" title="編集" onclick="csbOpenCaseForm(' + c.id + ')"><i class="bi bi-pencil"></i></button>'
@@ -584,22 +699,18 @@ function csbRenderCases() {
             + '</div>'
             : '';
 
-        html += '<div class="csb-row csb-selectable' + hidden + sel + '" data-id="' + c.id + '" onclick="csbSelectCase(' + c.id + ')">'
-             +    '<div class="csb-row-main">'
-             +      '<div class="csb-name">'
-             +        '<span class="csb-chip csb-chip-type me-1">' + csbEsc(c.case_type) + '</span>'
-             +        csbEsc(c.client_name || '（取引先未設定）')
-             +      '</div>'
-             +      '<div class="csb-sub">' + sub.join('') + '</div>'
-             +      '<div class="csb-sub">' + csbEsc(period)
-             +        (c.worker_name ? ' <span>' + csbEsc(c.worker_name) + '</span>' : '') + '</div>'
-             +    '</div>'
-             +    '<div class="csb-row-side">'
-             +      badge
-             +      '<div class="csb-sub">' + csbEsc(c.rep_name || '担当なし') + '</div>'
-             +      actions
-             +    '</div>'
-             +  '</div>';
+        html += '<tr class="csb-tr csb-selectable' + hidden + sel + '" onclick="csbSelectCase(' + c.id + ')">'
+             +    '<td class="c-name"><span class="csb-chip csb-chip-type me-1">' + csbEsc(c.case_type) + '</span>'
+             +      '<span class="csb-strong">' + csbEsc(c.client_name || '（取引先未設定）') + '</span></td>'
+             +    '<td class="c-carrier">' + csbEsc(c.carrier || '-') + '</td>'
+             +    '<td class="c-store">' + csbEsc(store) + '</td>'
+             +    '<td class="c-period">' + csbEsc(period) + '</td>'
+             +    '<td class="c-need">' + (c.need_count !== null && c.need_count !== undefined ? c.need_count + '名' : '-') + '</td>'
+             +    '<td class="c-assign">' + assign + '</td>'
+             +    '<td class="c-memo lv2">' + csbEsc(c.note || '-') + '</td>'
+             +    '<td class="c-updated lv3">' + csbEsc(csbDateTime(c.updated_at)) + '</td>'
+             +    '<td class="c-act">' + actions + '</td>'
+             +  '</tr>';
     });
     box.innerHTML = html;
 
@@ -609,6 +720,7 @@ function csbRenderCases() {
     more.classList.toggle('d-none', csbCases.length <= CSB_LIMIT);
     more.querySelector('span').textContent = csbCaseOpen ? '5件だけ表示' : 'すべての案件を表示（全' + csbCases.length + '件）';
     more.querySelector('i').className = csbCaseOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+    csbFitColumns();
 }
 
 /** 案件を選ぶ（アサイン先になる）。営業担当のプルダウンには一切影響しない */
@@ -654,59 +766,54 @@ function csbLoadStaff() {
 function csbRenderStaff() {
     var box = document.getElementById('csbStaffList');
     if (!csbStaff.length) {
-        box.innerHTML = '<div class="csb-empty">'
-                      + (csbStaffShow === 'assigned' ? 'アサイン済みの人員はいません'
-                                                     : '検討中の人員がいません')
-                      + '</div>';
+        box.innerHTML = '<tr><td colspan="11" class="csb-empty">'
+                      + (csbStaffShow === 'assigned' ? 'アサイン済みの人員はいません' : '検討中の人員がいません')
+                      + '</td></tr>';
         document.getElementById('csbStaffCount').textContent = '0名';
         document.getElementById('csbStaffMore').classList.add('d-none');
         return;
     }
+    var assigned = (csbStaffShow === 'assigned');
     var html = '';
     csbStaff.forEach(function (s, i) {
         var hidden = (!csbStaffOpen && i >= CSB_LIMIT) ? ' is-hidden' : '';
-        var sub = [];
-        if (s.affiliation)   sub.push('<span>' + csbEsc(s.affiliation) + '</span>');
-        if (s.skill_type)    sub.push('<span>' + csbEsc(s.skill_type) + '</span>');
-        if (s.carrier)       sub.push('<span>' + csbEsc(s.carrier) + '</span>');
 
-        var sub2 = [];
-        if (s.available_from) sub2.push('<span>' + csbDate(s.available_from) + '〜</span>');
-        if (s.desired_price)  sub2.push('<span>' + Number(s.desired_price).toLocaleString() + '円</span>');
-
-        // 編集・削除（管理者のみ）。アサイン済みの人は候補リストを直せないので出さない
-        var actions = (CSB_CAN_EDIT && csbStaffShow !== 'assigned')
-            ? '<div class="csb-actions">'
-            +   '<button type="button" class="btn btn-sm btn-outline-primary" title="編集" onclick="csbOpenStaffForm(' + s.id + ')"><i class="bi bi-pencil"></i></button>'
-            +   '<button type="button" class="btn btn-sm btn-outline-danger" title="削除" onclick="csbDeleteStaffRow(' + s.id + ')"><i class="bi bi-trash"></i></button>'
-            + '</div>'
-            : '';
-
-        var side = '';
-        if (csbStaffShow === 'assigned') {
-            side = '<span class="csb-chip csb-chip-ok">アサイン済</span>'
-                 + '<div class="csb-sub">' + csbEsc(s.assigned_client || '') + '</div>'
-                 + (CSB_CAN_EDIT ? '<button type="button" class="btn btn-link btn-sm p-0 text-secondary" style="font-size:.72rem" onclick="csbUnassign(' + s.id + ')">取り消し</button>' : '');
+        // 右端は状況によって中身が変わる（アサインボタン / アサイン済の表示）
+        var act;
+        if (assigned) {
+            act = '<div class="csb-actions">'
+                + '<span class="csb-chip csb-chip-ok">アサイン済</span>'
+                + (CSB_CAN_EDIT ? '<button type="button" class="btn btn-sm btn-outline-secondary" title="取り消し" onclick="csbUnassign(' + s.id + ')"><i class="bi bi-arrow-counterclockwise"></i></button>' : '')
+                + '</div>';
         } else if (CSB_CAN_EDIT) {
             var can = !!csbSelectedCase;
-            side = '<button type="button" class="btn btn-sm ' + (can ? 'btn-primary' : 'btn-outline-secondary')
-                 + '" style="font-size:.72rem;padding:.15rem .5rem" '
-                 + (can ? '' : 'disabled title="先に左の案件を選んでください" ')
-                 + 'onclick="csbOpenAssign(' + s.id + ')">アサイン</button>'
-                 + '<div class="csb-sub">' + csbEsc(s.rep_name || '担当なし') + '</div>'
-                 + actions;
+            act = '<div class="csb-actions">'
+                + '<button type="button" class="btn btn-sm ' + (can ? 'btn-primary' : 'btn-outline-secondary') + '" '
+                +   (can ? '' : 'disabled title="先に左の案件を選んでください" ')
+                +   'onclick="csbOpenAssign(' + s.id + ')">アサイン</button>'
+                + '<button type="button" class="btn btn-sm btn-outline-primary" title="編集" onclick="csbOpenStaffForm(' + s.id + ')"><i class="bi bi-pencil"></i></button>'
+                + '<button type="button" class="btn btn-sm btn-outline-danger" title="削除" onclick="csbDeleteStaffRow(' + s.id + ')"><i class="bi bi-trash"></i></button>'
+                + '</div>';
         } else {
-            side = '<div class="csb-sub">' + csbEsc(s.rep_name || '担当なし') + '</div>';
+            act = '';
         }
 
-        html += '<div class="csb-row' + hidden + '">'
-             +    '<div class="csb-row-main">'
-             +      '<div class="csb-name">' + csbEsc(s.staff_name) + '</div>'
-             +      '<div class="csb-sub">' + sub.join('') + '</div>'
-             +      (sub2.length ? '<div class="csb-sub">' + sub2.join('') + '</div>' : '')
-             +    '</div>'
-             +    '<div class="csb-row-side">' + side + '</div>'
-             +  '</div>';
+        var price = s.desired_price ? Number(s.desired_price).toLocaleString() + '円' : '-';
+        var note  = assigned ? (s.assigned_client || '-') : (s.note || '-');
+
+        html += '<tr class="csb-tr' + hidden + '">'
+             +    '<td class="s-name"><span class="csb-strong">' + csbEsc(s.staff_name) + '</span></td>'
+             +    '<td class="s-affil lv3">' + csbEsc(s.affiliation || '-') + '</td>'
+             +    '<td class="s-skill">' + csbEsc(s.skill_type || '-') + '</td>'
+             +    '<td class="s-from">' + csbEsc(s.available_from ? csbDate(s.available_from) : '-') + '</td>'
+             +    '<td class="s-carrier">' + csbEsc(s.carrier || '-') + '</td>'
+             +    '<td class="s-price">' + csbEsc(price) + '</td>'
+             +    '<td class="s-sheet">' + csbEsc(s.skill_sheet || '-') + '</td>'
+             +    '<td class="s-interview">' + csbEsc(s.interview_done || '-') + '</td>'
+             +    '<td class="s-commute">' + csbEsc(s.commute || '-') + '</td>'
+             +    '<td class="s-note lv2">' + csbEsc(note) + '</td>'
+             +    '<td class="s-act">' + act + '</td>'
+             +  '</tr>';
     });
     box.innerHTML = html;
 
@@ -716,6 +823,7 @@ function csbRenderStaff() {
     more.classList.toggle('d-none', csbStaff.length <= CSB_LIMIT);
     more.querySelector('span').textContent = csbStaffOpen ? '5名だけ表示' : 'すべての人員を表示（全' + csbStaff.length + '名）';
     more.querySelector('i').className = csbStaffOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+    csbFitColumns();
 }
 
 /** すべて表示 / 5件に戻す。通信はせず、隠している行を出し入れするだけ */
@@ -740,6 +848,9 @@ function csbOpenStaffForm(id) {
     document.getElementById('csbStaffCarrier').value  = s ? (s.carrier || '') : '';
     document.getElementById('csbStaffPrice').value    = s && s.desired_price ? s.desired_price : '';
     document.getElementById('csbStaffFrom').value     = s ? (s.available_from || '') : '';
+    document.getElementById('csbStaffSheet').value     = s ? (s.skill_sheet || '') : '';
+    document.getElementById('csbStaffInterview').value = s ? (s.interview_done || '') : '';
+    document.getElementById('csbStaffCommute').value   = s ? (s.commute || '') : '';
     document.getElementById('csbStaffNote').value     = s ? (s.note || '') : '';
     document.getElementById('csbStaffDelete').style.display = s ? '' : 'none';
     if (!csbStaffModal) csbStaffModal = new bootstrap.Modal(document.getElementById('csbStaffModal'));
@@ -759,6 +870,9 @@ function csbSaveStaff() {
     fd.append('carrier',        document.getElementById('csbStaffCarrier').value);
     fd.append('desired_price',  document.getElementById('csbStaffPrice').value);
     fd.append('available_from', document.getElementById('csbStaffFrom').value);
+    fd.append('skill_sheet',    document.getElementById('csbStaffSheet').value);
+    fd.append('interview_done', document.getElementById('csbStaffInterview').value);
+    fd.append('commute',        document.getElementById('csbStaffCommute').value.trim());
     fd.append('note',           document.getElementById('csbStaffNote').value.trim());
 
     var btn = document.getElementById('csbStaffSave');

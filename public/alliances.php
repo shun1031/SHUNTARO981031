@@ -482,15 +482,37 @@ function alSave() {
     alPost(fd, function () { alLoad(); });
 }
 
-function alDelete() {
+function alDelete(force) {
     var id = document.getElementById('alId').value;
     if (!id) return;
-    if (!confirm('この外注先を一覧から削除しますか？\n（過去の案件データはそのまま残ります）')) return;
+    if (!force && !confirm('この外注先を一覧から削除しますか？\n（過去の案件データはそのまま残ります）')) return;
     var fd = new FormData();
     fd.append('action', 'delete');
     fd.append('csrf', AL_CSRF);
     fd.append('id', id);
-    alPost(fd, function () { alLoad(); });
+    if (force) fd.append('force', '1');
+
+    document.getElementById('alSaveBtn').disabled = true;
+    fetch(AL_API, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            document.getElementById('alSaveBtn').disabled = false;
+            // 案件で使われているときは、もう一度だけ確認してから削除する
+            if (d && d.confirm) {
+                if (confirm(d.error)) alDelete(true);
+                return;
+            }
+            if (!d || !d.ok) {
+                document.getElementById('alFormError').textContent = (d && d.error) || '削除に失敗しました';
+                return;
+            }
+            if (alModalBs) alModalBs.hide();
+            alLoad();
+        })
+        .catch(function () {
+            document.getElementById('alSaveBtn').disabled = false;
+            document.getElementById('alFormError').textContent = '通信エラーが発生しました';
+        });
 }
 
 document.addEventListener('DOMContentLoaded', function () {

@@ -234,14 +234,22 @@ try {
 
     if ($action === 'delete') {
         if (!$id) { echo json_encode(['error' => '対象が見つかりません']); exit; }
-        // 案件で使用中の外注先は削除しない（案件画面の外注先プルダウンから消えてしまうため）
+        // 案件で使用中の外注先は、確認してからでないと削除しない。
+        // 案件フォームの外注先候補には削除済みも「（削除済み）」付きで含めているので、
+        // 削除しても過去案件の外注先が外れることはない
         $u = $db->prepare("SELECT COUNT(*) FROM sales_cases
                            WHERE company_id = ? AND alliance_id = ? AND status <> 'cancelled'");
         $u->execute([$cid, $id]);
         $used = (int)$u->fetchColumn();
-        if ($used > 0) {
+        if ($used > 0 && empty($_POST['force'])) {
             echo json_encode([
-                'error' => "この外注先は案件で使用中のため削除できません（該当案件 {$used} 件）。\n案件側で外注先を変更してから削除してください。",
+                'confirm'    => true,
+                'used_count' => $used,
+                'error'      => "この外注先は案件で {$used} 件使われています。\n"
+                              . "削除しても過去の案件・売上・履歴はそのまま残り、\n"
+                              . "案件の編集画面にも「（削除済み）」として残ります。\n"
+                              . "新しい案件では選ばれにくくなり、戦略会議のパートナー数からも外れます。\n\n"
+                              . "削除してよろしいですか？",
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

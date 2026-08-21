@@ -26,8 +26,11 @@ $csrf = getCsrfToken();
 // 営業担当の候補（案件フォームとまったく同じ基準にして表記ゆれを防ぐ）
 $repCandidates = getSalesRepCandidates($cid);
 // 案件追加フォーム用のマスタ
-$clients   = getSalesClients($cid);
-$alliances = getSalesAlliances($cid);
+// 削除済みの取引先・外注先も候補に含める。
+// 取引が終わった会社を削除済みにしても、その会社の過去案件を編集したときに
+// 取引先が外れてしまわないようにするため（候補に無いと保存で空になる）
+$clients   = getSalesClients($cid, false);
+$alliances = getSalesAlliances($cid, false);
 // 人員追加フォームで「社員一覧から選ぶ」ための名簿（二重管理を避けるため）
 $staffCandidates = getStaffNameCandidates($cid, false);
 
@@ -256,7 +259,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <select id="csbStaffAlliance" class="form-select form-select-sm">
                             <option value="">-- 選択なし --</option>
                             <?php foreach ($alliances as $_al): ?>
-                            <option value="<?= (int)$_al['id'] ?>"><?= h(allianceLabel($_al)) ?></option>
+                            <option value="<?= (int)$_al['id'] ?>"><?= h(allianceLabel($_al)) ?><?= (int)($_al['is_active'] ?? 1) === 1 ? '' : '（削除済み）' ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>

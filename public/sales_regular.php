@@ -162,8 +162,11 @@ $cases = getSalesCases($cid, $filters, $perPage, ($page - 1) * $perPage);
 $totalCount = countSalesCases($cid, $filters);
 $totalPages = ceil($totalCount / $perPage);
 
-$clients = getSalesClients($cid);
-$alliances = getSalesAlliances($cid);
+// 削除済みの取引先・外注先も候補に含める。
+// 取引が終わった会社を削除済みにしても、その会社の過去案件を編集したときに
+// 取引先が外れてしまわないようにするため（候補に無いと保存で空になる）
+$clients = getSalesClients($cid, false);
+$alliances = getSalesAlliances($cid, false);
 // 営業担当・管理者の選択候補（社員一覧で営業担当にチェックした正社員/自社外注）
 $repCandidates = getSalesRepCandidates($cid);
 // 採用者の選択候補（営業担当チェックを問わず正社員/自社外注の全員）
@@ -543,7 +546,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <select name="alliance_id" id="f_alliance_id" class="form-select">
                             <option value="">-- 選択 --</option>
                             <?php foreach ($alliances as $al): ?>
-                            <option value="<?= $al['id'] ?>"><?= h(allianceLabel($al)) ?></option>
+                            <option value="<?= $al['id'] ?>"><?= h(allianceLabel($al)) ?><?= (int)($al['is_active'] ?? 1) === 1 ? '' : '（削除済み）' ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>

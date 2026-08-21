@@ -505,15 +505,37 @@ function clSave() {
     clPost(fd, function () { clLoad(); });   // 一覧のみ差し替え（全画面リロードなし）
 }
 
-function clDelete() {
+function clDelete(force) {
     var id = document.getElementById('clId').value;
     if (!id) return;
-    if (!confirm('この取引先を一覧から削除しますか？\n（過去の案件データはそのまま残ります）')) return;
+    if (!force && !confirm('この取引先を一覧から削除しますか？\n（過去の案件データはそのまま残ります）')) return;
     var fd = new FormData();
     fd.append('action', 'delete');
     fd.append('csrf', CL_CSRF);
     fd.append('id', id);
-    clPost(fd, function () { clLoad(); });
+    if (force) fd.append('force', '1');
+
+    document.getElementById('clSaveBtn').disabled = true;
+    fetch(CL_API, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            document.getElementById('clSaveBtn').disabled = false;
+            // 案件で使われているときは、もう一度だけ確認してから削除する
+            if (d && d.confirm) {
+                if (confirm(d.error)) clDelete(true);
+                return;
+            }
+            if (!d || !d.ok) {
+                document.getElementById('clFormError').textContent = (d && d.error) || '削除に失敗しました';
+                return;
+            }
+            if (clModalBs) clModalBs.hide();
+            clLoad();
+        })
+        .catch(function () {
+            document.getElementById('clSaveBtn').disabled = false;
+            document.getElementById('clFormError').textContent = '通信エラーが発生しました';
+        });
 }
 
 document.addEventListener('DOMContentLoaded', function () {

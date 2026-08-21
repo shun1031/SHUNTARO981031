@@ -216,15 +216,23 @@ try {
 
     if ($action === 'delete') {
         if (!$id) { echo json_encode(['error' => '対象が見つかりません']); exit; }
-        // 案件で使用中の取引先は削除しない
-        // （案件画面の取引先プルダウンから消えてしまうため）
+        // 案件で使用中の取引先は、確認してからでないと削除しない。
+        // 案件フォームの取引先候補には削除済みも含めているので、削除しても
+        // 過去案件の取引先が外れることはない（取引が終わった会社を消せるようにしてある）。
+        // それでも件数が多いと影響が大きいため、force=1 が付いたときだけ実行する
         $u = $db->prepare("SELECT COUNT(*) FROM sales_cases
                            WHERE company_id = ? AND client_id = ? AND status <> 'cancelled'");
         $u->execute([$cid, $id]);
         $used = (int)$u->fetchColumn();
-        if ($used > 0) {
+        if ($used > 0 && empty($_POST['force'])) {
             echo json_encode([
-                'error' => "この取引先は案件で使用中のため削除できません（該当案件 {$used} 件）。\n案件側で取引先を変更してから削除してください。",
+                'confirm'    => true,
+                'used_count' => $used,
+                'error'      => "この取引先は案件で {$used} 件使われています。\n"
+                              . "削除しても過去の案件・売上・履歴はそのまま残り、\n"
+                              . "案件の編集画面にも「（削除済み）」として残ります。\n"
+                              . "新しい案件では選ばれにくくなり、戦略会議のパートナー数からも外れます。\n\n"
+                              . "削除してよろしいですか？",
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

@@ -490,11 +490,11 @@ th { white-space:nowrap; }
 <!-- 上部の社数の内訳 -->
 <div class="card mb-4">
   <div class="card-header bg-white fw-bold">
-    <i class="bi bi-calculator me-1"></i>2. 戦略会議 上部の「<?= count($sumKeys) ?>社 / 目標社数」の内訳
+    <i class="bi bi-calculator me-1"></i>2. 取引先開拓 上部の「<?= count($sumKeys) ?>社 / 目標社数」の内訳
   </div>
   <div class="card-body">
     <div class="small text-muted mb-3">
-      戦略会議の画面上部と<strong>まったく同じ条件</strong>で数え直しています
+      取引先開拓の画面上部と<strong>まったく同じ条件</strong>で数え直しています
       （今年度に確定案件があり、<strong>営業担当（外注先は管理者）が営業マン一覧の人</strong>の案件）。<br>
       上の「A 現在取引中」は<strong>今回のリストに載っている会社だけ</strong>を数えているため、
       リストに載っていない取引先のぶんだけ数が少なくなります。
@@ -649,7 +649,7 @@ foreach ($groups as [$title, $rows, $col, $desc]): ?>
 </div>
 <?php endif; ?>
 
-<a href="<?= BASE_PATH ?>/public/strategy_meeting.php" class="btn btn-primary">戦略会議に戻る</a>
+<a href="<?= BASE_PATH ?>/public/strategy_meeting.php" class="btn btn-primary">取引先開拓に戻る</a>
 <a href="<?= BASE_PATH ?>/public/clients.php" class="btn btn-outline-primary ms-2">取引先一覧を開く</a>
 
 <div class="alert alert-secondary mt-3 mb-0 small">

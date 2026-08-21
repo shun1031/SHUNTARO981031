@@ -1,6 +1,9 @@
 <?php
 /**
- * 戦略会議
+ * 取引先開拓（旧名: 戦略会議）
+ *
+ * 画面名だけを変更している。ファイル名・URL・テーブル名（strategy_meeting_*）は
+ * 既存のリンクとデータを壊さないため、そのままにしている。
  *
  * 営業マンごとの担当企業・売上状況を一覧で確認し、
  * 担当企業の詳細 → 企業ごとの年推移（期別）まで辿れる画面。
@@ -17,7 +20,7 @@ if (!$cid) { redirect(BASE_PATH . '/public/index.php'); }
 // 支出管理・社員一覧と同じく管理者専用
 requireRole('super_admin', 'company_admin');
 
-$pageTitle = '戦略会議';
+$pageTitle = '取引先開拓';
 $extraCss  = ['strategy_meeting.css'];
 
 $csrf = getCsrfToken();
@@ -51,7 +54,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h1><i class="bi bi-people-fill me-2"></i>戦略会議</h1>
+                <h1><i class="bi bi-people-fill me-2"></i>取引先開拓</h1>
                 <?php /* 取引企業数の進捗。目標社数はクリックで編集できる（この画面は管理者専用） */ ?>
                 <p class="sm-goal" id="smGoal">
                     <span class="sm-goal-count" id="smGoalCount">-</span><span class="sm-goal-sep">社 /</span>
@@ -373,7 +376,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <option value="<?= h($_d) ?>"><?= h($_d) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text" style="font-size:.7rem">戦略会議の「担当パートナー候補」一覧に表示されます</div>
+                        <div class="form-text" style="font-size:.7rem">この画面の「担当パートナー候補」一覧に表示されます</div>
                     </div>
                     <div class="col-md-6 d-none" id="smNegOtherWrap">
                         <label class="form-label fw-medium">その他の内容 <span class="text-danger">*</span></label>

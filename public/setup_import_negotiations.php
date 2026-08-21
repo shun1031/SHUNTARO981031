@@ -387,7 +387,7 @@ td, th { font-size:.78rem; }
 </div>
 
 <?php if ($done): ?>
-<a href="<?= BASE_PATH ?>/public/strategy_meeting.php" class="btn btn-primary">戦略会議で確認する</a>
+<a href="<?= BASE_PATH ?>/public/strategy_meeting.php" class="btn btn-primary">取引先開拓で確認する</a>
 <a href="<?= BASE_PATH ?>/public/check_partner_candidates.php" class="btn btn-outline-primary ms-2">照合ページを開く</a>
 <?php endif; ?>
 

@@ -322,7 +322,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <option value="<?= (int)$_c['id'] ?>"><?= h(clientLabel($_c)) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text">取引先一覧にも同じ会社が登録されている場合に選びます。戦略会議の会社数で1社として数えるために使います。</div>
+                        <div class="form-text">取引先一覧にも同じ会社が登録されている場合に選びます。取引先開拓の会社数で1社として数えるために使います。</div>
                     </div>
                     <div class="row"><div class="col-md-6 mb-3"><label class="form-label">担当者</label><input type="text" name="contact_person" class="form-control"></div><div class="col-md-6 mb-3"><label class="form-label">電話</label><input type="text" name="phone" class="form-control"></div></div>
                     <div class="mb-3"><label class="form-label">備考</label><textarea name="note" class="form-control" rows="2"></textarea></div>
@@ -349,7 +349,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <option value="<?= (int)$_c['id'] ?>"><?= h(clientLabel($_c)) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text">取引先一覧にも同じ会社が登録されている場合に選びます。戦略会議の会社数で1社として数えるために使います。</div>
+                        <div class="form-text">取引先一覧にも同じ会社が登録されている場合に選びます。取引先開拓の会社数で1社として数えるために使います。</div>
                     </div>
                     <div class="row"><div class="col-md-6 mb-3"><label class="form-label">担当者</label><input type="text" name="contact_person" id="edit_contact_person" class="form-control"></div><div class="col-md-6 mb-3"><label class="form-label">電話</label><input type="text" name="phone" id="edit_phone" class="form-control"></div></div>
                     <div class="mb-3"><label class="form-label">備考</label><textarea name="note" id="edit_note" class="form-control" rows="2"></textarea></div>

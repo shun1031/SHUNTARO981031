@@ -58,6 +58,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header csb-head">
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <h2 class="csb-title"><i class="bi bi-briefcase me-1"></i>案件</h2>
+                        <div class="csb-filter d-flex gap-1">
+                            <button type="button" class="csb-filter-btn is-active" data-ctype="regular"
+                                    onclick="csbSetCaseType('regular')">常勤</button>
+                            <button type="button" class="csb-filter-btn" data-ctype="event"
+                                    onclick="csbSetCaseType('event')">イベント</button>
+                        </div>
                         <div class="csb-filter ms-auto d-flex gap-1">
                             <button type="button" class="csb-filter-btn is-active" data-status="draft"
                                     onclick="csbSetStatus('draft')">未確定</button>
@@ -124,6 +130,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-header csb-head">
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <h2 class="csb-title"><i class="bi bi-people me-1"></i>人員</h2>
+                        <div class="csb-filter d-flex gap-1">
+                            <button type="button" class="csb-filter-btn is-active" data-stype="regular"
+                                    onclick="csbSetStaffType('regular')">常勤</button>
+                            <button type="button" class="csb-filter-btn" data-stype="event"
+                                    onclick="csbSetStaffType('event')">イベント</button>
+                        </div>
                         <div class="csb-filter ms-auto d-flex gap-1">
                             <button type="button" class="csb-filter-btn is-active" data-show="pending"
                                     onclick="csbSetStaffShow('pending')">検討中</button>
@@ -586,6 +598,11 @@ $inlineJs .= <<<'CSBJS2'
 
 var csbStatus = 'draft';        // 案件側: draft(未確定) / confirmed(確定)
 var csbStaffShow = 'pending';   // 人員側: pending(検討中) / assigned(アサイン済)
+// 種別の絞り込み。案件と人員で別々に切り替えられる（初期はどちらも常勤）。
+// 変数名を Kind にしているのは、フォームの選択欄（csbCaseType / csbStaffType）と
+// 名前がぶつからないようにするため
+var csbCaseKind  = 'regular';   // 案件側: regular(常勤) / event(イベント)
+var csbStaffKind = 'regular';   // 人員側: regular(常勤) / event(イベント)
 var csbCaseOpen = false, csbStaffOpen = false;   // 「すべて表示」の状態
 var csbCases = [], csbStaff = [];
 var csbSelectedCase = null;     // アサイン先に選んだ案件
@@ -633,6 +650,9 @@ window.addEventListener('resize', function () {
     csbFitTimer = setTimeout(csbFitColumns, 150);
 });
 
+/** regular / event を画面に出す言葉に直す */
+function csbTypeLabel(t) { return t === 'event' ? 'イベント' : '常勤'; }
+
 /** 2026-04-01 → 26/4 のように短く表示する */
 function csbDate(s) {
     if (!s) return '';
@@ -654,6 +674,18 @@ function csbSetStatus(st) {
     csbLoadCases();
 }
 
+/** 案件の種別を切り替える。人員側の種別には影響しない */
+function csbSetCaseType(t) {
+    if (csbCaseKind === t) return;
+    csbCaseKind = t;
+    csbSelectedCase = null;   // 種別が変わると選び直しになるので選択を解除する
+    document.querySelectorAll('.csb-filter-btn[data-ctype]').forEach(function (b) {
+        b.classList.toggle('is-active', b.dataset.ctype === t);
+    });
+    csbLoadCases();
+    csbRenderStaff();         // アサインボタンの有効・無効を戻す
+}
+
 function csbCaseSearch() {
     clearTimeout(csbCaseTimer);
     csbCaseTimer = setTimeout(csbLoadCases, 250);
@@ -662,7 +694,7 @@ function csbCaseSearch() {
 function csbLoadCases() {
     var rep = document.getElementById('csbCaseRep').value;
     var q   = document.getElementById('csbCaseQ').value.trim();
-    var url = CSB_API + '?side=cases&status=' + csbStatus
+    var url = CSB_API + '?side=cases&status=' + csbStatus + '&type=' + csbCaseKind
             + (rep ? '&rep=' + encodeURIComponent(rep) : '')
             + (q   ? '&q='   + encodeURIComponent(q)   : '');
     fetch(url, { credentials: 'same-origin' })
@@ -682,7 +714,8 @@ function csbLoadCases() {
 function csbRenderCases() {
     var box = document.getElementById('csbCaseList');
     if (!csbCases.length) {
-        box.innerHTML = '<tr><td colspan="9" class="csb-empty">該当する案件がありません</td></tr>';
+        box.innerHTML = '<tr><td colspan="9" class="csb-empty">該当する'
+                      + csbTypeLabel(csbCaseKind) + 'の案件がありません</td></tr>';
         document.getElementById('csbCaseCount').textContent = '0件';
         document.getElementById('csbCaseMore').classList.add('d-none');
         return;
@@ -758,9 +791,19 @@ function csbSetStaffShow(s) {
     csbLoadStaff();
 }
 
+/** 人員の種別を切り替える。案件側の種別には影響しない */
+function csbSetStaffType(t) {
+    if (csbStaffKind === t) return;
+    csbStaffKind = t;
+    document.querySelectorAll('.csb-filter-btn[data-stype]').forEach(function (b) {
+        b.classList.toggle('is-active', b.dataset.stype === t);
+    });
+    csbLoadStaff();
+}
+
 function csbLoadStaff() {
     var rep = document.getElementById('csbStaffRep').value;
-    var url = CSB_API + '?side=staff'
+    var url = CSB_API + '?side=staff&type=' + csbStaffKind
             + (csbStaffShow === 'assigned' ? '&show=assigned' : '')
             + (rep ? '&rep=' + encodeURIComponent(rep) : '');
     fetch(url, { credentials: 'same-origin' })
@@ -781,7 +824,8 @@ function csbRenderStaff() {
     var box = document.getElementById('csbStaffList');
     if (!csbStaff.length) {
         box.innerHTML = '<tr><td colspan="11" class="csb-empty">'
-                      + (csbStaffShow === 'assigned' ? 'アサイン済みの人員はいません' : '検討中の人員がいません')
+                      + csbTypeLabel(csbStaffKind)
+                      + (csbStaffShow === 'assigned' ? 'でアサイン済みの人員はいません' : 'で検討中の人員がいません')
                       + '</td></tr>';
         document.getElementById('csbStaffCount').textContent = '0名';
         document.getElementById('csbStaffMore').classList.add('d-none');
@@ -858,7 +902,8 @@ function csbOpenStaffForm(id) {
     document.getElementById('csbStaffId').value       = s ? s.id : '';
     document.getElementById('csbStaffName').value     = s ? s.staff_name : '';
     document.getElementById('csbStaffRepSel').value   = s ? s.rep_name : '';
-    document.getElementById('csbStaffType').value     = s ? (s.staff_type || '') : '';
+    // 新規は今見ているタブの種別を初期値にする（案件の追加フォームと同じ考え方）
+    document.getElementById('csbStaffType').value     = s ? (s.staff_type || '') : csbTypeLabel(csbStaffKind);
     document.getElementById('csbStaffAlliance').value = s && s.alliance_id ? s.alliance_id : '';
     document.getElementById('csbStaffAffil').value    = s && !s.alliance_id ? (s.affiliation || '') : '';
     document.getElementById('csbStaffSkill').value    = s ? (s.skill_type || '') : '';
@@ -908,6 +953,9 @@ function csbSaveStaff() {
             btn.disabled = false;
             if (!d || !d.ok) { document.getElementById('csbStaffError').textContent = (d && d.error) || '保存に失敗しました'; return; }
             csbStaffModal.hide();
+            // 今見ているタブと違う種別で登録したときは、その種別のタブに切り替える
+            var savedKind = (staffType === 'イベント') ? 'event' : 'regular';
+            if (savedKind !== csbStaffKind) { csbSetStaffType(savedKind); return; }
             csbLoadStaff();
         })
         .catch(function () { btn.disabled = false; document.getElementById('csbStaffError').textContent = '通信エラーが発生しました'; });
@@ -1032,6 +1080,10 @@ function csbOpenCaseForm(id) {
         f.elements['unit_price_in'].value  = c.unit_price_in || 0;
         f.elements['unit_price_out'].value = c.unit_price_out || 0;
         f.elements['notes'].value          = c.note || '';
+    } else {
+        // 新規は今見ているタブの種別を初期値にする。
+        // （イベントを見ているのに常勤で登録され、一覧から消えるのを防ぐ）
+        document.getElementById('csbCaseType').value = csbCaseKind;
     }
     csbCaseTypeChanged();
     // 日付の型を切り替えたあとに入れる（型が変わると値がクリアされるため）
@@ -1102,6 +1154,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!ok) { document.getElementById('csbCaseError').textContent = (d && d.error) || '保存に失敗しました'; return; }
                 csbCaseModal.hide();
                 csbSelectedCase = null;
+                // 今見ているタブと違う種別で登録したときは、その種別のタブに切り替える
+                // （登録したのに一覧に出てこない、を防ぐ）
+                var savedKind = document.getElementById('csbCaseType').value === 'event' ? 'event' : 'regular';
+                if (savedKind !== csbCaseKind) { csbSetCaseType(savedKind); return; }
                 csbLoadCases();
             })
             .catch(function () { btn.disabled = false; document.getElementById('csbCaseError').textContent = '通信エラーが発生しました'; });

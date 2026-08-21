@@ -47,9 +47,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'cases') 
     $rep    = trim($_GET['rep'] ?? '');
     $status = ($_GET['status'] ?? '') === 'confirmed' ? 'confirmed' : 'draft';
     $q      = trim($_GET['q'] ?? '');
+    // 種別（常勤／イベント）。画面のボタンで必ずどちらかが選ばれている
+    $type   = ($_GET['type'] ?? '') === 'event' ? 'event' : 'regular';
 
-    $where  = ["sc.company_id = ?", "sc.status = ?"];
-    $params = [$cid, $status];
+    $where  = ["sc.company_id = ?", "sc.status = ?", "sc.case_type = ?"];
+    $params = [$cid, $status, $type];
     if ($rep !== '') {
         // 担当者は社員IDがあればその社員、無ければ案件に入っている名前で判定する
         // （既存の売上集計とまったく同じ考え方）
@@ -132,9 +134,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'staff') 
     $q   = trim($_GET['q'] ?? '');
     // 既定は「検討中」だけ。アサイン済みも見たいときは show=assigned
     $show = ($_GET['show'] ?? '') === 'assigned' ? 'アサイン済' : '検討中';
+    // 種別（常勤／イベント）。案件側と同じ regular/event で受け取って日本語に直す
+    $type = ($_GET['type'] ?? '') === 'event' ? 'イベント' : '常勤';
 
-    $where  = ['csc.company_id = ?', 'csc.is_active = 1', 'csc.assign_status = ?'];
-    $params = [$cid, $show];
+    $where  = ['csc.company_id = ?', 'csc.is_active = 1', 'csc.assign_status = ?', 'csc.staff_type = ?'];
+    $params = [$cid, $show, $type];
     if ($rep !== '') { $where[] = 'csc.rep_name = ?'; $params[] = $rep; }
     if ($q !== '') {
         $where[] = '(csc.staff_name LIKE ? OR csc.affiliation LIKE ?)';

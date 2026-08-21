@@ -445,10 +445,42 @@ if (!$caseTypeFilter) {
     } catch (PDOException $_e) { /* budget_division 未追加の環境では集計しない */ }
 }
 // 構成比（売上金額ベース）
-$_divPct = function (int $part, int $total): float {
-    return $total > 0 ? round($part / $total * 100, 1) : 0.0;
+//
+// 各項目をそのまま四捨五入すると、切り上げ・切り下げが重なって合計が
+// 100.1% や 99.9% になることがある（例: 36.366+41.475+22.159 は正確には100%だが
+// 表示は 36.4+41.5+22.2 = 100.1%）。
+// 見たときに違和感が出るため、一番金額の大きい項目で端数を吸収して
+// 必ず合計100.0%に揃える。金額の表示は一切変えない
+$_divPctSet = function (array $parts, int $total): array {
+    if ($total <= 0) return array_map(fn() => 0.0, $parts);
+
+    $pct = [];
+    foreach ($parts as $k => $v) $pct[$k] = round($v / $total * 100, 1);
+
+    // 端数を寄せる先は「金額が最大」かつ「0%でない」項目
+    $target = null;
+    foreach ($parts as $k => $v) {
+        if ($pct[$k] <= 0) continue;
+        if ($target === null || $v > $parts[$target]) $target = $k;
+    }
+    if ($target === null) return $pct;
+
+    // 合計が100.0になるよう、対象の項目だけを調整する
+    $diff = round(100.0 - array_sum($pct), 1);
+    if (abs($diff) > 0.001) $pct[$target] = round($pct[$target] + $diff, 1);
+    return $pct;
 };
 $divFirstTotal = $divRev['first'] + $divRev['second'];
+
+// 左のグラフ（1次 / 2次以降）
+$divPctMain = $_divPctSet(
+    ['first' => $divRev['first'], 'second' => $divRev['second']],
+    $divFirstTotal
+);
+// 右のグラフ（1次の内訳）。未設定は0円のときは対象に含めない
+$_breakdown = ['carrier' => $divRev['carrier'], 'agency' => $divRev['agency'], 'event' => $divRev['event']];
+if ($divRev['unset'] > 0) $_breakdown['unset'] = $divRev['unset'];
+$divPctFirst = $_divPctSet($_breakdown, $divRev['first']);
 
 $fmtYoy = function($cur, $prev, $unit = '') {
     if ($prev <= 0) return '<span class="text-muted small">前年データなし</span>';
@@ -1410,9 +1442,9 @@ require_once __DIR__ . '/../includes/header.php';
                                       「未設定」を出すかどうかの判定に使うので残してある） */ ?>
                             <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <div><span style="color:#3b82f6">●</span> 1次 <strong><?= number_format($divRev['first']) ?>円</strong>
-                                    （<?= $_divPct($divRev['first'], $divFirstTotal) ?>%）</div>
+                                    （<?= $divPctMain['first'] ?>%）</div>
                                 <div><span style="color:#059669">●</span> 2次以降 <strong><?= number_format($divRev['second']) ?>円</strong>
-                                    （<?= $_divPct($divRev['second'], $divFirstTotal) ?>%）</div>
+                                    （<?= $divPctMain['second'] ?>%）</div>
                             </div>
                         </div>
                         <!-- ② 1次の内訳 -->
@@ -1421,15 +1453,15 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="sales-chart-wrap" style="height:130px"><canvas id="firstBudgetChart"></canvas></div>
                             <div style="font-size:.75rem;margin-top:6px;line-height:1.9">
                                 <div><span style="color:#3b82f6">●</span> キャリア常勤 <strong><?= number_format($divRev['carrier']) ?>円</strong>
-                                    （<?= $_divPct($divRev['carrier'], $divRev['first']) ?>%）</div>
+                                    （<?= $divPctFirst['carrier'] ?>%）</div>
                                 <div><span style="color:#059669">●</span> 代理店常勤 <strong><?= number_format($divRev['agency']) ?>円</strong>
-                                    （<?= $_divPct($divRev['agency'], $divRev['first']) ?>%）</div>
+                                    （<?= $divPctFirst['agency'] ?>%）</div>
                                 <div><span style="color:#f59e0b">●</span> イベント <strong><?= number_format($divRev['event']) ?>円</strong>
-                                    （<?= $_divPct($divRev['event'], $divRev['first']) ?>%）</div>
+                                    （<?= $divPctFirst['event'] ?>%）</div>
                                 <?php if ($divRev['unset'] > 0 || $divCnt['unset'] > 0): ?>
                                 <!-- 予算区分が未入力の常勤1次。入力が済めば自動的に消える -->
                                 <div><span style="color:#9ca3af">●</span> 未設定 <strong><?= number_format($divRev['unset']) ?>円</strong>
-                                    （<?= $_divPct($divRev['unset'], $divRev['first']) ?>%）</div>
+                                    （<?= $divPctFirst['unset'] ?? 0 ?>%）</div>
                                 <?php endif; ?>
                             </div>
                         </div>

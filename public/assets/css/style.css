@@ -106,13 +106,16 @@ code {
 /* === Layout: Sidebar + Main === */
 .app-layout { display: flex; min-height: 100vh; }
 .app-main { flex: 1; min-width: 0; margin-left: 260px; }
+/* 本文は画面幅いっぱいに広げる。
+   以前は max-width: 1320px で中央寄せにしていたが、画面の拡大率を下げて
+   表示領域が広くなると 1320px を超えた分がそのまま左右の空白になっていた
+   （例: 画面幅2000pxで左右合計420pxの空白）。上限を外して自動で追従させる。
+   左右の余白は padding で確保しているので、内容が画面の端に貼り付くことはない */
 .main-wrapper {
     min-height: 100vh;
     padding: var(--sp8) var(--sp8);
-    max-width: 1320px;
-    margin: 0 auto;
 }
-.container-fluid { max-width: 1320px; }
+.container-fluid { max-width: none; }
 
 /* === Sidebar === */
 .sidebar {

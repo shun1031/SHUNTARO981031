@@ -616,6 +616,11 @@ require_once __DIR__ . '/../includes/header.php';
                             <option value="draft">未確定</option>
                         </select>
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-medium">必要人数</label>
+                        <input type="number" name="recruitment_count" id="f_recruitment_count" class="form-control" step="1" min="0" placeholder="未設定">
+                        <div class="form-text" style="font-size:.72rem">案件人員一覧で「あと何人足りないか」の表示に使います</div>
+                    </div>
                     <div class="col-12">
                         <div class="row g-2 text-center" style="background:#f8f9fa;border-radius:8px;padding:.75rem .5rem">
                             <div class="col-3"><div class="text-muted small">売上</div><div class="fw-bold" id="calc_revenue">¥0</div></div>
@@ -966,6 +971,7 @@ function resetCaseForm() {
     document.getElementById('unit_price_out').value = 0;
     document.getElementById('days_worked').value = 1;
     document.getElementById('f_status').value = 'confirmed';
+    document.getElementById('f_recruitment_count').value = '';
     document.getElementById('f_notes').value = '';
     toggleAllianceGroup();
     salesCalcAmounts();
@@ -997,6 +1003,7 @@ function editCase(c) {
     document.getElementById('unit_price_out').value = c.unit_price_out || 0;
     document.getElementById('days_worked').value = c.days_worked || 1;
     document.getElementById('f_status').value = c.status || 'confirmed';
+    document.getElementById('f_recruitment_count').value = c.recruitment_count || '';
     document.getElementById('f_notes').value = c.note || '';
     toggleAllianceGroup();
     salesCalcAmounts();

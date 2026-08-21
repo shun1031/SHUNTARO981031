@@ -351,6 +351,15 @@ $migrations = [
     // 2件目をDB側で拒否する。client_id が NULL の行は対象外（MySQLのUNIQUEはNULLを重複と見ない）
     "ALTER TABLE strategy_meeting_negotiations ADD UNIQUE KEY uk_smn_client (company_id, client_id)",
 
+    // ---- case_staff_candidates: 案件人員一覧の「アサイン検討中の人員」 ----
+    // 案件はすべて sales_cases をそのまま読むので、案件side は新テーブルを持たない。
+    // 人員だけは「まだ案件に入っていない候補」を置く場所が無かったのでここに持つ。
+    // 社員一覧に居る人は employee_id で紐づけて二重管理を避ける。
+    // 案件にアサインすると assign_status='アサイン済' になり、候補一覧から自動で消える
+    // （イベントカレンダーの予定案件が pending→confirmed で消えるのと同じ考え方）。
+    // 参照する画面は案件人員一覧のみ。既存の集計・請求・給与は一切このテーブルを読まない
+    "CREATE TABLE IF NOT EXISTS case_staff_candidates (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, staff_name VARCHAR(100) NOT NULL COMMENT '氏名', employee_id INT DEFAULT NULL COMMENT '社員一覧のID（名簿に居る人だけ）', rep_name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '人員側の営業担当', rep_employee_id INT DEFAULT NULL COMMENT '人員側の営業担当の社員ID', affiliation VARCHAR(150) DEFAULT NULL COMMENT '所属／外注先', alliance_id INT DEFAULT NULL COMMENT '外注先マスタのID', skill_type VARCHAR(20) DEFAULT NULL COMMENT 'スキル感（キャッチャー/クローザー）', carrier VARCHAR(50) DEFAULT NULL COMMENT '希望キャリア', desired_price INT DEFAULT NULL COMMENT '希望単価', available_from DATE DEFAULT NULL COMMENT '稼働開始可能日', assign_status VARCHAR(20) NOT NULL DEFAULT '検討中' COMMENT '検討中/アサイン済/見送り', assigned_case_id INT DEFAULT NULL COMMENT 'アサインした案件枠のID', created_case_id INT DEFAULT NULL COMMENT 'アサインで作られた確定案件のID', note TEXT DEFAULT NULL, is_active TINYINT(1) NOT NULL DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_csc_company (company_id, assign_status, is_active), INDEX idx_csc_rep (company_id, rep_name), INDEX idx_csc_case (company_id, assigned_case_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
     // ---- strategy_meeting_negotiations: 区分（光AD / 常勤 / イベント） ----
     // パートナー候補は案件がまだ無いため、案件データから区分を計算できない。
     // 戦略会議の候補一覧で区分を出せるように、商談報告フォームで直接持たせる。

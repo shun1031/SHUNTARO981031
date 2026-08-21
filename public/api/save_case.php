@@ -73,6 +73,12 @@ if ($action === 'create' || $action === 'update') {
                              ? (trim($data['budget_division'] ?? '') ?: null)
                              : null,
     ];
+    // 必要人数: 案件人員一覧で「あと何人足りないか」を出すために使う。
+    // 送られてこないフォームではキーごと渡さないので、既存の値はそのまま残る
+    if (array_key_exists('recruitment_count', $data)) {
+        $caseData['recruitment_count'] = ($data['recruitment_count'] !== '' && $data['recruitment_count'] !== null)
+            ? max(0, (int)$data['recruitment_count']) : null;
+    }
     // 光AD（戦略会議のみで使用）: 常勤案件フォームから送られてきたときだけ保存する。
     // イベント案件フォームにはこの項目が無いのでキーごと渡さず、既存の値をそのまま残す
     if (array_key_exists('hikari_ad_flag', $data)) {

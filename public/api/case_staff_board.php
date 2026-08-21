@@ -59,7 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'cases') 
     try {
         $sql = "SELECT sc.id, sc.case_type, sc.case_year, sc.case_month, sc.carrier, sc.trade_name,
                        sc.store_name, sc.start_date, sc.end_date, sc.worker_name, sc.worker_type,
-                       sc.recruitment_count, sc.status,
+                       sc.recruitment_count, sc.status, sc.case_division, sc.note,
+                       sc.unit_price_in, sc.unit_price_out,
                        COALESCE(er.name, sc.sales_rep) AS rep_name,
                        " . clientLabelSql('cl') . " AS client_name,
                        " . allianceLabelSql('al') . " AS alliance_name,
@@ -90,6 +91,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['side'] ?? '') === 'cases') 
         $out[] = [
             'id'          => (int)$r['id'],
             'case_type'   => $r['case_type'] === 'regular' ? '常勤' : 'イベント',
+            // 編集フォームに戻すための生の値
+            'raw_case_type'  => (string)$r['case_type'],
+            'raw_status'     => (string)$r['status'],
+            'worker_type'    => (string)($r['worker_type'] ?? ''),
+            'case_division'  => (string)($r['case_division'] ?? ''),
+            'note'           => (string)($r['note'] ?? ''),
+            'unit_price_in'  => (int)round((float)($r['unit_price_in'] ?? 0)),
+            'unit_price_out' => (int)round((float)($r['unit_price_out'] ?? 0)),
             'client_name' => (string)($r['client_name'] ?? ''),
             'carrier'     => (string)($r['carrier'] ?? ''),
             'trade_name'  => (string)($r['trade_name'] ?? ''),
@@ -177,6 +186,111 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'Unkno
 if (!verifyCsrfToken($_POST['csrf'] ?? '')) { echo json_encode(['error' => '不正なリクエストです']); exit; }
 
 $action = $_POST['action'] ?? '';
+
+// ---- 案件の編集（この画面にある項目だけを上から重ねて保存する） ----
+// 画面に無い項目（稼働者・管理者・採用者・稼働日数・光AD・予算区分など）は、
+// いま入っている値をそのまま読み込んで一緒に渡すので消えない。
+// 案件フォームを複製せずに、既存の updateSalesCase() をそのまま使えるようにするため
+if ($action === 'update_case') {
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) { echo json_encode(['error' => '対象が見つかりません']); exit; }
+
+    try {
+        $cur = getSalesCase($id, $cid);
+        if (!$cur) { echo json_encode(['error' => '案件が見つかりません']); exit; }
+
+        // 1) いまの値を全部そのまま並べる（ここが「消えない」ための要）
+        $merged = [];
+        foreach (['case_type', 'client_id', 'sales_rep', 'manager', 'recruiter', 'worker_type',
+                  'alliance_id', 'worker_id', 'worker_name', 'store_brand_id', 'area_id', 'store_name',
+                  'start_date', 'end_date', 'unit_price_in', 'unit_price_out', 'days_worked',
+                  'status', 'case_name', 'carrier', 'trade_name', 'recruitment_count',
+                  'new_transactions', 'negotiations_count', 'contracts_count',
+                  'case_division', 'budget_division', 'sales_rep_id', 'manager_id', 'recruiter_id',
+                  'worker_employee_id', 'hikari_ad_flag'] as $col) {
+            if (array_key_exists($col, $cur)) $merged[$col] = $cur[$col];
+        }
+        $merged['note'] = $cur['note'] ?? null;
+
+        // 2) この画面で編集した項目だけを上から重ねる
+        $caseType = ($_POST['case_type'] ?? '') === 'event' ? 'event' : 'regular';
+        $merged['case_type']   = $caseType;
+        $merged['status']      = ($_POST['status'] ?? '') === 'confirmed' ? 'confirmed' : 'draft';
+        $merged['sales_rep']   = trim($_POST['sales_rep'] ?? '');
+        $merged['sales_rep_id']= resolveEmployeeIdByName($cid, $merged['sales_rep']);
+        $merged['worker_type'] = trim($_POST['worker_type'] ?? '') ?: ($cur['worker_type'] ?: '正社員');
+        $merged['carrier']     = trim($_POST['carrier'] ?? '');
+        $merged['trade_name']  = trim($_POST['trade_name'] ?? '');
+        $merged['store_name']  = trim($_POST['store_name'] ?? '');
+        $merged['note']        = trim($_POST['notes'] ?? '');
+        $merged['case_division'] = ($_POST['case_division'] ?? '') ?: null;
+        $merged['unit_price_in']  = max(0, (int)($_POST['unit_price_in']  ?? 0));
+        $merged['unit_price_out'] = max(0, (int)($_POST['unit_price_out'] ?? 0));
+        $merged['recruitment_count'] = ($_POST['recruitment_count'] ?? '') !== ''
+            ? max(0, (int)$_POST['recruitment_count']) : null;
+
+        // 常勤は「月」、イベントは「日」で送られてくる
+        $start = trim($_POST['start_date'] ?? '');
+        $end   = trim($_POST['end_date'] ?? '');
+        if ($caseType === 'regular') {
+            if ($start !== '' && strlen($start) === 7) $start .= '-01';
+            if ($end   !== '' && strlen($end)   === 7) $end   .= '-01';
+        }
+        $merged['start_date'] = $start ?: null;
+        $merged['end_date']   = $end   ?: null;
+
+        // 取引先は入力された名前から引く。無ければ今の取引先のまま
+        $clientNameInput = trim($_POST['client_name_input'] ?? '');
+        if ($clientNameInput !== '') {
+            $cs = $db->prepare('SELECT id FROM sales_clients
+                                WHERE company_id = ? AND (client_name = ? OR display_name = ?)
+                                ORDER BY (client_name = ?) DESC LIMIT 1');
+            $cs->execute([$cid, $clientNameInput, $clientNameInput, $clientNameInput]);
+            $found = $cs->fetchColumn();
+            $merged['client_id'] = $found ? (int)$found
+                : createSalesClient($cid, ['client_name' => $clientNameInput]);
+        }
+
+        // 金額の出し方は既存とまったく同じ（常勤は単価がそのまま売上になる）
+        if ($caseType === 'regular') {
+            $merged['gross_profit_direct'] = $merged['unit_price_in'] - $merged['unit_price_out'];
+        }
+
+        updateSalesCase($id, $cid, $merged);
+        echo json_encode(['ok' => true, 'id' => $id], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        error_log('[case_staff_board update_case] ' . $e->getMessage());
+        echo json_encode(['error' => '保存に失敗しました: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
+// ---- 案件の削除（完全に削除する） ----
+// アサインで作られた案件を消したときは、その人員を「検討中」に戻す。
+// 案件の枠を消したときは、実際の稼働案件は別に残っているので人員はそのままにする
+if ($action === 'delete_case') {
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) { echo json_encode(['error' => '対象が見つかりません']); exit; }
+    try {
+        $db->beginTransaction();
+        // その人の稼働そのものを消す場合 → 候補リストに戻す
+        $db->prepare("UPDATE case_staff_candidates
+                      SET assign_status='検討中', assigned_case_id=NULL, created_case_id=NULL, updated_at=NOW()
+                      WHERE company_id = ? AND created_case_id = ?")->execute([$cid, $id]);
+        // 枠を消す場合 → アサイン済みのままにし、消えた枠への紐づけだけ外す
+        $db->prepare("UPDATE case_staff_candidates
+                      SET assigned_case_id = NULL, updated_at = NOW()
+                      WHERE company_id = ? AND assigned_case_id = ?")->execute([$cid, $id]);
+        deleteSalesCase($id, $cid);
+        $db->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('[case_staff_board delete_case] ' . $e->getMessage());
+        echo json_encode(['error' => '削除に失敗しました']);
+    }
+    exit;
+}
 
 // ---- 人員の追加・編集 ----
 if ($action === 'save_staff') {

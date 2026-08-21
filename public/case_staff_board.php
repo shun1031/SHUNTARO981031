@@ -284,8 +284,9 @@ require_once __DIR__ . '/../includes/header.php';
         <form class="modal-content" id="csbCaseForm">
             <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
             <input type="hidden" name="action" value="create">
+            <input type="hidden" name="id" value="">
             <div class="modal-header py-2">
-                <h6 class="modal-title fw-bold">案件を追加</h6>
+                <h6 class="modal-title fw-bold" id="csbCaseModalTitle">案件を追加</h6>
                 <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -389,6 +390,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="form-text mt-2" style="font-size:.72rem">
                     人員がまだ決まっていない案件は「未確定」で登録し、人員が決まったら右の一覧からアサインしてください。
                 </div>
+                <div class="alert alert-secondary py-2 px-3 mt-2 d-none" id="csbCaseEditNote" style="font-size:.74rem">
+                    ここに無い項目（稼働者名・管理者・採用者・稼働日数・光ADなど）は<strong>今の値がそのまま残ります</strong>。
+                    それらを直すときは常勤案件・イベント案件の画面で編集してください。
+                </div>
                 <div id="csbCaseError" class="text-danger small mt-2" style="white-space:pre-line"></div>
             </div>
             <div class="modal-footer py-2">
@@ -443,6 +448,11 @@ require_once __DIR__ . '/../includes/header.php';
 .csb-chip-ok   { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 .csb-chip-warn { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
 .csb-chip-lack { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* 行ごとの編集・削除（常勤案件一覧と同じボタンを使う） */
+.csb-actions { display: flex; gap: .25rem; justify-content: flex-end; margin-top: .3rem; }
+.csb-actions .btn { padding: .15rem .45rem; line-height: 1.1; }
+.csb-actions .btn i { font-size: .78rem; }
 
 .csb-empty { padding: 1.6rem 1rem; text-align: center; color: #94a3b8; font-size: .82rem; }
 .csb-more {
@@ -566,6 +576,14 @@ function csbRenderCases() {
 
         var period = c.start_date ? csbDate(c.start_date) + (c.end_date ? '〜' + csbDate(c.end_date) : '〜') : '';
 
+        // 編集・削除（管理者のみ）。行の選択と重ならないよう、押したときは選択を止める
+        var actions = CSB_CAN_EDIT
+            ? '<div class="csb-actions" onclick="event.stopPropagation()">'
+            +   '<button type="button" class="btn btn-sm btn-outline-primary" title="編集" onclick="csbOpenCaseForm(' + c.id + ')"><i class="bi bi-pencil"></i></button>'
+            +   '<button type="button" class="btn btn-sm btn-outline-danger" title="削除" onclick="csbDeleteCase(' + c.id + ')"><i class="bi bi-trash"></i></button>'
+            + '</div>'
+            : '';
+
         html += '<div class="csb-row csb-selectable' + hidden + sel + '" data-id="' + c.id + '" onclick="csbSelectCase(' + c.id + ')">'
              +    '<div class="csb-row-main">'
              +      '<div class="csb-name">'
@@ -579,6 +597,7 @@ function csbRenderCases() {
              +    '<div class="csb-row-side">'
              +      badge
              +      '<div class="csb-sub">' + csbEsc(c.rep_name || '担当なし') + '</div>'
+             +      actions
              +    '</div>'
              +  '</div>';
     });
@@ -655,6 +674,14 @@ function csbRenderStaff() {
         if (s.available_from) sub2.push('<span>' + csbDate(s.available_from) + '〜</span>');
         if (s.desired_price)  sub2.push('<span>' + Number(s.desired_price).toLocaleString() + '円</span>');
 
+        // 編集・削除（管理者のみ）。アサイン済みの人は候補リストを直せないので出さない
+        var actions = (CSB_CAN_EDIT && csbStaffShow !== 'assigned')
+            ? '<div class="csb-actions">'
+            +   '<button type="button" class="btn btn-sm btn-outline-primary" title="編集" onclick="csbOpenStaffForm(' + s.id + ')"><i class="bi bi-pencil"></i></button>'
+            +   '<button type="button" class="btn btn-sm btn-outline-danger" title="削除" onclick="csbDeleteStaffRow(' + s.id + ')"><i class="bi bi-trash"></i></button>'
+            + '</div>'
+            : '';
+
         var side = '';
         if (csbStaffShow === 'assigned') {
             side = '<span class="csb-chip csb-chip-ok">アサイン済</span>'
@@ -666,14 +693,14 @@ function csbRenderStaff() {
                  + '" style="font-size:.72rem;padding:.15rem .5rem" '
                  + (can ? '' : 'disabled title="先に左の案件を選んでください" ')
                  + 'onclick="csbOpenAssign(' + s.id + ')">アサイン</button>'
-                 + '<div class="csb-sub">' + csbEsc(s.rep_name || '担当なし') + '</div>';
+                 + '<div class="csb-sub">' + csbEsc(s.rep_name || '担当なし') + '</div>'
+                 + actions;
         } else {
             side = '<div class="csb-sub">' + csbEsc(s.rep_name || '担当なし') + '</div>';
         }
 
-        var editable = CSB_CAN_EDIT && csbStaffShow !== 'assigned';
         html += '<div class="csb-row' + hidden + '">'
-             +    '<div class="csb-row-main"' + (editable ? ' style="cursor:pointer" onclick="csbOpenStaffForm(' + s.id + ')"' : '') + '>'
+             +    '<div class="csb-row-main">'
              +      '<div class="csb-name">' + csbEsc(s.staff_name) + '</div>'
              +      '<div class="csb-sub">' + sub.join('') + '</div>'
              +      (sub2.length ? '<div class="csb-sub">' + sub2.join('') + '</div>' : '')
@@ -748,16 +775,22 @@ function csbSaveStaff() {
 }
 
 function csbDeleteStaff() {
-    var id = document.getElementById('csbStaffId').value;
+    csbDeleteStaffRow(document.getElementById('csbStaffId').value, true);
+}
+
+/** 一覧のゴミ箱ボタンからも、編集画面の削除ボタンからも同じ処理を使う */
+function csbDeleteStaffRow(id, fromModal) {
     if (!id) return;
-    if (!confirm('この人員を一覧から削除しますか？\n（案件データには影響しません）')) return;
+    var s = csbStaff.filter(function (x) { return x.id === Number(id); })[0];
+    var name = s ? s.staff_name : 'この人員';
+    if (!confirm(name + ' を一覧から削除しますか？\n（案件データには影響しません）')) return;
     var fd = new FormData();
     fd.append('csrf', CSB_CSRF); fd.append('action', 'delete_staff'); fd.append('id', id);
     fetch(CSB_API, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (d) {
             if (!d || !d.ok) { alert((d && d.error) || '削除に失敗しました'); return; }
-            csbStaffModal.hide();
+            if (fromModal && csbStaffModal) csbStaffModal.hide();
             csbLoadStaff();
         })
         .catch(function () { alert('通信エラーが発生しました'); });
@@ -826,12 +859,60 @@ function csbUnassign(staffId) {
 // ============================================================
 // 案件の追加（既存の案件保存APIをそのまま使う）
 // ============================================================
-function csbOpenCaseForm() {
+function csbOpenCaseForm(id) {
+    var f = document.getElementById('csbCaseForm');
+    var c = id ? csbCases.filter(function (x) { return x.id === id; })[0] : null;
     document.getElementById('csbCaseError').textContent = '';
-    document.getElementById('csbCaseForm').reset();
+    f.reset();
+
+    document.getElementById('csbCaseModalTitle').textContent = c ? '案件を編集' : '案件を追加';
+    document.getElementById('csbCaseSave').textContent       = c ? '保存' : '登録';
+    f.elements['id'].value = c ? c.id : '';
+    document.getElementById('csbCaseEditNote').classList.toggle('d-none', !c);
+
+    if (c) {
+        document.getElementById('csbCaseType').value  = c.raw_case_type || 'regular';
+        f.elements['status'].value                    = c.raw_status || 'draft';
+        f.elements['recruitment_count'].value         = (c.need_count === null || c.need_count === undefined) ? '' : c.need_count;
+        document.getElementById('csbCaseClient').value        = c.client_name || '';
+        document.getElementById('csbCaseClientHidden').value  = c.client_name || '';
+        document.getElementById('csbCaseRepSel').value = c.rep_name || '';
+        f.elements['carrier'].value        = c.carrier || '';
+        f.elements['trade_name'].value     = c.trade_name || '';
+        f.elements['store_name'].value     = c.store_name || '';
+        f.elements['worker_type'].value    = c.worker_type || '正社員';
+        f.elements['case_division'].value  = c.case_division || '1次';
+        f.elements['unit_price_in'].value  = c.unit_price_in || 0;
+        f.elements['unit_price_out'].value = c.unit_price_out || 0;
+        f.elements['notes'].value          = c.note || '';
+    }
     csbCaseTypeChanged();
+    // 日付の型を切り替えたあとに入れる（型が変わると値がクリアされるため）
+    if (c) {
+        var isRegular = (c.raw_case_type || 'regular') === 'regular';
+        document.getElementById('csbCaseStart').value = isRegular ? (c.start_date || '').slice(0, 7) : (c.start_date || '');
+        document.getElementById('csbCaseEnd').value   = isRegular ? (c.end_date   || '').slice(0, 7) : (c.end_date   || '');
+    }
+
     if (!csbCaseModal) csbCaseModal = new bootstrap.Modal(document.getElementById('csbCaseModal'));
     csbCaseModal.show();
+}
+
+function csbDeleteCase(id) {
+    var c = csbCases.filter(function (x) { return x.id === id; })[0];
+    var name = c ? (c.client_name || 'この案件') : 'この案件';
+    if (!confirm(name + ' を完全に削除します。\n取り消しはできません。よろしいですか？')) return;
+    var fd = new FormData();
+    fd.append('csrf', CSB_CSRF); fd.append('action', 'delete_case'); fd.append('id', id);
+    fetch(CSB_API, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (!d || !d.ok) { alert((d && d.error) || '削除に失敗しました'); return; }
+            if (csbSelectedCase && csbSelectedCase.id === id) csbSelectedCase = null;
+            csbLoadCases();
+            csbLoadStaff();   // アサイン済みだった人が検討中に戻ることがある
+        })
+        .catch(function () { alert('通信エラーが発生しました'); });
 }
 
 /** 常勤は「月」、イベントは「日」で入力する（既存の案件フォームと同じ） */
@@ -857,13 +938,23 @@ document.addEventListener('DOMContentLoaded', function () {
         e.preventDefault();
         document.getElementById('csbCaseError').textContent = '';
         var btn = document.getElementById('csbCaseSave');
+        var editing = !!form.elements['id'].value;
+        var fd = new FormData(form);
+
+        // 新規は既存の案件登録APIをそのまま使う（常勤・イベント案件の画面と同じ経路）。
+        // 編集はこの画面のAPIで、画面に無い項目を消さないよう今の値に重ねて保存する
+        var url = CSB_SAVE_API;
+        if (editing) { fd.set('action', 'update_case'); url = CSB_API; }
+
         btn.disabled = true;
-        fetch(CSB_SAVE_API, { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+        fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 btn.disabled = false;
-                if (!d || !d.success) { document.getElementById('csbCaseError').textContent = (d && d.error) || '登録に失敗しました'; return; }
+                var ok = editing ? (d && d.ok) : (d && d.success);
+                if (!ok) { document.getElementById('csbCaseError').textContent = (d && d.error) || '保存に失敗しました'; return; }
                 csbCaseModal.hide();
+                csbSelectedCase = null;
                 csbLoadCases();
             })
             .catch(function () { btn.disabled = false; document.getElementById('csbCaseError').textContent = '通信エラーが発生しました'; });

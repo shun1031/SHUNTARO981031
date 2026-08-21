@@ -131,7 +131,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div>
             外注先は「人を出してもらう先（お金を払う先）」です。<br>
             同じ会社が取引先にも登録されている場合は「同じ会社の取引先」を選んでください。
-            戦略会議の会社数で1社としてまとめて数えられます。
+            取引先開拓の会社数で1社としてまとめて数えられます。
         </div>
     </div>
 </div>
@@ -162,7 +162,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <label class="form-label small fw-medium mb-1">同じ会社の取引先</label>
                     <select id="alClient" class="form-select form-select-sm"></select>
                     <div class="form-text" style="font-size:.72rem">
-                        取引先一覧にも同じ会社がある場合に選びます。戦略会議の会社数で1社として数えるために使います。
+                        取引先一覧にも同じ会社がある場合に選びます。取引先開拓の会社数で1社として数えるために使います。
                     </div>
                 </div>
                 <div class="mb-2">

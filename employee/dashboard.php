@@ -71,16 +71,6 @@ if ($myName && $cid) {
     $shiftMonths = [];
     foreach ($st3->fetchAll() as $r) { $shiftMonths[$r['shift_year'].'-'.$r['shift_month']] = true; }
 
-    // Q4: 交通費提出有無（今月・前月）⑤ 判定用
-    $st4 = $db->prepare(
-        "SELECT target_year, target_month FROM sales_transport_costs
-         WHERE company_id=? AND employee_name=?
-           AND ((target_year=? AND target_month=?) OR (target_year=? AND target_month=?))"
-    );
-    $st4->execute([$cid, $myName, $cyear, $cmonth, $pyear, $pmonth]);
-    $transpMonths = [];
-    foreach ($st4->fetchAll() as $r) { $transpMonths[$r['target_year'].'-'.$r['target_month']] = true; }
-
     // ① 出勤忘れ: シフト開始時刻+1分経過・出勤報告なし
     foreach ($aShifts as $s) {
         $dt = $s['shift_date'];
@@ -130,16 +120,7 @@ if ($myName && $cid) {
         }
     }
 
-    // ⑤ 交通費未提出（今月・前月）: 毎月1日 00:00 JST を過ぎた時点から判定
-    foreach ([[$cyear, $cmonth], [$pyear, $pmonth]] as [$y, $m]) {
-        $monthStart = new DateTime(sprintf('%04d-%02d-01 00:00:00', $y, $m), $tzJST);
-        if ($nowJST < $monthStart) continue;
-        if (!isset($transpMonths[$y.'-'.$m])) {
-            $alerts[] = ['date' => sprintf('%04d-%02d-01', $y, $m), 'type' => 5, 'text' => "{$m}月分交通費提出しておりません。"];
-        }
-    }
-
-    // 日付降順・種別昇順でソート（新しい順、同日は出勤>退勤>日報>シフト>交通費）
+    // 日付降順・種別昇順でソート（新しい順、同日は出勤>退勤>日報>シフト）
     usort($alerts, function($a, $b) {
         if ($a['date'] !== $b['date']) return strcmp($b['date'], $a['date']);
         return $a['type'] <=> $b['type'];
@@ -297,12 +278,6 @@ require_once __DIR__ . '/../includes/header.php';
                             <a href="<?= BASE_PATH ?>/public/sales_daily_report.php" class="quick-action">
                                 <i class="bi bi-journal-check" style="color:var(--purple)"></i>
                                 <small>日報提出</small>
-                            </a>
-                        </div>
-                        <div class="col-6">
-                            <a href="<?= BASE_PATH ?>/public/sales_transport.php" class="quick-action">
-                                <i class="bi bi-car-front" style="color:var(--amber)"></i>
-                                <small>交通費申請</small>
                             </a>
                         </div>
                         <div class="col-6">

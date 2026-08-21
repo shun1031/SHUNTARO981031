@@ -11,7 +11,6 @@ $__salesDir = __DIR__ . '/sales';
 require_once $__salesDir . '/masters.php';        // マスタ (クライアント等)
 require_once $__salesDir . '/cases.php';          // 案件 CRUD
 require_once $__salesDir . '/reports.php';        // 集計・ダッシュボード・担当者
-require_once $__salesDir . '/transport.php';      // 交通費管理
 require_once $__salesDir . '/invoices.php';       // 請求書
 require_once $__salesDir . '/shifts.php';         // シフト管理
 require_once $__salesDir . '/daily_reports.php';  // 日報管理

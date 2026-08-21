@@ -10,7 +10,7 @@ $myName = getMyEmployeeName();
 $pageTitle = '申請';
 $csrf = getCsrfToken();
 
-$allowedTypes = ['checkin_change','checkout_change','attendance_add','shift_change','daily_report_edit','transport_edit'];
+$allowedTypes = ['checkin_change','checkout_change','attendance_add','shift_change','daily_report_edit'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf'] ?? '')) {
@@ -49,7 +49,6 @@ $periods = [
 
 $shiftMap     = []; // date  => {scheduled_time, checkin_time, checkout_time}
 $reportMap    = []; // date  => '提出済み'
-$transportMap = []; // 'Y-n' => total_amount
 
 if ($myName) {
     foreach ($periods as [$ry, $rm]) {
@@ -63,9 +62,6 @@ if ($myName) {
         foreach (getDailyReports($cid, $ry, $rm, $myName) as $r) {
             $reportMap[$r['work_date']] = '提出済み';
         }
-        foreach (getTransportCosts($cid, $ry, $rm, $myName) as $t) {
-            $transportMap[$t['target_year'].'-'.$t['target_month']] = (int)$t['total_amount'];
-        }
     }
 }
 
@@ -75,7 +71,7 @@ $typeLabel = [
     'attendance_add'    => '出退勤打刻追加',
     'shift_change'      => 'シフト変更',
     'daily_report_edit' => '日報修正',
-    'transport_edit'    => '交通費修正',
+    'transport_edit'    => '交通費修正',     // 交通費機能は廃止。過去履歴の表示用に残す
     'attendance_change' => '出退勤時間変更', // 旧型式表示用
 ];
 $statusLabel = ['pending' => '承認待ち', 'approved' => '承認済み', 'rejected' => '却下'];
@@ -86,7 +82,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="container-fluid">
     <div class="page-header">
         <h1><i class="bi bi-pencil-square me-2"></i>申請</h1>
-        <p>出退勤・シフト・日報・交通費の変更申請ができます</p>
+        <p>出退勤・シフト・日報の変更申請ができます</p>
     </div>
 
     <?php if (isset($_GET['msg'])): ?>
@@ -114,7 +110,6 @@ require_once __DIR__ . '/../includes/header.php';
                                 <option value="checkout_change">退勤時間変更</option>
                                 <option value="attendance_add">出退勤打刻追加（打刻を忘れた日）</option>
                                 <option value="shift_change">シフト変更（取消も可）</option>
-                                <option value="transport_edit">交通費修正（取消も可）</option>
                             </select>
                         </div>
 
@@ -122,12 +117,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="mb-3" id="sec_date">
                             <label class="form-label fw-semibold">対象日 <span class="text-danger">*</span></label>
                             <input type="date" name="target_date" id="rq_date" class="form-control" onchange="onDateChange()">
-                        </div>
-
-                        <!-- 対象月（交通費用） -->
-                        <div class="mb-3" id="sec_month" style="display:none">
-                            <label class="form-label fw-semibold">対象月 <span class="text-danger">*</span></label>
-                            <input type="month" id="rq_month" class="form-control" onchange="onMonthChange()">
                         </div>
 
                         <!-- 修正前の内容 -->
@@ -192,6 +181,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <td class="text-muted" style="white-space:nowrap"><?= date('n/j H:i', strtotime($r['created_at'])) ?></td>
                                     <td><?= h($typeLabel[$r['request_type']] ?? $r['request_type']) ?></td>
                                     <td style="white-space:nowrap">
+                                        <?php /* 交通費修正は月単位の申請だった。過去履歴のみ表示 */ ?>
                                         <?php if ($r['request_type'] === 'transport_edit'): ?>
                                         <?= date('Y年n月', strtotime($r['target_date'])) ?>
                                         <?php else: ?>
@@ -217,7 +207,6 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 const shiftMap     = <?= json_encode($shiftMap,     JSON_UNESCAPED_UNICODE) ?>;
 const reportMap    = <?= json_encode($reportMap,    JSON_UNESCAPED_UNICODE) ?>;
-const transportMap = <?= json_encode($transportMap, JSON_UNESCAPED_UNICODE) ?>;
 
 // 種別ごとのプレースホルダー・ヒント
 const typeConfig = {
@@ -225,17 +214,11 @@ const typeConfig = {
     checkout_change:   { ph: '例: 18:45',   hint: '' },
     shift_change:      { ph: '例: 10:00〜19:00',  hint: '取消の場合は「取消」と入力してください' },
     daily_report_edit: { ph: '修正内容を具体的に記入', hint: '取消の場合は「取消」と入力してください' },
-    transport_edit:    { ph: '修正内容を具体的に記入', hint: '取消の場合は「取消」と入力してください' },
 };
 
 function onTypeChange() {
     const type = document.getElementById('rq_type').value;
-    const isTransport    = (type === 'transport_edit');
     const isAttendAdd    = (type === 'attendance_add');
-
-    // 対象日 / 対象月 切り替え
-    document.getElementById('sec_date').style.display  = isTransport ? 'none'  : 'block';
-    document.getElementById('sec_month').style.display = isTransport ? 'block' : 'none';
 
     // 修正後の希望 切り替え
     document.getElementById('sec_new_std').style.display = isAttendAdd ? 'none'  : 'block';
@@ -258,15 +241,6 @@ function updateCurrentValue() {
     const cur  = document.getElementById('rq_current');
     if (!type) { cur.value = ''; return; }
 
-    if (type === 'transport_edit') {
-        const month = document.getElementById('rq_month').value; // "YYYY-MM"
-        if (!month) { cur.value = ''; return; }
-        const [y, m] = month.split('-');
-        const key = y + '-' + parseInt(m);
-        cur.value = (transportMap[key] !== undefined) ? transportMap[key] + '円' : '未提出';
-        return;
-    }
-
     const date = document.getElementById('rq_date').value;
     if (!date) { cur.value = ''; return; }
 
@@ -284,11 +258,6 @@ function updateCurrentValue() {
 }
 
 function onDateChange() { updateCurrentValue(); }
-function onMonthChange() {
-    const month = document.getElementById('rq_month').value;
-    if (month) { document.getElementById('rq_date').value = month + '-01'; }
-    updateCurrentValue();
-}
 
 // フォーム送信バリデーション
 document.getElementById('reqForm').addEventListener('submit', function(e) {
@@ -298,13 +267,7 @@ document.getElementById('reqForm').addEventListener('submit', function(e) {
     if (!type) { e.preventDefault(); alert('申請種別を選択してください'); return; }
     if (!reason) { e.preventDefault(); alert('申請理由を入力してください'); return; }
 
-    if (type === 'transport_edit') {
-        const month = document.getElementById('rq_month').value;
-        if (!month) { e.preventDefault(); alert('対象月を選択してください'); return; }
-        document.getElementById('rq_date').value = month + '-01';
-    } else {
-        if (!document.getElementById('rq_date').value) { e.preventDefault(); alert('対象日を選択してください'); return; }
-    }
+    if (!document.getElementById('rq_date').value) { e.preventDefault(); alert('対象日を選択してください'); return; }
 
     if (type === 'attendance_add') {
         const cin  = document.getElementById('rq_cin').value.trim();

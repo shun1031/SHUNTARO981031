@@ -57,7 +57,6 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/employee/shift.php', 'bi-calendar3', 'シフト提出', $currentDir === 'employee' && $currentPage === 'shift') ?>
         <?= navLink(BASE_PATH . '/public/sales_daily_report.php', 'bi-journal-check', '日報提出', $currentPage === 'sales_daily_report') ?>
         <?= navLink(BASE_PATH . '/employee/attendance.php', 'bi-clock-history', '出退勤報告', $currentDir === 'employee' && $currentPage === 'attendance') ?>
-        <?= navLink(BASE_PATH . '/public/sales_transport.php', 'bi-car-front', '交通費申請', $currentPage === 'sales_transport') ?>
         <?= navLink(BASE_PATH . '/employee/requests.php', 'bi-pencil-square', '各種申請', $currentDir === 'employee' && $currentPage === 'requests', $pendingMyReq ? (string)$pendingMyReq : '') ?>
 
         <?php if (isSalesRep()): ?>
@@ -90,7 +89,6 @@ function navSection(string $label): string {
         <?= navLink(BASE_PATH . '/public/alliance_staff.php', 'bi-people', 'アライアンス人員管理', $currentPage === 'alliance_staff') ?>
         <?= navLink(BASE_PATH . '/public/sales_shifts.php', 'bi-calendar3', 'シフト管理', $currentPage === 'sales_shifts') ?>
         <?= navLink(BASE_PATH . '/public/sales_daily_report.php', 'bi-journal-check', '日報管理', $currentPage === 'sales_daily_report') ?>
-        <?= navLink(BASE_PATH . '/public/sales_transport.php', 'bi-car-front', '交通費', $currentPage === 'sales_transport') ?>
         <?php /* 取引先一覧は「取引先」「外注先」の2タブ構成。どちらを開いてもここが選択状態になる */ ?>
         <?= navLink(BASE_PATH . '/public/clients.php', 'bi-people-fill', '取引先一覧', in_array($currentPage, ['clients', 'alliances'])) ?>
         <?= navLink(BASE_PATH . '/public/sales_client_report.php', 'bi-building', '取引先別売上', $currentPage === 'sales_client_report') ?>

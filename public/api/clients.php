@@ -57,14 +57,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (!in_array($fy, $fyList, true)) $fy = $fyList[0] ?? tradeCurrentFy();
     $repNames = getSalesRepCandidates($cid);
 
+    // タブ: client=取引先（案件がある）／ candidate=パートナー候補（案件がまだ無い）
+    $tab = ($_GET['tab'] ?? '') === 'candidate' ? 'candidate' : 'client';
+
     // show=deleted で削除済み（is_active=0）の取引先を表示し、復元できるようにする
     $show   = ($_GET['show'] ?? '') === 'deleted' ? 'deleted' : 'active';
     $where  = 'company_id = ? AND is_active = ' . ($show === 'deleted' ? '0' : '1');
     $params = [$cid];
-    // 登録中の一覧は「その年度に取引がある取引先」だけに絞る（削除済みは絞らない）
+    // 「取引先」タブは その年度に取引がある会社、「パートナー候補」タブはその逆。
+    // 条件は同じものを使い、候補タブでは NOT を付けるだけにしてある
+    // （案件が発生すると自動的に取引先タブへ移り、手で移し替える必要がない）
     if ($show === 'active') {
         [$hasCaseSql, $hasCaseParams] = tradeClientHasCaseSql($fy, $repNames);
-        $where .= ' AND ' . $hasCaseSql;
+        $where .= ' AND ' . ($tab === 'candidate' ? 'NOT (' . $hasCaseSql . ')' : $hasCaseSql);
         $params = array_merge($params, $hasCaseParams);
     }
     if ($q !== '') {
@@ -97,6 +102,46 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             foreach ($aStmt->fetchAll(PDO::FETCH_COLUMN) as $v) $alsoAlliance[(int)$v] = true;
         }
         $rows = array_map(fn($r) => clientRowOut($r, $alsoAlliance), $pageRows);
+
+        // パートナー候補タブでは、商談報告のステータスと担当者も出す
+        if ($tab === 'candidate' && $ids) {
+            $ph  = implode(',', array_fill(0, count($ids), '?'));
+            $nSt = $db->prepare("SELECT id, client_id, status, status_other, division
+                                 FROM strategy_meeting_negotiations
+                                 WHERE company_id = ? AND client_id IN ({$ph})");
+            $nSt->execute(array_merge([$cid], $ids));
+            $negByClient = [];   // 取引先ID => 商談報告
+            $clientOfNeg = [];   // 商談報告ID => 取引先ID
+            foreach ($nSt->fetchAll(PDO::FETCH_ASSOC) as $n) {
+                $negByClient[(int)$n['client_id']] = [
+                    'status'   => (string)$n['status'],
+                    'other'    => (string)($n['status_other'] ?? ''),
+                    'division' => (string)($n['division'] ?? ''),
+                    'reps'     => [],
+                ];
+                $clientOfNeg[(int)$n['id']] = (int)$n['client_id'];
+            }
+            // 担当者は1社に何人でも入るので別の表から取る
+            if ($clientOfNeg) {
+                $ph2 = implode(',', array_fill(0, count($clientOfNeg), '?'));
+                $rSt = $db->prepare("SELECT negotiation_id, rep_name
+                                     FROM strategy_meeting_negotiation_reps
+                                     WHERE company_id = ? AND negotiation_id IN ({$ph2}) ORDER BY id");
+                $rSt->execute(array_merge([$cid], array_keys($clientOfNeg)));
+                foreach ($rSt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $c = $clientOfNeg[(int)$r['negotiation_id']] ?? null;
+                    if ($c !== null) $negByClient[$c]['reps'][] = (string)$r['rep_name'];
+                }
+            }
+            foreach ($rows as &$row) {
+                $n = $negByClient[(int)$row['id']] ?? null;
+                $row['neg_status']   = $n ? ($n['status'] === 'その他' && $n['other'] !== ''
+                                             ? 'その他（' . $n['other'] . '）' : $n['status']) : '';
+                $row['neg_reps']     = $n ? $n['reps'] : [];
+                $row['neg_division'] = $n ? $n['division'] : '';
+            }
+            unset($row);
+        }
     } catch (PDOException $e) {
         echo json_encode(['error' => 'データの取得に失敗しました']); exit;
     }
@@ -113,6 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
     echo json_encode([
         'ok'         => true,
+        'tab'        => $tab,
         'show'       => $show,
         'deleted_count' => $deletedCount,
         'fy'         => $fy,

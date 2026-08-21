@@ -33,10 +33,20 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 
+    <?php
+    /* タブ: 取引先（その年度に案件がある）／ パートナー候補（案件がまだ無い）／ 外注先。
+       案件が発生すると自動的に「取引先」へ移るので、手で移し替える必要はない */
+    $clTab = ($_GET['tab'] ?? '') === 'candidate' ? 'candidate' : 'client';
+    ?>
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
-            <a class="nav-link active" href="<?= BASE_PATH ?>/public/clients.php">
+            <a class="nav-link<?= $clTab === 'client' ? ' active' : '' ?>" href="<?= BASE_PATH ?>/public/clients.php">
                 <i class="bi bi-building me-1"></i>取引先
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link<?= $clTab === 'candidate' ? ' active' : '' ?>" href="<?= BASE_PATH ?>/public/clients.php?tab=candidate">
+                <i class="bi bi-person-plus me-1"></i>パートナー候補
             </a>
         </li>
         <li class="nav-item">
@@ -45,6 +55,15 @@ require_once __DIR__ . '/../includes/header.php';
             </a>
         </li>
     </ul>
+
+    <?php if ($clTab === 'candidate'): ?>
+    <div class="alert alert-info py-2 px-3 mb-3" style="font-size:.82rem">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>この年度に案件がまだ無い取引先</strong>です。商談報告のステータスと担当者もあわせて表示しています。<br>
+        案件が登録されると<strong>自動的に「取引先」タブへ移ります</strong>（手で移し替える必要はありません）。
+        ここに会社を追加するには、右上の「取引先を追加」から登録してください。
+    </div>
+    <?php endif; ?>
 
 
     <div class="card mb-3 tr-fybar">
@@ -104,12 +123,15 @@ require_once __DIR__ . '/../includes/header.php';
                             <th>担当者名</th>
                             <th>メールアドレス</th>
                             <th>電話番号</th>
-                            <th style="width:150px">契約書格納</th>
+                            <?php /* 候補タブのときだけ出す列。取引先タブでは契約書を出す */ ?>
+                            <th class="cl-col-cand d-none" style="width:130px">商談ステータス</th>
+                            <th class="cl-col-cand d-none" style="width:150px">担当者</th>
+                            <th class="cl-col-client" style="width:150px">契約書格納</th>
                             <th style="width:80px"></th>
                         </tr>
                     </thead>
                     <tbody id="clTbody">
-                        <tr><td colspan="7" class="text-center text-muted py-4">
+                        <tr><td colspan="9" class="text-center text-muted py-4">
                             <span class="spinner-border spinner-border-sm me-2"></span>読み込み中...
                         </td></tr>
                     </tbody>
@@ -242,6 +264,8 @@ CLJS;
 $inlineJs .= <<<'CLJS2'
 
 var clPage = 1, clQuery = '', clTimer = null, clModalBs = null, clShow = 'active';
+// 表示中のタブ: 'client'=取引先（案件がある） / 'candidate'=パートナー候補（案件がまだ無い）
+var clTab = (new URLSearchParams(location.search).get('tab') === 'candidate') ? 'candidate' : 'client';
 var clFy = 0;       // 表示中の年度（0ならサーバーが決めた年度に従う）
 var clFyList = [];  // 選べる年度（古い順）
 
@@ -281,9 +305,14 @@ var clRowMap = {};   // id → 取引先データ（編集フォームの復元�
 // 年度ボタンと「合計◯社」を描き直す
 function clRenderFy(d) {
     clFy = d.fy;
-    // もう片方のタブへ移動しても同じ年度を見られるようにリンクを更新する
+    // ほかのタブへ移動しても同じ年度を見られるようにリンクを更新する
     var link = document.querySelector('.nav-tabs a[href*="alliances.php"]');
     if (link) link.href = link.href.split('?')[0] + '?fy=' + d.fy;
+    document.querySelectorAll('.nav-tabs a[href*="clients.php"]').forEach(function (a) {
+        var base = a.href.split('?')[0];
+        var isCand = a.getAttribute('href').indexOf('tab=candidate') >= 0;
+        a.href = base + '?fy=' + d.fy + (isCand ? '&tab=candidate' : '');
+    });
     clFyList = (d.fy_options || []).map(function (o) { return o.fy; }).sort(function (a, b) { return a - b; });
     document.getElementById('clFyLabel').textContent = (d.fy - 1) + '年9月〜' + d.fy + '年8月';
     // 端まで来たら矢印を押せなくする
@@ -325,8 +354,29 @@ function clSetFy(fy) {
     clLoad();
 }
 
+// パートナー候補タブ用: 商談報告のステータス
+function clNegStatus(c) {
+    if (!c.neg_status) return '<span class="text-muted" title="商談報告がまだありません">未登録</span>';
+    var cls = c.neg_status === '取引開始' ? 'bg-success'
+            : (c.neg_status === '取引候補' ? 'bg-primary' : 'bg-secondary');
+    return '<span class="badge ' + cls + '">' + clEsc(c.neg_status) + '</span>';
+}
+// パートナー候補タブ用: 担当者（1社に何人でも）
+function clNegReps(c) {
+    if (!c.neg_reps || !c.neg_reps.length) return '<span class="text-muted">-</span>';
+    return c.neg_reps.map(clEsc).join('、');
+}
+
+// 表の列をタブに合わせて出し分ける
+function clSyncColumns() {
+    var cand = (clTab === 'candidate');
+    document.querySelectorAll('.cl-col-cand').forEach(function (el) { el.classList.toggle('d-none', !cand); });
+    document.querySelectorAll('.cl-col-client').forEach(function (el) { el.classList.toggle('d-none', cand); });
+}
+
 function clRender(d) {
     clRenderFy(d);
+    clSyncColumns();
     var tb = document.getElementById('clTbody');
     clRowMap = {};
     d.clients.forEach(function (c) { clRowMap[c.id] = c; });
@@ -339,7 +389,7 @@ function clRender(d) {
     if (d.show === 'deleted') { bar.classList.remove('d-none'); bar.classList.add('d-flex'); }
     else { bar.classList.add('d-none'); bar.classList.remove('d-flex'); }
     if (!d.clients.length) {
-        tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">'
+        tb.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">'
                      + (clQuery ? '該当する取引先が見つかりません' : '取引先が登録されていません') + '</td></tr>';
     } else {
         var html = '';
@@ -359,7 +409,9 @@ function clRender(d) {
                  +  '<td>' + (c.contact_person ? clEsc(c.contact_person) : '<span class="text-muted">-</span>') + '</td>'
                  +  '<td>' + (c.email ? clEsc(c.email) : '<span class="text-muted">-</span>') + '</td>'
                  +  '<td>' + (c.phone ? clEsc(c.phone) : '<span class="text-muted">-</span>') + '</td>'
-                 +  '<td>' + contract + '</td>'
+                 +  '<td class="cl-col-cand' + (clTab === 'candidate' ? '' : ' d-none') + '">' + clNegStatus(c) + '</td>'
+                 +  '<td class="cl-col-cand' + (clTab === 'candidate' ? '' : ' d-none') + '">' + clNegReps(c) + '</td>'
+                 +  '<td class="cl-col-client' + (clTab === 'candidate' ? ' d-none' : '') + '">' + contract + '</td>'
                  +  '<td class="text-end">'
                  +  (!CL_CAN_EDIT ? ''
                      : clShow === 'deleted'
@@ -388,7 +440,7 @@ function clRender(d) {
 
 // 一覧の取得（画面全体はリロードしない）
 function clLoad() {
-    var url = CL_API + '?page=' + clPage + '&show=' + clShow
+    var url = CL_API + '?page=' + clPage + '&show=' + clShow + '&tab=' + clTab
             + (clFy ? '&fy=' + clFy : '')
             + (clQuery ? '&q=' + encodeURIComponent(clQuery) : '');
     fetch(url, { credentials: 'same-origin' })
@@ -399,7 +451,7 @@ function clLoad() {
         })
         .catch(function () {
             document.getElementById('clTbody').innerHTML =
-                '<tr><td colspan="7" class="text-center text-danger py-4">読み込みに失敗しました</td></tr>';
+                '<tr><td colspan="9" class="text-center text-danger py-4">読み込みに失敗しました</td></tr>';
         });
 }
 

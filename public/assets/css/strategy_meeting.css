@@ -484,6 +484,20 @@
 /* ============================================================
    担当企業一覧
    ============================================================ */
+/* ---- 商談報告フォームの担当者（複数選択） ---- */
+.sm-repbox {
+    border: 1px solid var(--sm-border);
+    border-radius: .375rem;
+    padding: .45rem .6rem;
+    max-height: 8.5rem;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 .6rem;
+}
+.sm-repbox .form-check { margin-bottom: .15rem; }
+.sm-repbox .form-check-label { font-size: .84rem; }
+
 /* ---- 4つの集計カード ---- */
 .sm-kpis {
     display: grid;

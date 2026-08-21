@@ -319,13 +319,18 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label fw-medium">営業担当者 <span class="text-danger">*</span></label>
-                        <?php /* 表記ゆれを防ぐため、案件フォームと同じく社員一覧から選ぶ */ ?>
-                        <select class="form-select" id="smNegRep" required>
-                            <option value="">-- 選択してください --</option>
-                            <?php foreach ($repCandidates as $_rc): ?>
-                            <option value="<?= h($_rc) ?>"><?= h($_rc) ?></option>
+                        <?php /* 1社を複数人で担当することがあるため、複数選べるようにしている。
+                                表記ゆれを防ぐため、選択肢は社員一覧から作る */ ?>
+                        <div class="sm-repbox" id="smNegRepBox">
+                            <?php foreach ($repCandidates as $_i => $_rc): ?>
+                            <div class="form-check">
+                                <input class="form-check-input sm-neg-rep" type="checkbox"
+                                       value="<?= h($_rc) ?>" id="smNegRep<?= $_i ?>">
+                                <label class="form-check-label" for="smNegRep<?= $_i ?>"><?= h($_rc) ?></label>
+                            </div>
                             <?php endforeach; ?>
-                        </select>
+                        </div>
+                        <div class="form-text" style="font-size:.7rem">複数の担当者を選べます（1人以上）</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-medium">対象年月 <span class="text-danger">*</span></label>
@@ -1120,7 +1125,10 @@ function smNegToggleOther() {
 function smNegOpen(row) {
     smNegShowError('');
     document.getElementById('smNegId').value     = row ? row.id : '';
-    document.getElementById('smNegRep').value    = row ? (row.rep_name || '') : '';
+    // 担当者は複数。編集のときは保存されている人にだけチェックを入れる
+    var repSet = {};
+    (row && row.reps ? row.reps : []).forEach(function (n) { repSet[n] = true; });
+    document.querySelectorAll('.sm-neg-rep').forEach(function (c) { c.checked = !!repSet[c.value]; });
     // 会社は取引先一覧から選ぶ。編集時は保存されている取引先を選択状態にする
     document.getElementById('smNegClient').value = row && row.client_id ? row.client_id : '';
     document.getElementById('smNegStatus').value = row ? row.status : '';
@@ -1147,11 +1155,15 @@ function smNegSave() {
     var clientId = document.getElementById('smNegClient').value;
     if (!clientId) { smNegShowError('会社を取引先一覧から選んでください'); return; }
 
+    var reps = Array.prototype.filter.call(document.querySelectorAll('.sm-neg-rep'), function (c) { return c.checked; })
+                    .map(function (c) { return c.value; });
+    if (!reps.length) { smNegShowError('営業担当者を1人以上選んでください'); return; }
+
     var fd = new FormData();
     fd.append('csrf', smCsrf);
     fd.append('action', 'save_negotiation');
     fd.append('id', document.getElementById('smNegId').value || '');
-    fd.append('rep_name', document.getElementById('smNegRep').value);
+    reps.forEach(function (n) { fd.append('rep_names[]', n); });
     fd.append('client_id', clientId);
     fd.append('status', document.getElementById('smNegStatus').value);
     fd.append('division', document.getElementById('smNegDivision').value);

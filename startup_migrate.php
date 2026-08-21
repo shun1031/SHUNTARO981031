@@ -351,6 +351,22 @@ $migrations = [
     // 2件目をDB側で拒否する。client_id が NULL の行は対象外（MySQLのUNIQUEはNULLを重複と見ない）
     "ALTER TABLE strategy_meeting_negotiations ADD UNIQUE KEY uk_smn_client (company_id, client_id)",
 
+    // ---- strategy_meeting_negotiation_reps: 商談報告の担当者（1社に何人でも） ----
+    // 1社を複数の営業担当が持つケース（V.I.N・ALBERA など）に対応するため、
+    // 担当者だけをこの表に切り出す。
+    //
+    // 商談報告そのものは「1社1件」のまま（uk_smn_client を残す）なので、
+    // 会社の重複はデータベースが構造的に拒否し続ける。
+    // ステータス・年月は会社に1つなので、担当者ごとに食い違うこともない。
+    // パートナー数・パートナー候補数は会社単位で数えているため、
+    // 担当者が何人いても社数は変わらない（集計ロジックは変更していない）。
+    "CREATE TABLE IF NOT EXISTS strategy_meeting_negotiation_reps (id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, negotiation_id INT NOT NULL COMMENT '商談報告のID', rep_name VARCHAR(100) NOT NULL COMMENT '営業担当者名', rep_employee_id INT DEFAULT NULL COMMENT '営業担当者の社員ID', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uk_smnr (negotiation_id, rep_name), INDEX idx_smnr_rep (company_id, rep_name), INDEX idx_smnr_neg (negotiation_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    // ---- 既存の商談報告の担当者を上の表へ移す（何度実行しても増えない） ----
+    // UNIQUE(negotiation_id, rep_name) があるので、2回目以降は INSERT IGNORE が何もしない。
+    // 元の rep_name 列はそのまま残す（読まなくなるだけ。戻したくなったときのため）
+    "INSERT IGNORE INTO strategy_meeting_negotiation_reps (company_id, negotiation_id, rep_name, rep_employee_id) SELECT company_id, id, rep_name, rep_employee_id FROM strategy_meeting_negotiations WHERE rep_name IS NOT NULL AND TRIM(rep_name) <> ''",
+
     // ---- case_staff_candidates: 案件人員一覧の「アサイン検討中の人員」 ----
     // 案件はすべて sales_cases をそのまま読むので、案件side は新テーブルを持たない。
     // 人員だけは「まだ案件に入っていない候補」を置く場所が無かったのでここに持つ。

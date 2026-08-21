@@ -179,12 +179,17 @@ function smAllianceClientMap(PDO $db, int $companyId): array {
  * @return array<string, array{partners:array,candidates:array,month_new:int,total_new:int}>
  */
 function smNegotiationsByRep(PDO $db, int $companyId, int $endYm, int $targetYm, int $fyStartYm): array {
-    $stmt = $db->prepare("SELECT n.client_id, n.rep_name, n.division, n.note,
+    // 担当者は strategy_meeting_negotiation_reps から読む。
+    // 1社を2人で担当している場合は2行返り、両方のカードにその会社が出る。
+    // 会社としては1社のままなので、グラフ・表・上部の社数は変わらない
+    $stmt = $db->prepare("SELECT r.rep_name, n.client_id, n.division, n.note,
                                  n.first_report_ym, n.candidate_ym, n.active_ym, n.excluded_ym,
                                  COALESCE(" . clientLabelSql('cl') . ", n.client_name) AS client_name
-                          FROM strategy_meeting_negotiations n
+                          FROM strategy_meeting_negotiation_reps r
+                          JOIN strategy_meeting_negotiations n
+                            ON n.id = r.negotiation_id AND n.company_id = r.company_id
                           LEFT JOIN sales_clients cl ON cl.id = n.client_id AND cl.company_id = n.company_id
-                          WHERE n.company_id = ?");
+                          WHERE r.company_id = ?");
     $stmt->execute([$companyId]);
 
     $out = [];
@@ -294,6 +299,22 @@ function smRepCounts(array $caseKeys, ?array $neg): array {
     ];
 }
 
+/**
+ * 商談報告の担当者を入れ替える（いったん全部消してから入れ直す）。
+ * 商談報告そのもの（会社・ステータス・年月）には触れないので、
+ * パートナー数・パートナー候補数は変わらない。
+ */
+function smSaveNegotiationReps(PDO $db, int $companyId, int $negotiationId, array $repNames): void {
+    $db->prepare('DELETE FROM strategy_meeting_negotiation_reps WHERE negotiation_id = ? AND company_id = ?')
+       ->execute([$negotiationId, $companyId]);
+    if (!$repNames) return;
+    $ins = $db->prepare('INSERT INTO strategy_meeting_negotiation_reps
+        (company_id, negotiation_id, rep_name, rep_employee_id) VALUES (?,?,?,?)');
+    foreach ($repNames as $rn) {
+        $ins->execute([$companyId, $negotiationId, $rn, resolveEmployeeIdByName($companyId, $rn)]);
+    }
+}
+
 /** 目標企業数を取得（未設定なら既定の100社） */
 function smTargetCount(PDO $db, int $companyId): int {
     try {
@@ -354,7 +375,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($postAction === 'save_negotiation') {
         $id         = (int)($_POST['id'] ?? 0);
         $clientId   = (int)($_POST['client_id'] ?? 0);
-        $repName    = trim($_POST['rep_name'] ?? '');
+        // 担当者は複数選べる。社員一覧で営業担当にチェックがある人だけを受け付ける
+        $repInput = $_POST['rep_names'] ?? ($_POST['rep_name'] ?? []);
+        if (!is_array($repInput)) $repInput = [$repInput];
+        $repAllowed = array_flip(getSalesRepCandidates($cid));
+        $repNames = [];
+        foreach ($repInput as $rn) {
+            $rn = trim((string)$rn);
+            if ($rn !== '' && isset($repAllowed[$rn]) && !in_array($rn, $repNames, true)) $repNames[] = $rn;
+        }
+        // 一覧・互換用に先頭の担当者を rep_name 列にも残す（集計はもう読まない）
+        $repName    = $repNames[0] ?? '';
         $status     = trim($_POST['status'] ?? '');
         $statusOther= trim($_POST['status_other'] ?? '');
         $note       = trim($_POST['note'] ?? '');
@@ -366,6 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 会社は取引先一覧から選ぶ方式。手入力を受け付けないので表記ゆれが起きない
         if (!$clientId)                              { echo json_encode(['error' => '会社を取引先一覧から選んでください']); exit; }
+        if (!$repNames)                              { echo json_encode(['error' => '営業担当者を1人以上選んでください']); exit; }
         if (!in_array($status, SM_STATUSES, true))   { echo json_encode(['error' => 'ステータスを選択してください']); exit; }
         if ($status === 'その他' && $statusOther === '') { echo json_encode(['error' => '「その他」の内容を入力してください']); exit; }
         if ($ym === null)                            { echo json_encode(['error' => '対象年月を選択してください']); exit; }
@@ -418,7 +450,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $status === '取引開始' ? $ym : null,
                     $counted ? null : $ym,
                 ]);
-                echo json_encode(['success' => true, 'id' => (int)$db->lastInsertId()], JSON_UNESCAPED_UNICODE);
+                $newId = (int)$db->lastInsertId();
+                smSaveNegotiationReps($db, $cid, $newId, $repNames);
+                echo json_encode(['success' => true, 'id' => $newId], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
@@ -449,6 +483,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $candidateYm, $activeYm, $excludedYm,
                 (int)$cur['id'], $cid,
             ]);
+            smSaveNegotiationReps($db, $cid, (int)$cur['id'], $repNames);
             echo json_encode(['success' => true, 'id' => (int)$cur['id']], JSON_UNESCAPED_UNICODE);
         } catch (PDOException $e) {
             error_log('[strategy_meeting save_negotiation] ' . $e->getMessage());
@@ -486,6 +521,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         if (!$id) { echo json_encode(['error' => 'id required']); exit; }
         try {
+            // 担当者の行も一緒に消す（残しても読まれないが、ゴミを残さない）
+            $db->prepare('DELETE FROM strategy_meeting_negotiation_reps WHERE negotiation_id = ? AND company_id = ?')->execute([$id, $cid]);
             $db->prepare('DELETE FROM strategy_meeting_negotiations WHERE id = ? AND company_id = ?')->execute([$id, $cid]);
             echo json_encode(['success' => true]);
         } catch (PDOException $e) {
@@ -703,6 +740,13 @@ if ($action === 'negotiations') {
                           ORDER BY COALESCE(n.excluded_ym, 999999) DESC, n.first_report_ym DESC, n.id DESC");
     $stmt->execute([$cid]);
 
+    // 担当者（1社に何人でも）をまとめて取る
+    $rStmt = $db->prepare('SELECT negotiation_id, rep_name FROM strategy_meeting_negotiation_reps
+                           WHERE company_id = ? ORDER BY id');
+    $rStmt->execute([$cid]);
+    $repsByNeg = [];
+    foreach ($rStmt->fetchAll() as $r) { $repsByNeg[(int)$r['negotiation_id']][] = (string)$r['rep_name']; }
+
     $ymLabel = function ($v) {
         if (!$v) return '';
         return (int)floor($v / 100) . '年' . ((int)$v % 100) . '月';
@@ -710,11 +754,15 @@ if ($action === 'negotiations') {
 
     $rows = [];
     foreach ($stmt->fetchAll() as $r) {
+        // 担当者は新しい表を優先。まだ移行されていない行だけ rep_name を使う
+        $reps = $repsByNeg[(int)$r['id']] ?? [];
+        if (!$reps && trim((string)$r['rep_name']) !== '') $reps = [trim((string)$r['rep_name'])];
         $rows[] = [
             'id'            => (int)$r['id'],
             'client_id'     => $r['client_id'] !== null ? (int)$r['client_id'] : null,
             'client_name'   => $r['client_name'],
-            'rep_name'      => $r['rep_name'],
+            'reps'          => $reps,
+            'rep_name'      => implode('、', $reps),
             'status'        => $r['status'],
             'status_other'  => $r['status_other'],
             'division'      => (string)($r['division'] ?? ''),

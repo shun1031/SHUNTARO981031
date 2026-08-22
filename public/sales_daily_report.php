@@ -311,8 +311,9 @@ require_once __DIR__ . '/../includes/header.php';
                             <p id="drLocationError" class="text-danger mb-0" style="font-size:.75rem;display:none">稼働店舗を入力してください</p>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">キャリア</label>
-                            <select name="carrier" id="drCarrier" class="form-select form-select-sm">
+                            <?php /* 個人実績の項目がキャリアで変わるため、キャリアも必須にしている */ ?>
+                            <label class="form-label fw-bold">キャリア <span class="text-danger">*</span></label>
+                            <select name="carrier" id="drCarrier" class="form-select form-select-sm" required>
                                 <option value="">選択</option>
                                 <option value="SB,YM">SB / Y!mobile</option>
                                 <option value="au,UQ">au / UQ</option>
@@ -427,7 +428,23 @@ require_once __DIR__ . '/../includes/header.php';
     };
     var BIZ_ALIASES = {'ショップ': '光AD', 'ショップ以外': '業務委託'};
     var drCurrentBiz = null;
+    var drCurrentItems = [];   // いま画面に出している個人実績の項目
     var drSaveApiBase   = <?= json_encode($drSaveApiBase) ?>;
+
+    // ─── 個人実績の項目は「業務形態 × キャリア」で決まる ───────────────
+    // api/daily_report_kpi.php の drPersonalItems() と必ず同じ内容にすること
+    var DR_ITEMS_SB     = ['MNP','アップ','ダウン','機変','転用','事変','1→10','光新規','Air新規','Air機変','でんき','カード','セレクション単価'];
+    var DR_ITEMS_HR     = ['MNP','アップ','ダウン','機変','転用','事変','1→10','光新規','ホームルーター新規','ホームルーター機変','でんき','カード','セレクション単価'];
+    var DR_ITEMS_HIKARI = ['固定合計'];
+    var DR_CARRIER_HR    = ['au,UQ', 'ドコモ', '楽天'];      // ホームルーター表記
+    var DR_CARRIER_FIXED = ['コミュファ', 'CATV'];            // 固定のみ
+    function drPersonalItems(biz, carrier) {
+        if (biz === '光AD') return BIZ_CONFIG['光AD'].personalItems;   // 光ADはSB専用
+        if (biz !== '業務委託') return [];
+        if (DR_CARRIER_FIXED.indexOf(carrier) >= 0) return DR_ITEMS_HIKARI;
+        if (DR_CARRIER_HR.indexOf(carrier)    >= 0) return DR_ITEMS_HR;
+        return DR_ITEMS_SB;   // SB,YM と、キャリア未入力の過去データ
+    }
 
     function makeItemCol(id, label) {
         var col = document.createElement('div');
@@ -457,24 +474,41 @@ require_once __DIR__ . '/../includes/header.php';
         wrap.innerHTML = ''; wrap.appendChild(row);
     }
 
+    // 光ADはSB専用。業務形態に合わせてキャリアの選択肢を出し入れする
+    function drSyncCarrierOptions(bizName) {
+        var sel = document.getElementById('drCarrier');
+        var onlySb = (bizName === '光AD');
+        Array.prototype.forEach.call(sel.options, function(op) {
+            if (op.value === '' || op.value === 'SB,YM') { op.hidden = false; op.disabled = false; return; }
+            op.hidden = onlySb; op.disabled = onlySb;
+        });
+        if (onlySb) sel.value = 'SB,YM';   // 他キャリアを選んでいてもSBに戻す
+    }
+
     function updateBizForm() {
         var wt = document.getElementById('drWorkType').value;
-        var biz = BIZ_CONFIG[BIZ_ALIASES[wt] || wt] || null;
+        var bizName = BIZ_ALIASES[wt] || wt;
+        var biz = BIZ_CONFIG[bizName] || null;
         drCurrentBiz = biz;
         var show = !!biz;
+
+        drSyncCarrierOptions(bizName);
 
         document.getElementById('drEventForm').style.display = show ? 'block' : 'none';
         document.getElementById('drSubmitBtn').disabled = !show;
 
-        if (!biz) return;
+        if (!biz) { drCurrentItems = []; return; }
 
         document.getElementById('drLabelCatch').textContent  = biz.catchLabel;
         document.getElementById('drLabelSeated').textContent = biz.seatedLabel;
 
-        buildPersonalFields(biz.personalItems);
+        // キャリアによって項目が変わるため、キャリアを変えたときもここを通す
+        drCurrentItems = drPersonalItems(bizName, document.getElementById('drCarrier').value);
+        buildPersonalFields(drCurrentItems);
     }
 
     document.getElementById('drWorkType').addEventListener('change', updateBizForm);
+    document.getElementById('drCarrier').addEventListener('change', updateBizForm);
 
     document.getElementById('reportModal').addEventListener('show.bs.modal', function() {
         document.getElementById('reportForm').reset();
@@ -483,7 +517,9 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('drCarrier').value  = '';
         document.getElementById('drLocationError').style.display = 'none';
         document.getElementById('drPersonalFields').innerHTML = '<p class="text-muted small text-center mb-0 py-1">業務形態を選択すると入力欄が表示されます</p>';
+        drSyncCarrierOptions('');   // 前回「光AD」で絞り込んだ選択肢を元に戻す
         drCurrentBiz = null;
+        drCurrentItems = [];
         document.getElementById('drEventForm').style.display = 'none';
         document.getElementById('drSubmitBtn').disabled = true;
     });
@@ -496,14 +532,12 @@ require_once __DIR__ . '/../includes/header.php';
         locError.style.display = 'none';
 
         var biz = drCurrentBiz;
-        // 個人実績 JSON 収集
+        // 個人実績 JSON 収集（いま画面に出している項目名で保存する）
         var perAcq = {};
-        if (biz && biz.personalItems) {
-            biz.personalItems.forEach(function(label, i) {
-                var inp = document.getElementById('perinp_' + i);
-                if (inp && inp.value !== '' && parseFloat(inp.value) !== 0) perAcq[label] = inp.value;
-            });
-        }
+        drCurrentItems.forEach(function(label, i) {
+            var inp = document.getElementById('perinp_' + i);
+            if (inp && inp.value !== '' && parseFloat(inp.value) !== 0) perAcq[label] = inp.value;
+        });
         document.getElementById('perAcqJson').value = JSON.stringify(perAcq);
 
         document.getElementById('evtAcqJson').value = '{}';
@@ -1062,27 +1096,36 @@ require_once __DIR__ . '/../includes/header.php';
         var wrap = document.getElementById('drListWrap');
         if (!reports.length) { wrap.innerHTML = '<div class="text-center text-muted py-4">日報データがありません</div>'; return; }
         var html = '';
+        // 個人実績の項目は業務形態とキャリアで変わるため、表も「業務形態×キャリア」で分ける
         var byBiz = {};
+        var CARRIER_LABELS = {'SB,YM':'SB / Y!mobile','au,UQ':'au / UQ','ドコモ':'ドコモ',
+                              '楽天':'楽天','コミュファ':'コミュファ光','CATV':'CATV'};
         reports.forEach(function(r) {
-            var key = normBiz(r.work_type || '') || '不明';
+            var biz = normBiz(r.work_type || '') || '不明';
+            var key = biz + '|' + (r.carrier || '');   // 業務形態・キャリアのどちらにも | は入らない
             (byBiz[key] = byBiz[key] || []).push(r);
         });
-        Object.keys(byBiz).forEach(function(biz) {
-            var rows  = byBiz[biz];
-            var bizConf = (d.biz_config || {})[biz] || null;
-            var items = bizConf ? (bizConf.personal_items || []) : [];
-            // 後方互換: biz_items が空ならキャリア items
-            if (!items.length && rows.length) items = rows[0].biz_items || [];
-            if (!items.length && rows.length) {
-                var carrier = rows[0].carrier || '';
-                items = (d.carrier_items || {})[carrier] || [];
+        Object.keys(byBiz).forEach(function(groupKey) {
+            var parts = groupKey.split('|');
+            var biz   = parts[0];
+            var carrierKey = parts[1] || '';
+            var rows  = byBiz[groupKey];
+            // 各行が持っている項目（サーバー側で業務形態×キャリアから決めたもの）を使う
+            var items = rows[0].biz_items || [];
+            if (!items.length) {
+                var bizConf = (d.biz_config || {})[biz] || null;
+                items = bizConf ? (bizConf.personal_items || []) : [];
             }
+            if (!items.length) items = (d.carrier_items || {})[carrierKey] || [];
             var isShopBiz = (biz === '光AD');
             var color = isShopBiz ? '#2563eb' : '#7c3aed';
             html += '<div class="table-responsive mb-3"><table class="table table-sm table-hover mb-0" style="font-size:.72rem">';
             html += '<thead class="table-light"><tr>';
             html += '<th>日付</th><th>社員名</th><th>稼働店舗</th>';
-            html += '<th><span class="badge" style="background:' + color + ';font-size:.65rem">' + esc(biz) + '</span></th>';
+            html += '<th><span class="badge" style="background:' + color + ';font-size:.65rem">' + esc(biz) + '</span>'
+                 + (carrierKey ? ' <span class="badge bg-light text-dark border" style="font-size:.6rem">'
+                                 + esc(CARRIER_LABELS[carrierKey] || carrierKey) + '</span>' : '')
+                 + '</th>';
             html += '<th class="text-center">' + (isShopBiz ? '来店' : 'キャッチ') + '</th>';
             html += '<th class="text-center">' + (isShopBiz ? '接客' : '着座') + '</th>';
             html += '<th class="text-center">提案</th>';

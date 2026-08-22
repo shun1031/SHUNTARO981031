@@ -47,6 +47,8 @@ $BIZ_CONFIG = [
         'catch_label'    => 'キャッチ数',
         'seated_label'   => '着座数',
         'budget_items'   => [],
+        // 実際に使う項目はキャリアで変わる（drPersonalItems を参照）。
+        // ここはキャリアが分からないときの既定値＝SBの並び
         'personal_items' => ['MNP','アップ','ダウン','機変','転用','事変','1→10','光新規','Air新規','Air機変','でんき','カード','セレクション単価'],
         'primary_kpi'    => null,
     ],
@@ -56,6 +58,31 @@ $BIZ_ALIASES = ['ショップ' => '光AD', 'ショップ以外' => '業務委託
 function normBiz(string $wt, array $aliases): string {
     return $aliases[$wt] ?? $wt;
 }
+
+// ─── 個人実績の項目は「業務形態 × キャリア」で決まる ──────────────────────
+// 画面側（sales_daily_report.php の drPersonalItems）と必ず同じ内容にすること。
+// 光ADはSB専用なので業務形態だけで決まる。業務委託はキャリアで3種類に分かれる
+const DR_ITEMS_SB   = ['MNP','アップ','ダウン','機変','転用','事変','1→10','光新規','Air新規','Air機変','でんき','カード','セレクション単価'];
+const DR_ITEMS_HR   = ['MNP','アップ','ダウン','機変','転用','事変','1→10','光新規','ホームルーター新規','ホームルーター機変','でんき','カード','セレクション単価'];
+const DR_ITEMS_HIKARI = ['固定合計'];
+/** キャリアの区分: SB相当 / ホームルーター表記 / 固定のみ */
+const DR_CARRIER_HR    = ['au,UQ', 'ドコモ', '楽天'];
+const DR_CARRIER_FIXED = ['コミュファ', 'CATV'];
+
+function drPersonalItems(string $biz, string $carrier, array $bizConfig): array {
+    if ($biz === '光AD') return $bizConfig['光AD']['personal_items'];
+    if ($biz !== '業務委託') return [];
+    if (in_array($carrier, DR_CARRIER_FIXED, true)) return DR_ITEMS_HIKARI;
+    if (in_array($carrier, DR_CARRIER_HR, true))    return DR_ITEMS_HR;
+    return DR_ITEMS_SB;   // SB,YM と、キャリア未入力の過去データ
+}
+
+// 旧い保存名の読み替え。au等は以前 Air新規／Air機変 で保存されていたため、
+// 新しい項目名で読むときに古い名前も見に行く（保存データは書き換えない）
+const DR_ITEM_ALIASES = [
+    'ホームルーター新規' => ['Air新規'],
+    'ホームルーター機変' => ['Air機変'],
+];
 
 // ─── キャリア別項目定義（後方互換維持）───────────────────────────────────
 $CARRIER_ITEMS = [
@@ -67,10 +94,24 @@ $CARRIER_ITEMS = [
     'CATV'     => ['未利用→1G光','未利用→10G光','コラボ光→1G','コラボ光→10G','電力系→1G','電力系→10G','その他光→1G','その他光→10G'],
 ];
 
+/** 連想配列から項目の値を取る。旧い項目名も見に行く */
+function drVal(array $d, string $label): int {
+    if (isset($d[$label])) return (int)$d[$label];
+    foreach (DR_ITEM_ALIASES[$label] ?? [] as $old) {
+        if (isset($d[$old])) return (int)$d[$old];
+    }
+    return 0;
+}
+
 function getJsonVal(string $json, string $label): int {
     if (!$json) return 0;
     $d = json_decode($json, true);
-    return isset($d[$label]) ? (int)$d[$label] : 0;
+    if (isset($d[$label])) return (int)$d[$label];
+    // 新しい項目名で見つからなければ、旧い名前でも探す（例: ホームルーター新規 ← Air新規）
+    foreach (DR_ITEM_ALIASES[$label] ?? [] as $old) {
+        if (isset($d[$old])) return (int)$d[$old];
+    }
+    return 0;
 }
 
 function fetchKpi(PDO $db, int $cid, string $emp, string $startDate, string $endDate, string $filterType = 'employee', string $filterValue = ''): array {
@@ -152,7 +193,8 @@ foreach ($rawReports as $r) {
     $carrier  = $r['carrier'] ?? '';
     $wt       = normBiz($r['work_type'] ?? '', $BIZ_ALIASES);
     $bizConf  = $BIZ_CONFIG[$wt] ?? null;
-    $bizItems = $bizConf ? $bizConf['personal_items'] : [];
+    // 項目は業務形態とキャリアの組み合わせで決まる
+    $bizItems = $bizConf ? drPersonalItems($wt, $carrier, $BIZ_CONFIG) : [];
     $perJson  = $r['personal_acquisition_detail'] ?? '';
 
     $acqData = [];
@@ -228,14 +270,15 @@ $autoCarrier = $carrierFreq ? (string)key($carrierFreq) : null;
 // personal_acquisition_detail を集計し、予算と照合
 $bizItemKpi = [];
 if ($autoBizConf) {
-    $bizItems = $autoBizConf['personal_items'];
+    // 項目は業務形態とキャリアの組み合わせで決まる（キャリアは一覧から自動検出したもの）
+    $bizItems = drPersonalItems((string)$autoBizType, (string)($autoCarrier ?? ''), $BIZ_CONFIG);
     foreach ($bizItems as $label) {
         $bizItemKpi[$label] = ['actual' => 0, 'budget' => null];
     }
     foreach ($rawReports as $r) {
         $perData = json_decode($r['personal_acquisition_detail'] ?? '{}', true) ?: [];
         foreach ($bizItems as $label) {
-            $bizItemKpi[$label]['actual'] += (int)($perData[$label] ?? 0);
+            $bizItemKpi[$label]['actual'] += drVal($perData, $label);
         }
     }
     // 予算取得（社員指定時: その社員の予算、グループ時: 平均）

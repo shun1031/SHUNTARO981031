@@ -26,10 +26,21 @@ if (!canViewSalesPages()) { http_response_code(403); echo json_encode(['error' =
 
 $db = getDB();
 
-/** 人員のスキル感の選択肢 */
-const CSB_SKILL_TYPES = ['キャッチャー', 'クローザー'];
+/**
+ * 人員のスキル感の選択肢。種別（常勤／イベント）ごとに中身が違う。
+ * 画面側（case_staff_board.php の $skillByType）と必ず同じ内容にすること
+ */
+const CSB_SKILL_BY_TYPE = [
+    '常勤'     => ['未経験', '微経験', '経験'],
+    'イベント' => ['キャッチャー', 'クローザー'],
+];
 /** 人員の種別（案件側の常勤・イベントと同じ言葉に揃えている） */
 const CSB_STAFF_TYPES = ['常勤', 'イベント'];
+
+/** その種別で選べるスキル感 */
+function csbSkillOptions(string $staffType): array {
+    return CSB_SKILL_BY_TYPE[$staffType] ?? [];
+}
 /** 人員のアサイン状況 */
 const CSB_ASSIGN_STATUSES = ['検討中', 'アサイン済', '見送り'];
 /** スキルシートの有無 */
@@ -331,7 +342,19 @@ if ($action === 'save_staff') {
     if (!in_array($staffType, CSB_STAFF_TYPES, true)) {
         echo json_encode(['error' => '種別を選んでください'], JSON_UNESCAPED_UNICODE); exit;
     }
-    if ($skill !== '' && !in_array($skill, CSB_SKILL_TYPES, true)) $skill = '';
+    // スキル感は種別ごとに選択肢が違う。
+    // 選択肢に無い値でも「いま保存されている値と同じ」なら残す。
+    // これで、種別と食い違う古い値（常勤なのにキャッチャー等）が
+    // 編集して保存しただけで勝手に消えることがない
+    if ($skill !== '' && !in_array($skill, csbSkillOptions($staffType), true)) {
+        $keep = '';
+        if ($id) {
+            $cur = $db->prepare('SELECT skill_type FROM case_staff_candidates WHERE id = ? AND company_id = ?');
+            $cur->execute([$id, $cid]);
+            $keep = (string)($cur->fetchColumn() ?: '');
+        }
+        if ($skill !== $keep) $skill = '';
+    }
     if ($sheet !== '' && !in_array($sheet, CSB_SKILL_SHEETS, true)) $sheet = '';
     if ($interview !== '' && !in_array($interview, CSB_INTERVIEWS, true)) $interview = '';
     if ($from !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = '';

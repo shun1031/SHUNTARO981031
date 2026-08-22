@@ -35,7 +35,12 @@ $alliances = getSalesAlliances($cid, false);
 $staffCandidates = getStaffNameCandidates($cid, false);
 
 $carriers   = ['docomo', 'au', 'SB', '楽天', 'CATV', 'コミュファ'];
-$skillTypes = ['キャッチャー', 'クローザー'];
+// スキル感の選択肢は種別ごとに違う。
+// サーバー側（api/case_staff_board.php の CSB_SKILL_BY_TYPE）と必ず同じ内容にすること
+$skillByType = [
+    '常勤'     => ['未経験', '微経験', '経験'],
+    'イベント' => ['キャッチャー', 'クローザー'],
+];
 // 人員の種別。案件側（常勤／イベント）と同じ言葉に揃えている
 $staffTypes = ['常勤', 'イベント'];
 $commuteOptions = ['電車（60分以内）', '電車（90分以内）', '車', '自転車・徒歩', 'その他'];
@@ -244,7 +249,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <label class="form-label small fw-medium mb-1">種別 <span class="text-danger">*</span></label>
-                        <select id="csbStaffType" class="form-select form-select-sm">
+                        <select id="csbStaffType" class="form-select form-select-sm" onchange="csbStaffTypeChanged()">
                             <option value="">-- 選択してください --</option>
                             <?php foreach ($staffTypes as $_stp): ?>
                             <option value="<?= h($_stp) ?>"><?= h($_stp) ?></option>
@@ -269,11 +274,9 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-6">
                         <label class="form-label small fw-medium mb-1">スキル感</label>
+                        <?php /* 中身は種別に合わせてJSで入れ替える（常勤=未経験/微経験/経験、イベント=キャッチャー/クローザー） */ ?>
                         <select id="csbStaffSkill" class="form-select form-select-sm">
                             <option value="">-- 未設定 --</option>
-                            <?php foreach ($skillTypes as $_st): ?>
-                            <option value="<?= h($_st) ?>"><?= h($_st) ?></option>
-                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-6">
@@ -591,11 +594,13 @@ require_once __DIR__ . '/../includes/header.php';
 $csbApi     = json_encode(BASE_PATH . '/public/api/case_staff_board.php');
 $csbSaveApi = json_encode(BASE_PATH . '/public/api/save_case.php');
 $csbIsAdmin = isAdmin() ? 'true' : 'false';
+$csbSkillJson = json_encode($skillByType, JSON_UNESCAPED_UNICODE);
 $inlineJs = <<<CSBJS
 var CSB_API      = {$csbApi};
 var CSB_SAVE_API = {$csbSaveApi};
 var CSB_CSRF     = '{$csrf}';
 var CSB_CAN_EDIT = {$csbIsAdmin};
+var CSB_SKILL_BY_TYPE = {$csbSkillJson};
 CSBJS;
 $inlineJs .= <<<'CSBJS2'
 
@@ -898,6 +903,36 @@ function csbToggleMore(which) {
 // ============================================================
 // 人員の追加・編集
 // ============================================================
+// スキル感の選択肢を、選ばれている種別に合わせて入れ替える。
+// keep に今の値を渡すと、その値が選択肢に無くても「（種別に合いません）」付きで残す
+// （常勤なのにキャッチャーが入っている古いデータを、開いただけで失わないため）
+function csbSkillFill(staffType, keep) {
+    var sel  = document.getElementById('csbStaffSkill');
+    var list = CSB_SKILL_BY_TYPE[staffType] || [];
+    var html = '<option value="">-- 未設定 --</option>';
+    list.forEach(function (v) {
+        html += '<option value="' + csbEsc(v) + '">' + csbEsc(v) + '</option>';
+    });
+    if (keep && list.indexOf(keep) < 0) {
+        html += '<option value="' + csbEsc(keep) + '">' + csbEsc(keep) + '（種別に合いません）</option>';
+    }
+    sel.innerHTML = html;
+    sel.value = keep || '';
+}
+
+// 種別を変えたとき。いま選んでいるスキル感が新しい種別に無ければ警告してから外す
+function csbStaffTypeChanged() {
+    var type = document.getElementById('csbStaffType').value;
+    var cur  = document.getElementById('csbStaffSkill').value;
+    var list = CSB_SKILL_BY_TYPE[type] || [];
+    if (cur && list.indexOf(cur) < 0) {
+        alert('種別を「' + type + '」に変えたため、スキル感「' + cur + '」は選べなくなります。\n'
+            + 'スキル感は未設定に戻りますので、選び直してください。');
+        cur = '';
+    }
+    csbSkillFill(type, cur);
+}
+
 function csbOpenStaffForm(id) {
     var s = id ? csbStaff.filter(function (x) { return x.id === id; })[0] : null;
     document.getElementById('csbStaffError').textContent = '';
@@ -909,7 +944,8 @@ function csbOpenStaffForm(id) {
     document.getElementById('csbStaffType').value     = s ? (s.staff_type || '') : csbTypeLabel(csbStaffKind);
     document.getElementById('csbStaffAlliance').value = s && s.alliance_id ? s.alliance_id : '';
     document.getElementById('csbStaffAffil').value    = s && !s.alliance_id ? (s.affiliation || '') : '';
-    document.getElementById('csbStaffSkill').value    = s ? (s.skill_type || '') : '';
+    // 種別を入れたあとに選択肢を組み立て、最後に今の値を選ぶ（順番が逆だと選べない）
+    csbSkillFill(document.getElementById('csbStaffType').value, s ? (s.skill_type || '') : '');
     document.getElementById('csbStaffCarrier').value  = s ? (s.carrier || '') : '';
     document.getElementById('csbStaffPrice').value    = s && s.desired_price ? s.desired_price : '';
     document.getElementById('csbStaffFrom').value     = s ? (s.available_from || '') : '';

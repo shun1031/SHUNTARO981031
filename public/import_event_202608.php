@@ -142,10 +142,98 @@ foreach ($existing as $e) { $existingNames[trim($e['worker_name']) . '|' . subst
 // 無効化済みのマスタも含めて探す（第2引数 false）。
 // 既定の getSalesClients($cid) は有効なものしか返さないため、
 // 一度無効にした取引先・外注先を見落として同じ名前をもう1件作ってしまう。
-$clientMap = [];
-foreach (getSalesClients($cid, false) as $c) { $clientMap[trim($c['client_name'])] = (int)$c['id']; }
-$allianceMap = [];
-foreach (getSalesAlliances($cid, false) as $a) { $allianceMap[trim($a['alliance_name'])] = (int)$a['id']; }
+//
+// 取引先・外注先は 2026-08-19 から「正式名称（株式会社◯◯）＋表記名（◯◯）」の2列構成。
+// 元データはスプレッドシートの呼び名なので、正式名称だけで照合すると全部が新規に見えてしまう。
+// そこで 正式名称・表記名の両方を、法人格と記号を落とした形に正規化して突き合わせる。
+function impNormName(string $s): string {
+    $s = trim($s);
+    $s = mb_convert_kana($s, 'asKV');                       // 全角英数→半角、半角カナ→全角
+    $s = preg_replace('/(株式会社|有限会社|合同会社|一般社団法人|\(株\)|㈱)/u', '', $s);
+    $s = preg_replace('/[\s\x{3000}・（）\(\)ー\-]/u', '', $s); // 空白・中黒・カッコ・長音/ハイフン
+    return mb_strtolower($s);
+}
+
+// スプレッドシートの呼び名と、マスタ側の名前が別物になっているもの（2026-08-19 の統合で改名）
+// ここに書いた名前でもマスタを探す。見つからなければ「新規」として画面に出す
+$CLIENT_ALIAS = [];
+$ALLIANCE_ALIAS = [
+    'オアシス'   => ['OASIS', '株式会社OASIS'],
+    '近藤SEED'   => ['SEED（近藤）', 'SEED(近藤)'],
+    '渡邊拓斗'   => ['渡邉拓斗'],
+];
+
+$clientRows = getSalesClients($cid, false);
+$allianceRows = getSalesAlliances($cid, false);
+
+/** 正規化した名前 => マスタ行 の索引を作る（正式名称・表記名の両方を鍵にする） */
+function impBuildIndex(array $rows, string $nameCol): array {
+    $idx = [];
+    foreach ($rows as $r) {
+        foreach ([$r[$nameCol] ?? '', $r['display_name'] ?? ''] as $n) {
+            $k = impNormName((string)$n);
+            if ($k !== '' && !isset($idx[$k])) $idx[$k] = $r;
+        }
+    }
+    return $idx;
+}
+$clientIndex   = impBuildIndex($clientRows, 'client_name');
+$allianceIndex = impBuildIndex($allianceRows, 'alliance_name');
+
+/**
+ * 元データの名前から既存マスタを探す。
+ * 戻り値: [マスタ行 または null, 一致の種類]
+ */
+function impFindMaster(string $name, array $index, array $aliasMap): array {
+    $k = impNormName($name);
+    if ($k !== '' && isset($index[$k])) return [$index[$k], '一致'];
+    foreach ($aliasMap[$name] ?? [] as $alias) {
+        $ak = impNormName($alias);
+        if ($ak !== '' && isset($index[$ak])) return [$index[$ak], '別名で一致'];
+    }
+    return [null, '新規'];
+}
+
+/** 一致しなかった名前について、似ている既存マスタを最大3件挙げる（画面の確認用） */
+function impCandidates(string $name, array $rows, string $nameCol): array {
+    $k = impNormName($name);
+    if ($k === '') return [];
+    $hits = [];
+    foreach ($rows as $r) {
+        foreach ([$r[$nameCol] ?? '', $r['display_name'] ?? ''] as $n) {
+            $nk = impNormName((string)$n);
+            if ($nk === '') continue;
+            if (mb_strpos($nk, $k) !== false || mb_strpos($k, $nk) !== false) {
+                $hits[(int)$r['id']] = $r;
+            }
+        }
+        if (count($hits) >= 3) break;
+    }
+    return array_values($hits);
+}
+
+// 元データに出てくる名前ごとの照合結果（画面表示と登録の両方でこれを使う）
+$clientMatch = [];    // 取引先名 => ['row'=>?, 'kind'=>..., 'cands'=>[], 'count'=>件数]
+$allianceMatch = [];
+foreach ($DATA as $d) {
+    if ($d[0] !== '' && !isset($clientMatch[$d[0]])) {
+        [$row, $kind] = impFindMaster($d[0], $clientIndex, $CLIENT_ALIAS);
+        $clientMatch[$d[0]] = ['row' => $row, 'kind' => $kind, 'count' => 0,
+                               'cands' => $row ? [] : impCandidates($d[0], $clientRows, 'client_name')];
+    }
+    if ($d[0] !== '') $clientMatch[$d[0]]['count']++;
+
+    if ($d[4] === 'アライアンス' && $d[5] !== '') {
+        if (!isset($allianceMatch[$d[5]])) {
+            [$row, $kind] = impFindMaster($d[5], $allianceIndex, $ALLIANCE_ALIAS);
+            $allianceMatch[$d[5]] = ['row' => $row, 'kind' => $kind, 'count' => 0,
+                                     'cands' => $row ? [] : impCandidates($d[5], $allianceRows, 'alliance_name')];
+        }
+        $allianceMatch[$d[5]]['count']++;
+    }
+}
+$newClientNames   = array_keys(array_filter($clientMatch,   fn($m) => $m['row'] === null));
+$newAllianceNames = array_keys(array_filter($allianceMatch, fn($m) => $m['row'] === null));
 
 // ── 担当者名の名簿チェック（営業マンIDと突き合わせて表記ゆれを洗い出す） ──
 // 営業担当・管理者は「社員一覧で営業担当にチェックが入っている人」でないと
@@ -183,7 +271,16 @@ foreach (array_keys($roles) as $personName) {
 $done = false; $created = 0; $skipped = []; $failed = []; $newClients = []; $newAlliances = [];
 
 // ── 登録実行 ──
+$blockedByNewMaster = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
+    $includeDup = !empty($_POST['include_dup']);
+    // 取引先・外注先を新しく作るのは、明示的にチェックを入れたときだけ。
+    // 呼び名の違いでマスタが二重にできるのを防ぐための歯止め
+    if (($newClientNames || $newAllianceNames) && empty($_POST['allow_new_masters'])) {
+        $blockedByNewMaster = true;
+    }
+}
+if (!$blockedByNewMaster && $_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
     $includeDup = !empty($_POST['include_dup']);
     foreach ($DATA as $d) {
         [$clientName, $salesRep, $manager, $recruiter, $workerType, $allianceName,
@@ -194,18 +291,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
             continue;
         }
         try {
-            $clientId = $clientMap[$clientName] ?? null;
-            if (!$clientId && $clientName !== '') {
-                $clientId = createSalesClient($cid, ['client_name' => $clientName]);
-                $clientMap[$clientName] = $clientId;
-                $newClients[] = $clientName;
+            // 既存マスタが見つかっていればそのIDを使う（呼び名が違っても同じ会社に紐づく）
+            $clientId = null;
+            if ($clientName !== '') {
+                $m = $clientMatch[$clientName];
+                if ($m['row']) {
+                    $clientId = (int)$m['row']['id'];
+                } else {
+                    $clientId = createSalesClient($cid, ['client_name' => $clientName]);
+                    // 同じ名前が2行目以降で再び新規作成されないよう、照合結果に書き戻す
+                    $clientMatch[$clientName]['row'] = ['id' => $clientId, 'client_name' => $clientName, 'display_name' => $clientName];
+                    $newClients[] = $clientName;
+                }
             }
             $allianceId = null;
             if ($workerType === 'アライアンス' && $allianceName !== '') {
-                $allianceId = $allianceMap[$allianceName] ?? null;
-                if (!$allianceId) {
+                $m = $allianceMatch[$allianceName];
+                if ($m['row']) {
+                    $allianceId = (int)$m['row']['id'];
+                } else {
                     $allianceId = createSalesAlliance($cid, ['alliance_name' => $allianceName]);
-                    $allianceMap[$allianceName] = $allianceId;
+                    $allianceMatch[$allianceName]['row'] = ['id' => $allianceId, 'alliance_name' => $allianceName, 'display_name' => $allianceName];
                     $newAlliances[] = $allianceName;
                 }
             }
@@ -253,13 +359,6 @@ foreach ($DATA as $d) {
     $totalIn   += $d[11] * $d[13];   // 日単価 × 稼働日数
     $totalOut  += $d[12] * $d[13];
     $totalDays += $d[13];
-}
-// 新規作成になるマスタ
-$willCreateClients = [];
-$willCreateAlliances = [];
-foreach ($DATA as $d) {
-    if ($d[0] !== '' && !isset($clientMap[$d[0]]))   { $willCreateClients[$d[0]] = true; }
-    if ($d[4] === 'アライアンス' && $d[5] !== '' && !isset($allianceMap[$d[5]])) { $willCreateAlliances[$d[5]] = true; }
 }
 ?>
 <!DOCTYPE html>
@@ -391,10 +490,77 @@ td, th { font-size:.76rem; white-space:nowrap; }
       ・スタッフ名の表記ゆれを多数派に統一しました（2件）：牛嶋捷介→<strong>牛島捷介</strong>、渡辺大空→<strong>渡部大空</strong><br>
       ・イベント案件に光ADの項目はありません<br>
       ・二重登録チェックは<strong>「スタッフ名＋開始日」</strong>で行います（同じ人が月内に何度も稼働するため）<br>
-      <?php if ($willCreateClients): ?>・取引先を新規作成します: <strong><?= h(implode('、', array_keys($willCreateClients))) ?></strong><br><?php endif; ?>
-      <?php if ($willCreateAlliances): ?>・外注先を新規作成します: <strong><?= h(implode('、', array_keys($willCreateAlliances))) ?></strong><br><?php endif; ?>
+      ・取引先・外注先は<strong>正式名称と表記名の両方</strong>で照合します（「株式会社」などを外して突き合わせ）。下の照合表を確認してください<br>
     </div>
   </div>
+
+  <!-- 取引先・外注先のマスタ照合 -->
+  <div class="card mb-3"><div class="card-body">
+    <div class="fw-semibold mb-2"><i class="bi bi-link-45deg me-1"></i>取引先・外注先が既存マスタと結びつくか</div>
+    <div class="small text-muted mb-2">
+      元データの呼び名と、取引先一覧に登録されている<strong>正式名称・表記名</strong>を突き合わせた結果です。
+      <strong>「新規」の行があるとそのまま実行できません</strong>（同じ会社が二重に作られるのを防ぐため）。
+      既に登録がある会社なら、候補欄の名前を私に伝えてください。読み替えを追加します。
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm bg-white mb-0">
+      <thead class="table-light"><tr>
+        <th>種別</th><th>元データの呼び名</th><th class="text-end">件数</th><th>判定</th><th>結びつく既存マスタ</th><th>ID</th><th>似ている既存マスタ（候補）</th>
+      </tr></thead>
+      <tbody>
+      <?php
+      $matchTable = [];
+      foreach ($clientMatch as $nm => $m)   { $matchTable[] = ['取引先', $nm, $m]; }
+      foreach ($allianceMatch as $nm => $m) { $matchTable[] = ['外注先', $nm, $m]; }
+      foreach ($matchTable as [$kindLabel, $nm, $m]):
+          $isNew = $m['row'] === null;
+      ?>
+        <tr class="<?= $isNew ? 'table-danger' : '' ?>">
+          <td><?= h($kindLabel) ?></td>
+          <td class="fw-medium"><?= h($nm) ?></td>
+          <td class="text-end"><?= (int)$m['count'] ?></td>
+          <td><?php if ($isNew): ?><span class="text-danger fw-bold">✗ 新規</span>
+              <?php elseif ($m['kind'] === '別名で一致'): ?><span class="text-primary fw-bold">△ 別名で一致</span>
+              <?php else: ?><span class="text-success">✓ 一致</span><?php endif; ?></td>
+          <td><?php if ($m['row']): ?>
+                <?= h((string)($m['row']['client_name'] ?? $m['row']['alliance_name'] ?? '')) ?>
+                <span class="text-muted">／表記名 <?= h((string)($m['row']['display_name'] ?? '')) ?></span>
+              <?php else: ?><span class="text-muted">-</span><?php endif; ?></td>
+          <td class="text-muted"><?= $m['row'] ? (int)$m['row']['id'] : '-' ?></td>
+          <td class="small text-muted">
+            <?php if ($m['cands']): foreach ($m['cands'] as $c): ?>
+              <span class="badge bg-light text-dark border me-1">
+                <?= h((string)($c['client_name'] ?? $c['alliance_name'] ?? '')) ?>（ID<?= (int)$c['id'] ?>）
+              </span>
+            <?php endforeach; elseif ($isNew): ?>似た名前は見つかりませんでした<?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+  </div></div>
+
+  <?php if ($newClientNames || $newAllianceNames): ?>
+  <div class="alert alert-danger">
+    <div class="fw-bold"><i class="bi bi-exclamation-octagon me-1"></i>既存マスタと結びつかない名前が
+      <?= count($newClientNames) + count($newAllianceNames) ?>件あります</div>
+    <div class="small mt-1">
+      <?php if ($newClientNames): ?>取引先: <strong><?= h(implode('、', $newClientNames)) ?></strong><br><?php endif; ?>
+      <?php if ($newAllianceNames): ?>外注先: <strong><?= h(implode('、', $newAllianceNames)) ?></strong><br><?php endif; ?>
+      本当に新しい会社であれば、下のチェックを入れれば<strong>この呼び名のまま新規作成</strong>して登録できます。
+      ただし正式名称（株式会社◯◯）で登録したい場合は、先に取引先一覧で追加してからこのページを開き直してください。
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($blockedByNewMaster): ?>
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    新規作成になるマスタがあるため、登録を中止しました。<strong>1件も登録していません。</strong>
+    上のチェックを入れて実行するか、先に取引先一覧へ登録してください。
+  </div>
+  <?php endif; ?>
 
   <div class="alert alert-success small">
     <i class="bi bi-info-circle me-1"></i>
@@ -415,12 +581,12 @@ td, th { font-size:.76rem; white-space:nowrap; }
       <?php foreach ($DATA as $i => $d): $isDup = isset($existingNames[$d[6] . '|' . $d[7]]); ?>
         <tr class="<?= $isDup ? 'table-warning' : '' ?>">
           <td class="text-muted"><?= $i + 1 ?></td>
-          <td><?= h($d[0]) ?><?= isset($clientMap[$d[0]]) ? '' : ' <span class="badge bg-warning text-dark" style="font-size:.6rem">新規</span>' ?></td>
+          <td><?= h($d[0]) ?><?= ($d[0] !== '' && $clientMatch[$d[0]]['row'] === null) ? ' <span class="badge bg-danger" style="font-size:.6rem">新規</span>' : '' ?></td>
           <td><?= h($d[1]) ?></td>
           <td><?= h($d[2]) ?></td>
           <td><?= h($d[3]) ?></td>
           <td><?= h($d[4]) ?></td>
-          <td><?= h($d[5]) ?><?= ($d[4] === 'アライアンス' && $d[5] !== '' && !isset($allianceMap[$d[5]])) ? ' <span class="badge bg-warning text-dark" style="font-size:.6rem">新規</span>' : '' ?></td>
+          <td><?= h($d[5]) ?><?= ($d[4] === 'アライアンス' && $d[5] !== '' && $allianceMatch[$d[5]]['row'] === null) ? ' <span class="badge bg-danger" style="font-size:.6rem">新規</span>' : '' ?></td>
           <td class="fw-medium"><?= h($d[6]) ?><?= $isDup ? ' <span class="badge bg-danger" style="font-size:.6rem">既存</span>' : '' ?></td>
           <td><?= h($d[7]) ?></td>
           <td><?= h($d[8]) ?></td>
@@ -445,6 +611,15 @@ td, th { font-size:.76rem; white-space:nowrap; }
       <input class="form-check-input" type="checkbox" name="include_dup" value="1" id="incDup">
       <label class="form-check-label small" for="incDup">
         同じ「スタッフ名＋開始日」が既にある<?= $dupRows ?>件も登録する（二重登録になります。通常はチェックしないでください）
+      </label>
+    </div>
+    <?php endif; ?>
+    <?php if ($newClientNames || $newAllianceNames): ?>
+    <div class="form-check mb-2">
+      <input class="form-check-input" type="checkbox" name="allow_new_masters" value="1" id="allowNew">
+      <label class="form-check-label small" for="allowNew">
+        上の<?= count($newClientNames) + count($newAllianceNames) ?>件を<strong>元データの呼び名のまま新規のマスタとして作成する</strong>
+        （既に別の名前で登録がある会社の場合は、チェックせず先に読み替えを追加してください）
       </label>
     </div>
     <?php endif; ?>

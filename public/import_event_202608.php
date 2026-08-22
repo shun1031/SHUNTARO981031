@@ -271,14 +271,34 @@ foreach (array_keys($roles) as $personName) {
 $done = false; $created = 0; $skipped = []; $failed = []; $newClients = []; $newAlliances = [];
 
 // ── 登録実行 ──
+// ── 一致しなかった名前を、画面で選んだ既存マスタに結びつける ──
+// 本番の取引先一覧には別の表記（英字表記など）で登録されていることがあるため、
+// 「どの既存マスタと同じ会社か」を人が選べるようにする。選ばずには実行できない。
 $blockedByNewMaster = false;
+$mapMissing = [];   // 選択されていない名前
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
-    $includeDup = !empty($_POST['include_dup']);
-    // 取引先・外注先を新しく作るのは、明示的にチェックを入れたときだけ。
-    // 呼び名の違いでマスタが二重にできるのを防ぐための歯止め
-    if (($newClientNames || $newAllianceNames) && empty($_POST['allow_new_masters'])) {
-        $blockedByNewMaster = true;
+    $clientById = [];   foreach ($clientRows   as $r) { $clientById[(int)$r['id']]   = $r; }
+    $allianceById = []; foreach ($allianceRows as $r) { $allianceById[(int)$r['id']] = $r; }
+
+    foreach ($newClientNames as $i => $nm) {
+        $sel = trim((string)($_POST['map_client'][$i] ?? ''));
+        if ($sel === '')            { $mapMissing[] = '取引先: ' . $nm; continue; }
+        if ($sel === 'new')         { continue; }                       // このまま新規作成
+        if (isset($clientById[(int)$sel])) {
+            $clientMatch[$nm]['row']  = $clientById[(int)$sel];
+            $clientMatch[$nm]['kind'] = '画面で指定';
+        } else { $mapMissing[] = '取引先: ' . $nm; }
     }
+    foreach ($newAllianceNames as $i => $nm) {
+        $sel = trim((string)($_POST['map_alliance'][$i] ?? ''));
+        if ($sel === '')            { $mapMissing[] = '外注先: ' . $nm; continue; }
+        if ($sel === 'new')         { continue; }
+        if (isset($allianceById[(int)$sel])) {
+            $allianceMatch[$nm]['row']  = $allianceById[(int)$sel];
+            $allianceMatch[$nm]['kind'] = '画面で指定';
+        } else { $mapMissing[] = '外注先: ' . $nm; }
+    }
+    if ($mapMissing) { $blockedByNewMaster = true; }
 }
 if (!$blockedByNewMaster && $_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '')) {
     $includeDup = !empty($_POST['include_dup']);
@@ -541,24 +561,11 @@ td, th { font-size:.76rem; white-space:nowrap; }
     </div>
   </div></div>
 
-  <?php if ($newClientNames || $newAllianceNames): ?>
-  <div class="alert alert-danger">
-    <div class="fw-bold"><i class="bi bi-exclamation-octagon me-1"></i>既存マスタと結びつかない名前が
-      <?= count($newClientNames) + count($newAllianceNames) ?>件あります</div>
-    <div class="small mt-1">
-      <?php if ($newClientNames): ?>取引先: <strong><?= h(implode('、', $newClientNames)) ?></strong><br><?php endif; ?>
-      <?php if ($newAllianceNames): ?>外注先: <strong><?= h(implode('、', $newAllianceNames)) ?></strong><br><?php endif; ?>
-      本当に新しい会社であれば、下のチェックを入れれば<strong>この呼び名のまま新規作成</strong>して登録できます。
-      ただし正式名称（株式会社◯◯）で登録したい場合は、先に取引先一覧で追加してからこのページを開き直してください。
-    </div>
-  </div>
-  <?php endif; ?>
-
   <?php if ($blockedByNewMaster): ?>
   <div class="alert alert-warning">
     <i class="bi bi-exclamation-triangle me-1"></i>
-    新規作成になるマスタがあるため、登録を中止しました。<strong>1件も登録していません。</strong>
-    上のチェックを入れて実行するか、先に取引先一覧へ登録してください。
+    結びつけ先が選ばれていない名前があるため、登録を中止しました。<strong>1件も登録していません。</strong>
+    <div class="small mt-1"><?= h(implode('／', $mapMissing)) ?></div>
   </div>
   <?php endif; ?>
 
@@ -615,13 +622,49 @@ td, th { font-size:.76rem; white-space:nowrap; }
     </div>
     <?php endif; ?>
     <?php if ($newClientNames || $newAllianceNames): ?>
-    <div class="form-check mb-2">
-      <input class="form-check-input" type="checkbox" name="allow_new_masters" value="1" id="allowNew">
-      <label class="form-check-label small" for="allowNew">
-        上の<?= count($newClientNames) + count($newAllianceNames) ?>件を<strong>元データの呼び名のまま新規のマスタとして作成する</strong>
-        （既に別の名前で登録がある会社の場合は、チェックせず先に読み替えを追加してください）
-      </label>
-    </div>
+    <div class="card border-danger mb-3"><div class="card-body">
+      <div class="fw-bold text-danger mb-2">
+        <i class="bi bi-exclamation-octagon me-1"></i>結びつけ先を選んでください（<?= count($newClientNames) + count($newAllianceNames) ?>件）
+      </div>
+      <div class="small text-muted mb-3">
+        自動では見つからなかった名前です。取引先一覧に<strong>別の表記で登録されている場合はその会社を選んで</strong>ください。
+        本当に新しい会社のときだけ「新しく作る」を選びます。<strong>1つでも未選択だと実行できません。</strong>
+      </div>
+      <?php foreach ($newClientNames as $i => $nm): ?>
+      <div class="row g-2 align-items-center mb-2">
+        <div class="col-md-3"><span class="badge bg-secondary me-1">取引先</span><strong><?= h($nm) ?></strong>
+          <span class="text-muted small">（<?= (int)$clientMatch[$nm]['count'] ?>件）</span></div>
+        <div class="col-md-9">
+          <select name="map_client[<?= $i ?>]" class="form-select form-select-sm" required>
+            <option value="">-- 選んでください --</option>
+            <option value="new">★ この呼び名（<?= h($nm) ?>）で新しく作る</option>
+            <?php foreach ($clientRows as $r): ?>
+            <option value="<?= (int)$r['id'] ?>">
+              <?= h(clientLabel($r)) ?>（正式名称: <?= h((string)$r['client_name']) ?> / ID<?= (int)$r['id'] ?>）
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php foreach ($newAllianceNames as $i => $nm): ?>
+      <div class="row g-2 align-items-center mb-2">
+        <div class="col-md-3"><span class="badge bg-dark me-1">外注先</span><strong><?= h($nm) ?></strong>
+          <span class="text-muted small">（<?= (int)$allianceMatch[$nm]['count'] ?>件）</span></div>
+        <div class="col-md-9">
+          <select name="map_alliance[<?= $i ?>]" class="form-select form-select-sm" required>
+            <option value="">-- 選んでください --</option>
+            <option value="new">★ この呼び名（<?= h($nm) ?>）で新しく作る</option>
+            <?php foreach ($allianceRows as $r): ?>
+            <option value="<?= (int)$r['id'] ?>">
+              <?= h(allianceLabel($r)) ?>（正式名称: <?= h((string)$r['alliance_name']) ?> / ID<?= (int)$r['id'] ?>）
+            </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div></div>
     <?php endif; ?>
     <button type="submit" class="btn btn-success btn-lg"><i class="bi bi-check-circle me-1"></i>登録を実行</button>
     <a href="<?= BASE_PATH ?>/public/sales_events.php?year=<?= $YEAR ?>&month=<?= $MONTH ?>" class="btn btn-outline-secondary ms-2">キャンセル</a>

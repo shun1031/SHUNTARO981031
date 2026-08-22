@@ -76,7 +76,14 @@ if (($_GET['ajax_rep_fy'] ?? '') === '1') {
         foreach ($_ts->fetchAll() as $_tr) { $_tm[(int)$_tr['year'] . '|' . (int)$_tr['month']] = (int)$_tr['target_revenue']; }
         foreach ($_seq as $_i => $_ym) { $_tgts[$_i] = $_tm[$_ym['y'] . '|' . $_ym['m']] ?? 0; }
     } catch (PDOException $e) { /* テーブル未作成時は0のまま */ }
-    echo json_encode(['ok' => true, 'fy' => $_fy, 'data' => $_pts, 'targets' => $_tgts], JSON_UNESCAPED_UNICODE);
+    // 前年度の最終月（前年8月）。表の左端に参考値として出す。累計には含めない
+    $_pa  = $_prevData[$_rep]['months'][8] ?? [];
+    $_paR = (int)($_pa['revenue'] ?? 0);
+    $_paP = (int)($_pa['profit']  ?? 0);
+    $_prevAug = ['revenue' => $_paR, 'profit' => $_paP,
+                 'profitRate' => $_paR > 0 ? round($_paP / $_paR * 100, 1) : null];
+    echo json_encode(['ok' => true, 'fy' => $_fy, 'data' => $_pts, 'targets' => $_tgts,
+                      'prevAug' => $_prevAug], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -138,6 +145,9 @@ $fiscalMonthSeq = [
     ['y'=>$year,  'm'=>7],  ['y'=>$year,  'm'=>8],
 ];
 $fiscalChartData = [];
+// 前年度の最終月（＝表示中の年度が始まる前の8月）。年度初めの目標を「前年8月＋◯円」で
+// 決められるよう、表の左端に参考値として出す。累計には含めない（他画面と数字を合わせるため）
+$repPrevAug = [];
 foreach (array_unique(array_merge(array_keys($yearlyDataAll), array_keys($prevYearly))) as $rk) {
     $pts = [];
     foreach ($fiscalMonthSeq as $ym) {
@@ -148,6 +158,13 @@ foreach (array_unique(array_merge(array_keys($yearlyDataAll), array_keys($prevYe
         $pts[] = ['revenue'=>$rev, 'profit'=>$pro, 'profitRate'=> $rev>0 ? round($pro/$rev*100,1) : null];
     }
     $fiscalChartData[$rk] = $pts;
+
+    // 前年8月は $prevYearly（前年の暦年データ）の8月分。追加の取得は不要
+    $_pa  = $prevYearly[$rk]['months'][8] ?? [];
+    $_paR = (int)($_pa['revenue'] ?? 0);
+    $_paP = (int)($_pa['profit']  ?? 0);
+    $repPrevAug[$rk] = ['revenue'=>$_paR, 'profit'=>$_paP,
+                        'profitRate'=> $_paR>0 ? round($_paP/$_paR*100,1) : null];
 }
 
 // ---- 担当者別 月別売上目標（年度9月〜翌8月の2年分を1クエリで取得） ----
@@ -338,7 +355,7 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
     </div>
 </div>
 <style>
-/* 年間推移テーブル: 5行でもスクロールせず一目で見えるよう行を詰める */
+/* 年間推移テーブル: 6行（目標・売上・達成率・進捗・粗利・粗利率）でもスクロールせず見えるよう行を詰める */
 .rep-detail-table td, .rep-detail-table th { padding: .2rem .3rem; vertical-align: middle; }
 .rep-detail-table .rep-tgt-inp { box-shadow: none; background: transparent; }
 .rep-detail-table .rep-tgt-inp:focus { background: transparent; }
@@ -374,6 +391,7 @@ function renderRepCard(string $repName, array $cur, string $footerText, bool $sh
 <script>
 var REP_FISCAL_DATA   = <?= json_encode($fiscalChartData, JSON_UNESCAPED_UNICODE) ?>;
 var REP_TARGET_DATA   = <?= json_encode($repTargetData, JSON_UNESCAPED_UNICODE) ?>;
+var REP_PREV_AUG      = <?= json_encode($repPrevAug, JSON_UNESCAPED_UNICODE) ?>;   // 前年8月（表の参考列）
 var REP_BASE_FY       = <?= (int)$year ?>;
 var REP_CAN_EDIT_TARGET = <?= isAdmin() ? 'true' : 'false' ?>;   // 売上目標の入力は管理者のみ
 var REP_TGT_CSRF      = '<?= h(getCsrfToken()) ?>';
@@ -427,13 +445,14 @@ function openRepDetail(repName) {
     var targets = (REP_TARGET_DATA[repName] || []).slice();
     while (targets.length < 12) targets.push(0);
     _setRepDetailHeader(repName, _repFy);
-    _curRepData = { name: repName, data: data, targets: targets, fy: _repFy };
+    _curRepData = { name: repName, data: data, targets: targets, fy: _repFy,
+                    prevAug: REP_PREV_AUG[repName] || null };
     var modalEl = document.getElementById('repDetailModal');
     if (!_repModalBs) {
         _repModalBs = new bootstrap.Modal(modalEl);
         modalEl.addEventListener('shown.bs.modal', function() {
             if (_curRepData) _ensureChartJs(function() {
-                _drawRepChart(_curRepData.name, _curRepData.data, _curRepData.targets, _curRepData.fy);
+                _drawRepChart(_curRepData.name, _curRepData.data, _curRepData.targets, _curRepData.fy, _curRepData.prevAug);
             });
         });
     }
@@ -460,9 +479,10 @@ function setRepFy(delta) {
         .then(function(d) {
             if (!d || !d.ok) throw new Error('failed');
             _repFy = d.fy;
-            _curRepData = { name: repName, data: d.data, targets: d.targets, fy: d.fy };
+            _curRepData = { name: repName, data: d.data, targets: d.targets, fy: d.fy,
+                            prevAug: d.prevAug || null };
             _setRepDetailHeader(repName, d.fy);
-            _ensureChartJs(function() { _drawRepChart(repName, d.data, d.targets, d.fy); });
+            _ensureChartJs(function() { _drawRepChart(repName, d.data, d.targets, d.fy, d.prevAug || null); });
         })
         .catch(function() { alert('年度データの取得に失敗しました'); })
         .then(function() {
@@ -471,7 +491,7 @@ function setRepFy(delta) {
         });
 }
 
-function _drawRepChart(repName, data, targetsArg, fy) {
+function _drawRepChart(repName, data, targetsArg, fy, prevAugArg) {
     if (typeof fy === 'undefined' || !fy) fy = _repFy;
     var labels   = ['9月','10月','11月','12月','1月','2月','3月','4月','5月','6月','7月','8月'];
     var revenues = data.map(function(d) { return d.revenue; });
@@ -636,7 +656,14 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     var tbody = document.getElementById('repDetailTbody');
     // 累計列（末尾）: 背景色を付けて月別と区切る。率は総合ダッシュボードと同じく合計同士で割る
     var CUM_TD = ' class="text-end text-nowrap fw-semibold" style="background:#f1f5f9"';
+    // 前年8月列（先頭）: 前年度の最終月の実績。年度初めの目標を決めるときの参考値で、
+    // 目標・達成率・進捗・累計には一切含めない（他画面と数字を合わせるため）
+    var PRV_TD = ' class="text-end text-nowrap" style="background:#f8fafc;color:#64748b"';
+    var prevAug = prevAugArg || REP_PREV_AUG[repName] || null;
+    var _prevCell = function(html) { return '<td' + PRV_TD + '>' + html + '</td>'; };
+    var _dash = '<span class="text-muted">-</span>';
     thead.innerHTML = '<tr><th style="min-width:56px">月</th>' +
+        '<th class="text-end" style="background:#f1f5f9;min-width:70px">前年8月</th>' +
         labels.map(function(m) { return '<th class="text-end">' + m + '</th>'; }).join('') +
         '<th class="text-end" style="background:#e2e8f0;min-width:78px">累計</th></tr>';
     var fmtV = function(v) {
@@ -653,7 +680,7 @@ function _drawRepChart(repName, data, targetsArg, fy) {
 
     var html = '';
     // 1. 売上目標（管理者は手入力可。営業担当は数字のみ表示）
-    html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>';
+    html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>' + _prevCell(_dash);
     for (var i = 0; i < 12; i++) {
         if (!REP_CAN_EDIT_TARGET) {
             html += '<td class="text-end text-nowrap">'
@@ -668,20 +695,30 @@ function _drawRepChart(repName, data, targetsArg, fy) {
     html += '<td' + CUM_TD + ' id="repCumTgt"></td></tr>';
     // 2. 売上
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上</td>'
+         + _prevCell(prevAug ? fmtV(prevAug.revenue) : _dash)
          + revenues.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('')
          + '<td' + CUM_TD + '>' + fmtV(cumRev) + '</td></tr>';
     // 3. 売上達成率（売上 ÷ 売上目標 × 100）
-    html += '<tr><td class="fw-semibold text-start text-nowrap">売上達成率</td>';
+    html += '<tr><td class="fw-semibold text-start text-nowrap">売上達成率</td>' + _prevCell(_dash);
     for (var j = 0; j < 12; j++) {
         html += '<td class="text-end text-nowrap" id="repAchv' + j + '"></td>';
     }
     html += '<td' + CUM_TD + ' id="repCumAchv"></td></tr>';
-    // 4. 粗利
+    // 4. 売上進捗（その月までの累計売上 − その月までの累計目標）
+    // 目標が入っていない月は目標0円として足し上げる（ユーザー決定）
+    html += '<tr><td class="fw-semibold text-start text-nowrap">売上進捗</td>' + _prevCell(_dash);
+    for (var p = 0; p < 12; p++) {
+        html += '<td class="text-end text-nowrap" id="repProg' + p + '"></td>';
+    }
+    html += '<td' + CUM_TD + ' id="repCumProg"></td></tr>';
+    // 5. 粗利
     html += '<tr><td class="fw-semibold text-start text-nowrap">粗利</td>'
+         + _prevCell(prevAug ? fmtV(prevAug.profit) : _dash)
          + profits.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('')
          + '<td' + CUM_TD + '>' + fmtV(cumPro) + '</td></tr>';
-    // 5. 粗利率（粗利の合計 ÷ 売上の合計。総合ダッシュボードと同じ求め方）
+    // 6. 粗利率（粗利の合計 ÷ 売上の合計。総合ダッシュボードと同じ求め方）
     html += '<tr><td class="fw-semibold text-start text-nowrap">粗利率</td>'
+         + _prevCell(prevAug ? fmtR(prevAug.profitRate) : _dash)
          + rates.map(function(v) { return '<td class="text-end text-nowrap">' + fmtR(v) + '</td>'; }).join('')
          + '<td' + CUM_TD + '>' + fmtR(cumRev > 0 ? Math.round(cumPro / cumRev * 1000) / 10 : null) + '</td></tr>';
     tbody.innerHTML = html;
@@ -695,6 +732,24 @@ function _drawRepChart(repName, data, targetsArg, fy) {
         if (tgt <= 0) { cell.innerHTML = '<span class="text-muted">-</span>'; return; }
         var pct = Math.round(rev / tgt * 1000) / 10;
         cell.innerHTML = '<span style="font-weight:600;color:' + (pct >= 100 ? '#059669' : '#dc2626') + '">' + pct + '%</span>';
+    }
+    // 差額の表示（+1,000 は緑 / -1,000 は赤 / ちょうど0は ±0）
+    function _fmtDiff(v) {
+        if (!v) return '<span class="text-muted">±0</span>';
+        var txt = (v > 0 ? '+' : '-') + Math.abs(v).toLocaleString();
+        return '<span style="font-weight:600;color:' + (v > 0 ? '#059669' : '#dc2626') + '">' + txt + '</span>';
+    }
+    // 売上進捗セルの更新（9月から足し上げた売上と目標の差。目標未入力の月は0円として扱う）
+    function _updateProg() {
+        var cr = 0, ct = 0;
+        for (var i = 0; i < 12; i++) {
+            cr += (revenues[i] || 0);
+            ct += (targets[i]  || 0);
+            var cell = document.getElementById('repProg' + i);
+            if (cell) cell.innerHTML = _fmtDiff(cr - ct);
+        }
+        var cCell = document.getElementById('repCumProg');
+        if (cCell) cCell.innerHTML = _fmtDiff(cumRev - _sum(targets));
     }
     // 累計の「売上目標」「売上達成率」は目標の入力に応じて変わるため、その都度計算し直す
     function _updateCum() {
@@ -713,6 +768,7 @@ function _drawRepChart(repName, data, targetsArg, fy) {
 
     for (var k = 0; k < 12; k++) _updateAchv(k);
     _updateCum();
+    _updateProg();
 
     // 目標を入力したらグラフの「累計目標」を即時反映（再描画せずデータ差し替えのみ）
     // ※累計売上・累計粗利は目標に影響されないため差し替え不要
@@ -731,6 +787,7 @@ function _drawRepChart(repName, data, targetsArg, fy) {
             targets[idx] = Math.max(0, parseInt(String(inp.value).replace(/[^0-9]/g, ''), 10) || 0);
             _updateAchv(idx);
             _updateCum();
+            _updateProg();   // 進捗は入力した月より後の累計にも効くので全月まとめて計算し直す
             _syncTargetSeries();
         });
         inp.addEventListener('change', function() {

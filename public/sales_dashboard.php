@@ -624,7 +624,10 @@ if ($caseTypeFilter) {
             $frameTarget2Map[(int)$_r['year']][(int)$_r['month']] = (int)$_r['target_second_frame'];
         }
         // 区分別 実績件数（1次 / 二次以降）
-        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, case_division, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division IN ('1次','2次以降') AND status != 'cancelled' AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month, case_division");
+        // 案件人員一覧で作った募集枠は数えない（区分は必ず入るので、外さないと
+        // 「枠1件＋アサインした人数分」で二重に数えてしまう）。
+        // イベント案件・常勤案件の一覧と同じ数になるよう条件を揃えている
+        $_faStmt = $_sDb->prepare("SELECT case_year, case_month, case_division, COUNT(*) AS cnt FROM sales_cases WHERE company_id=? AND case_type=? AND case_division IN ('1次','2次以降') AND status != 'cancelled' AND " . unstaffedDraftExcludeSql('') . " AND ((case_year=? AND case_month>=9) OR (case_year=? AND case_month<=8)) GROUP BY case_year, case_month, case_division");
         $_faStmt->execute([$cid, $caseTypeFilter, $fyYear-1, $fyYear]);
         foreach ($_faStmt->fetchAll() as $_r) {
             if ($_r['case_division'] === '1次') {

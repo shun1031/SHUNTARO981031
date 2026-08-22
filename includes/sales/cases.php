@@ -27,6 +27,21 @@ function calcSalesCaseAmounts(array &$data): void {
     }
 }
 
+/**
+ * 「まだ人が決まっていない未確定案件（＝案件人員一覧などで作った枠）」を外すためのSQL。
+ *
+ * 案件人員一覧で案件を登録すると、稼働者が空・金額0の未確定(draft)案件が1件できる。
+ * これは「あと何名必要か」を管理するための枠であって実際の稼働ではないので、
+ * イベント案件・常勤案件の一覧には出さない。
+ * 人員をアサインすると稼働者入りの確定(confirmed)案件が別に作られ、そちらが一覧に載る。
+ *
+ * @param string $alias sales_cases のテーブル別名。別名を使わないクエリでは '' を渡す
+ */
+function unstaffedDraftExcludeSql(string $alias = 'sc'): string {
+    $p = $alias !== '' ? $alias . '.' : '';
+    return "NOT ({$p}status = 'draft' AND ({$p}worker_name IS NULL OR TRIM({$p}worker_name) = ''))";
+}
+
 function getSalesCase(int $id, int $companyId): array|false {
     $db = getDB();
     $stmt = $db->prepare('SELECT sc.*, cl.client_name, cl.display_name AS client_display_name, al.alliance_name, al.display_name AS alliance_display_name, sb.brand_name, sb.brand_code, sa.area_name
@@ -82,6 +97,11 @@ function getSalesCases(int $companyId, array $filters = [], int $limit = 200, in
         $params[] = $filters['status'];
     } else {
         $where[] = "sc.status != 'cancelled'";
+        // 人員が決まっていない枠を隠す（イベント案件・常勤案件の一覧で使う）。
+        // status を明示して呼んだときは指定どおりに返すので、?status=draft で枠だけ確認できる
+        if (!empty($filters['hide_unstaffed_drafts'])) {
+            $where[] = unstaffedDraftExcludeSql('sc');
+        }
     }
     if (!empty($filters['search'])) {
         $where[] = '(sc.worker_name LIKE ? OR sc.store_name LIKE ? OR sc.sales_rep LIKE ?)';
@@ -118,7 +138,13 @@ function countSalesCases(int $companyId, array $filters = []): int {
     if (!empty($filters['month'])) { $where[] = 'sc.case_month = ?'; $params[] = (int)$filters['month']; }
     if (!empty($filters['client_id'])) { $where[] = 'sc.client_id = ?'; $params[] = (int)$filters['client_id']; }
     if (!empty($filters['worker_type'])) { $where[] = 'sc.worker_type = ?'; $params[] = $filters['worker_type']; }
-    if (!empty($filters['status'])) { $where[] = 'sc.status = ?'; $params[] = $filters['status']; } else { $where[] = "sc.status != 'cancelled'"; }
+    if (!empty($filters['status'])) {
+        $where[] = 'sc.status = ?'; $params[] = $filters['status'];
+    } else {
+        $where[] = "sc.status != 'cancelled'";
+        // 一覧（getSalesCases）と件数がズレないよう、同じ条件をここにも入れる
+        if (!empty($filters['hide_unstaffed_drafts'])) { $where[] = unstaffedDraftExcludeSql('sc'); }
+    }
     if (!empty($filters['search'])) {
         $where[] = '(sc.worker_name LIKE ? OR sc.store_name LIKE ? OR sc.sales_rep LIKE ?)';
         $s = '%' . $filters['search'] . '%';

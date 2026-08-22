@@ -24,7 +24,9 @@ $db = getDB();
 // CSV出力
 if (isset($_GET['export'])) {
     $csvEmpFilter = getSalesPageNameFilter();
-    $filters = ['case_type' => 'event', 'year' => $_GET['year'] ?? '', 'month' => $_GET['month'] ?? '', 'client_id' => $_GET['client_id'] ?? '', 'status' => $_GET['status'] ?? '', 'employee_name' => $csvEmpFilter ?? ''];
+    $filters = ['case_type' => 'event', 'year' => $_GET['year'] ?? '', 'month' => $_GET['month'] ?? '', 'client_id' => $_GET['client_id'] ?? '', 'status' => $_GET['status'] ?? '', 'employee_name' => $csvEmpFilter ?? '',
+        // 画面の一覧と同じ中身をCSVに出す（人員が決まっていない枠は出さない）
+        'hide_unstaffed_drafts' => true];
     exportSalesCasesCsv($cid, $filters);
     exit;
 }
@@ -124,7 +126,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrfToken($_POST['csrf'] ?? '
         $curMonth = (int)($_POST['copy_month'] ?? date('n'));
         if ($curMonth === 1) { $prevYear = $curYear - 1; $prevMonth = 12; }
         else { $prevYear = $curYear; $prevMonth = $curMonth - 1; }
-        $prevStmt = $db->prepare("SELECT * FROM sales_cases WHERE company_id=? AND case_year=? AND case_month=? AND case_type='event' AND status!='cancelled'");
+        // まだ人が決まっていない募集枠はコピーしない。
+        // 枠は一覧に出ないので、コピーすると誰にも見えないまま毎月増えてしまう
+        $prevStmt = $db->prepare("SELECT * FROM sales_cases WHERE company_id=? AND case_year=? AND case_month=? AND case_type='event' AND status!='cancelled'
+                                    AND " . unstaffedDraftExcludeSql(''));
         $prevStmt->execute([$cid, $prevYear, $prevMonth]);
         $copied = 0;
         foreach ($prevStmt->fetchAll() as $pc) {
@@ -169,6 +174,9 @@ $filters = [
     'search' => $_GET['search'] ?? '',
     'status' => $_GET['status'] ?? '',
     'employee_name' => $empFilter ?? '',
+    // 案件人員一覧で登録しただけの案件（未確定・稼働者なしの「枠」）はこの一覧に出さない。
+    // 人員をアサインすると稼働者入りの案件が別に作られ、そちらがここに出る
+    'hide_unstaffed_drafts' => true,
 ];
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 50;
@@ -197,7 +205,8 @@ $_acSql = "SELECT DISTINCT sc.client_id, cl.client_name, cl.display_name
            FROM sales_cases sc
            JOIN sales_clients cl ON sc.client_id = cl.id
            WHERE sc.company_id=? AND sc.case_type='event' AND sc.case_year=?
-             AND sc.status NOT IN ('cancelled','終了') AND sc.client_id IS NOT NULL";
+             AND sc.status NOT IN ('cancelled','終了') AND sc.client_id IS NOT NULL
+             AND " . unstaffedDraftExcludeSql('sc');
 $_acParams = [$cid, $year];
 if ($month) { $_acSql .= ' AND sc.case_month=?'; $_acParams[] = (int)$month; }
 $_acSql .= ' ORDER BY ' . clientLabelSql('cl');
@@ -225,7 +234,9 @@ $_sns->execute([$cid]);
 $distinctStoreNames = $_sns->fetchAll(PDO::FETCH_COLUMN);
 
 // KPI集計（フィルター全条件を反映）
-$kpiWhere = "company_id = ? AND case_year = ? AND case_type = 'event' AND status != 'cancelled'";
+// 一覧に出ていない案件が件数・売上に混ざらないよう、一覧とまったく同じ条件で集計する
+$kpiWhere = "company_id = ? AND case_year = ? AND case_type = 'event' AND status != 'cancelled'
+             AND " . unstaffedDraftExcludeSql('');
 $kpiParams = [$cid, $year];
 if ($month) { $kpiWhere .= ' AND case_month = ?'; $kpiParams[] = (int)$month; }
 if (!empty($filters['client_id'])) { $kpiWhere .= ' AND client_id = ?'; $kpiParams[] = (int)$filters['client_id']; }

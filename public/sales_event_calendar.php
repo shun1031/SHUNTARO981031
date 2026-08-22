@@ -93,11 +93,18 @@ $plans = $planStmt->fetchAll();
 // 未確定のイベント案件（案件人員一覧などから登録され、まだ稼働者が決まっていないもの）。
 // 未確定は event_plans ではなく sales_cases に入るため、ここで別途読み込んで
 // 「予定・未確定カレンダー」に一緒に並べる。
-// 確定すると status が confirmed になり、この一覧から自動的に消えて左のカレンダーへ移る
-// （予定案件が pending → confirmed で移るのとまったく同じ動き）
+//
+// 人員をアサインすると、稼働者入りの確定案件が別に1件作られて左のカレンダーに出る。
+// こちらの枠には「まだ足りない人数」だけを出したいので、アサイン済みの人数を数えて
+// 必要人数から引く。全員そろった枠は右カレンダーから消える
+// （予定案件が pending → confirmed で消えるのとまったく同じ見え方）
 $_dSql = "SELECT sc.id, sc.store_name, sc.start_date, sc.end_date, sc.recruitment_count,
                  sc.note, sc.case_year, sc.case_month,
-                 COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name
+                 COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name,
+                 (SELECT COUNT(*) FROM case_staff_candidates csc
+                   WHERE csc.company_id = sc.company_id
+                     AND csc.assigned_case_id = sc.id
+                     AND csc.assign_status = 'アサイン済') AS assigned_count
           FROM sales_cases sc
           LEFT JOIN sales_clients cl ON sc.client_id = cl.id
           WHERE sc.company_id=? AND sc.case_type='event' AND sc.status='draft'
@@ -112,13 +119,21 @@ $_dStmt->execute($_dParams);
 // 予定案件と同じ形に揃えて扱う（is_case で見分ける）
 $draftCases = [];
 foreach ($_dStmt->fetchAll() as $_d) {
+    $_need     = $_d['recruitment_count'] !== null ? (int)$_d['recruitment_count'] : null;
+    $_assigned = (int)$_d['assigned_count'];
+    // 必要人数が未入力の枠は「1名必要」とみなす（予定案件の扱いと合わせる）。
+    // アサインが必要人数に達した枠は、もう募集していないので右カレンダーには出さない
+    if ($_assigned >= ($_need ?? 1)) continue;
     $draftCases[] = [
         'id'             => (int)$_d['id'],
         'client_name'    => (string)($_d['client_name'] ?? ''),
         'store_name'     => (string)($_d['store_name'] ?? ''),
         'work_date'      => (string)$_d['start_date'],
         'end_date'       => (string)($_d['end_date'] ?: $_d['start_date']),
-        'required_count' => $_d['recruitment_count'] !== null ? (int)$_d['recruitment_count'] : null,
+        // 表示・集計に使うのは「残り何名必要か」
+        'required_count' => $_need !== null ? max(0, $_need - $_assigned) : null,
+        'total_count'    => $_need,       // もともとの必要人数（ツールチップ用）
+        'assigned_count' => $_assigned,   // すでにアサインした人数
         'note'           => (string)($_d['note'] ?? ''),
         'is_case'        => true,   // 案件人員一覧などから登録された未確定案件
     ];
@@ -236,9 +251,18 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                         $color  = $isCase ? '#2563eb' : '#f59e0b';
                         $bg     = $isCase ? 'rgba(37,99,235,.10)' : 'rgba(245,158,11,.12)';
 
+                        // 未確定案件はアサイン済みを引いた「残り人数」を出す
+                        $assigned = (int)($ev['assigned_count'] ?? 0);
+                        $total    = $ev['total_count'] ?? null;
+
                         $tip = ($isCase ? '未確定の案件' : '予定案件') . "\nクライアント: " . $client;
                         if ($store) $tip .= "\n稼働店舗: ".$store;
-                        $tip .= "\n必要人数: " . ($count !== null ? $count.'名' : '未設定');
+                        if ($isCase && $assigned > 0 && $total !== null) {
+                            $tip .= "\n必要人数: " . (int)$total . '名（アサイン済 ' . $assigned . '名）';
+                            $tip .= "\n残り: " . (int)$count . '名';
+                        } else {
+                            $tip .= "\n必要人数: " . ($count !== null ? $count.'名' : '未設定');
+                        }
 
                         echo '<div title="'.htmlspecialchars($tip, ENT_QUOTES).'" style="cursor:default;border-left:2px solid '.$color.';background:'.$bg.';padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
                         echo '<div style="color:'.$color.';font-weight:700">';
@@ -246,7 +270,8 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                         echo h(mb_substr($client,0,6,'UTF-8')).'</div>';
                         if ($store) echo '<div style="color:#374151">'.h(mb_substr($store,0,8,'UTF-8')).'</div>';
                         if ($count !== null) {
-                            echo '<div style="color:#ef4444;font-weight:600">'.$count.'名必要</div>';
+                            $label = ($isCase && $assigned > 0) ? '残り'.$count.'名' : $count.'名必要';
+                            echo '<div style="color:#ef4444;font-weight:600">'.$label.'</div>';
                         }
                         echo '</div>';
                     }
@@ -406,6 +431,11 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                                     <td><?= h($p['store_name'] ?? '') ?></td>
                                     <td class="text-center fw-bold" style="color:#d97706">
                                         <?= $p['required_count'] !== null ? (int)$p['required_count'] . '名' : '-' ?>
+                                        <?php if ($_isCase && !empty($p['assigned_count'])): ?>
+                                        <div class="text-muted fw-normal" style="font-size:.62rem">
+                                            全<?= (int)$p['total_count'] ?>名中<?= (int)$p['assigned_count'] ?>名アサイン済
+                                        </div>
+                                        <?php endif; ?>
                                     </td>
                                     <?php if (isAdmin()): ?>
                                     <td>

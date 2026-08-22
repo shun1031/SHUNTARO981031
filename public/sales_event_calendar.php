@@ -90,12 +90,63 @@ $planStmt = $db->prepare("SELECT * FROM event_plans
 $planStmt->execute([$cid, $year, $month]);
 $plans = $planStmt->fetchAll();
 
+// 未確定のイベント案件（案件人員一覧などから登録され、まだ稼働者が決まっていないもの）。
+// 未確定は event_plans ではなく sales_cases に入るため、ここで別途読み込んで
+// 「予定・未確定カレンダー」に一緒に並べる。
+// 確定すると status が confirmed になり、この一覧から自動的に消えて左のカレンダーへ移る
+// （予定案件が pending → confirmed で移るのとまったく同じ動き）
+$_dSql = "SELECT sc.id, sc.store_name, sc.start_date, sc.end_date, sc.recruitment_count,
+                 sc.note, sc.case_year, sc.case_month,
+                 COALESCE(NULLIF(TRIM(cl.display_name),''), cl.client_name) AS client_name
+          FROM sales_cases sc
+          LEFT JOIN sales_clients cl ON sc.client_id = cl.id
+          WHERE sc.company_id=? AND sc.case_type='event' AND sc.status='draft'
+            AND sc.start_date IS NOT NULL
+            AND sc.start_date <= ? AND COALESCE(sc.end_date, sc.start_date) >= ?";
+$_dParams = [$cid, $_endDate, $_startDate];
+if ($clientFilter) { $_dSql .= " AND sc.client_id=?"; $_dParams[] = $clientFilter; }
+$_dSql .= " ORDER BY sc.start_date, client_name";
+$_dStmt = $db->prepare($_dSql);
+$_dStmt->execute($_dParams);
+
+// 予定案件と同じ形に揃えて扱う（is_case で見分ける）
+$draftCases = [];
+foreach ($_dStmt->fetchAll() as $_d) {
+    $draftCases[] = [
+        'id'             => (int)$_d['id'],
+        'client_name'    => (string)($_d['client_name'] ?? ''),
+        'store_name'     => (string)($_d['store_name'] ?? ''),
+        'work_date'      => (string)$_d['start_date'],
+        'end_date'       => (string)($_d['end_date'] ?: $_d['start_date']),
+        'required_count' => $_d['recruitment_count'] !== null ? (int)$_d['recruitment_count'] : null,
+        'note'           => (string)($_d['note'] ?? ''),
+        'is_case'        => true,   // 案件人員一覧などから登録された未確定案件
+    ];
+}
+
 // 月次集計
 $planByDay = [];
 foreach ($plans as $p) {
     $d = (int)date('j', strtotime($p['work_date']));
+    $p['is_case'] = false;
     $planByDay[$d][] = $p;
 }
+// 未確定案件は期間があるので、開始日から終了日までの全日に出す
+foreach ($draftCases as $c) {
+    $_sd = max($_startDate, $c['work_date']);
+    $_ed = min($_endDate,   $c['end_date']);
+    for ($_cur = $_sd; $_cur <= $_ed; $_cur = date('Y-m-d', strtotime($_cur . ' +1 day'))) {
+        $planByDay[(int)date('j', strtotime($_cur))][] = $c;
+    }
+}
+ksort($planByDay);
+
+// 下の「予定案件一覧」にも未確定案件を混ぜる（開始日の早い順）
+$plansAndDrafts = array_merge(
+    array_map(function ($p) { $p['is_case'] = false; return $p; }, $plans),
+    $draftCases
+);
+usort($plansAndDrafts, fn($a, $b) => strcmp((string)$a['work_date'], (string)$b['work_date']));
 
 $clients = getSalesClients($cid);
 $colors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#14b8a6'];
@@ -116,8 +167,9 @@ $isCurrentMonth = ($year === $thisYear && $month === $thisMon);
 // 月集計
 $confirmedTotal = 0;
 foreach ($calendar as $evs) { $confirmedTotal += count($evs); }
-$planTotal      = count($plans);
-$planCountSum   = array_sum(array_column($plans, 'required_count'));
+$planTotal      = count($plansAndDrafts);
+$planCountSum   = 0;
+foreach ($plansAndDrafts as $_p) { $planCountSum += (int)($_p['required_count'] ?? 0); }
 
 $prevM = $month-1; $prevY = $year;
 if ($prevM<1) { $prevM=12; $prevY--; }
@@ -173,17 +225,29 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                         if ($worker) echo '<div style="color:#6b7280">'.h(mb_substr($worker,0,8,'UTF-8')).'</div>';
                         echo '</div>';
                     } else {
+                        // 予定案件（event_plans）と、未確定の案件（sales_cases）が並ぶ。
+                        // 未確定案件は「案件」の印を付けて、どちらから登録したものか分かるようにする
                         $client = $ev['client_name']   ?? '';
                         $store  = $ev['store_name']    ?? '';
-                        $count  = (int)($ev['required_count'] ?? 1);
-                        $color  = '#f59e0b';
-                        $tip    = 'クライアント: '.$client;
+                        $isCase = !empty($ev['is_case']);
+                        $count  = $ev['required_count'] !== null ? (int)$ev['required_count'] : null;
+                        // 予定案件は必要人数が必ず入る。未確定案件は未入力のこともある
+                        if (!$isCase && $count === null) $count = 1;
+                        $color  = $isCase ? '#2563eb' : '#f59e0b';
+                        $bg     = $isCase ? 'rgba(37,99,235,.10)' : 'rgba(245,158,11,.12)';
+
+                        $tip = ($isCase ? '未確定の案件' : '予定案件') . "\nクライアント: " . $client;
                         if ($store) $tip .= "\n稼働店舗: ".$store;
-                        $tip .= "\n必要人数: ".$count.'名';
-                        echo '<div title="'.htmlspecialchars($tip, ENT_QUOTES).'" style="cursor:default;border-left:2px solid '.$color.';background:rgba(245,158,11,.12);padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
-                        echo '<div style="color:'.$color.';font-weight:700">'.h(mb_substr($client,0,6,'UTF-8')).'</div>';
+                        $tip .= "\n必要人数: " . ($count !== null ? $count.'名' : '未設定');
+
+                        echo '<div title="'.htmlspecialchars($tip, ENT_QUOTES).'" style="cursor:default;border-left:2px solid '.$color.';background:'.$bg.';padding:1px 3px;margin-bottom:2px;border-radius:2px;line-height:1.3;overflow:hidden">';
+                        echo '<div style="color:'.$color.';font-weight:700">';
+                        if ($isCase) echo '<span class="ec-case-dot">案</span>';
+                        echo h(mb_substr($client,0,6,'UTF-8')).'</div>';
                         if ($store) echo '<div style="color:#374151">'.h(mb_substr($store,0,8,'UTF-8')).'</div>';
-                        echo '<div style="color:#ef4444;font-weight:600">'.$count.'名必要</div>';
+                        if ($count !== null) {
+                            echo '<div style="color:#ef4444;font-weight:600">'.$count.'名必要</div>';
+                        }
                         echo '</div>';
                     }
                 }
@@ -255,12 +319,14 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="fw-bold" style="color:#065f46"><i class="bi bi-calendar-plus me-1"></i>予定・未確定カレンダー</span>
                         <div style="font-size:.7rem;color:#6b7280">
-                            <span class="me-2"><span style="display:inline-block;width:10px;height:10px;background:#10b981;border-radius:2px"></span> 確定済</span>
-                            <span class="me-2"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px"></span> 未確定</span>
-                            <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px"></span> 不足</span>
+                            <span class="me-2"><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px"></span> 予定案件</span>
+                            <span><span class="ec-case-dot">案</span> 未確定の案件</span>
                         </div>
                     </div>
-                    <div style="font-size:.68rem;color:#6b7280;margin-top:2px">未確定・予定の案件を表示（稼働者は未確定）</div>
+                    <div style="font-size:.68rem;color:#6b7280;margin-top:2px">
+                        未確定・予定の案件を表示（稼働者は未確定）。
+                        <span style="color:#2563eb">「案」</span>は案件人員一覧などから登録された案件です
+                    </div>
                 </div>
                 <div class="card-body p-1">
                     <?php renderCalendarGrid($planByDay, $firstDow, $daysInMonth, $isCurrentMonth, (int)$today, 'pending', $clientColors); ?>
@@ -320,23 +386,42 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
                                 <tr><th>稼働日</th><th>クライアント</th><th>店舗</th><th class="text-center">必要人数</th><?= isAdmin() ? '<th></th>' : '' ?></tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($plans)): ?>
+                                <?php if (empty($plansAndDrafts)): ?>
                                 <tr><td colspan="5" class="text-center text-muted py-3">予定案件がありません</td></tr>
                                 <?php else: ?>
-                                <?php foreach ($plans as $p): ?>
+                                <?php foreach ($plansAndDrafts as $p): $_isCase = !empty($p['is_case']); ?>
                                 <tr>
-                                    <td><?= date('m/d(D)', strtotime($p['work_date'])) ?></td>
-                                    <td><?= h($p['client_name']) ?></td>
+                                    <td>
+                                        <?= date('m/d(D)', strtotime($p['work_date'])) ?>
+                                        <?php if ($_isCase && !empty($p['end_date']) && $p['end_date'] !== $p['work_date']): ?>
+                                        <span class="text-muted">〜<?= date('m/d', strtotime($p['end_date'])) ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?= h($p['client_name']) ?>
+                                        <?php if ($_isCase): ?>
+                                        <span class="ec-case-badge">案件</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?= h($p['store_name'] ?? '') ?></td>
-                                    <td class="text-center fw-bold" style="color:#d97706"><?= (int)$p['required_count'] ?>名</td>
+                                    <td class="text-center fw-bold" style="color:#d97706">
+                                        <?= $p['required_count'] !== null ? (int)$p['required_count'] . '名' : '-' ?>
+                                    </td>
                                     <?php if (isAdmin()): ?>
                                     <td>
+                                        <?php if ($_isCase): ?>
+                                        <?php /* 未確定案件はイベント案件の画面で確定させる。ここでは削除しない */ ?>
+                                        <a class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:.6rem"
+                                           href="<?= BASE_PATH ?>/public/sales_events.php?year=<?= (int)$p['case_year'] ?>&month=<?= (int)$p['case_month'] ?>"
+                                           title="イベント案件の画面で開く"><i class="bi bi-box-arrow-up-right"></i></a>
+                                        <?php else: ?>
                                         <form method="post" style="display:inline" onsubmit="return confirm('削除しますか？')">
                                             <input type="hidden" name="csrf" value="<?= $csrf ?>">
                                             <input type="hidden" name="action" value="delete_plan">
                                             <input type="hidden" name="plan_id" value="<?= $p['id'] ?>">
                                             <button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.6rem"><i class="bi bi-trash"></i></button>
                                         </form>
+                                        <?php endif; ?>
                                     </td>
                                     <?php endif; ?>
                                 </tr>
@@ -414,4 +499,18 @@ function renderCalendarGrid(array $byDay, int $firstDow, int $daysInMonth, bool 
 </div>
 <?php endif; ?>
 
+
+<style>
+/* 未確定の案件（sales_cases）につける印。予定案件（event_plans）と見分けるため */
+.ec-case-dot {
+    display: inline-block; margin-right: 3px; padding: 0 3px;
+    background: #2563eb; color: #fff; border-radius: 3px;
+    font-size: .58rem; font-weight: 700; line-height: 1.5; vertical-align: 1px;
+}
+.ec-case-badge {
+    display: inline-block; margin-left: 4px; padding: 0 5px;
+    background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+    border-radius: .7rem; font-size: .62rem; font-weight: 600;
+}
+</style>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

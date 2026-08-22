@@ -504,19 +504,20 @@ function _drawRepChart(repName, data, targetsArg, fy, prevAugArg) {
 
     // 目標が未入力(0)の月は線を引かない
     function _tgtLine()  { return targets.map(function(t) { return t > 0 ? t : null; }); }
-    // ※売上達成率はグラフから外したため、表側の _updateAchv() のみで計算する
+    // ※売上達成率はグラフから外したため、表側の _updateFromTargets() のみで計算する
     // 累計（年度の初め=9月から順に足し上げる）。既存の月別データを合計するだけで計算式は変えない
     function _cum(arr) {
         var sum = 0;
         return arr.map(function(v) { sum += (v || 0); return sum; });
     }
-    // 累計目標: 目標が未入力(0)の月は点を打たない（従来の「目標線を引かない」仕様に合わせる）
+    // 累計目標: 入力欄の数字がそのまま「その月までの累計目標」。足し上げない。
+    // 未入力(0)の月は前の月の値を引き継ぐ（最初に目標が入るまでは線を引かない）
     function _cumTgtLine() {
-        var sum = 0;
+        var carry = 0;
         return targets.map(function(t) {
-            if (!t || t <= 0) return null;
-            sum += t;
-            return sum;
+            if (t > 0) carry = t;
+            if (carry <= 0) return null;
+            return carry;
         });
     }
 
@@ -651,7 +652,8 @@ function _drawRepChart(repName, data, targetsArg, fy, prevAugArg) {
         },
     });
 
-    // 月別数値テーブル（売上目標 → 売上 → 売上達成率 → 粗利 → 粗利率）
+    // 数値テーブル（売上目標 → 売上 → 売上達成率 → 売上進捗 → 粗利 → 粗利率）
+    // 売上目標だけ「その月までの累計」で入力する。売上・粗利はその月単体
     var thead = document.getElementById('repDetailThead');
     var tbody = document.getElementById('repDetailTbody');
     // 累計列（末尾）: 背景色を付けて月別と区切る。率は総合ダッシュボードと同じく合計同士で割る
@@ -678,9 +680,38 @@ function _drawRepChart(repName, data, targetsArg, fy, prevAugArg) {
     var cumRev = _sum(revenues);
     var cumPro = _sum(profits);
 
+    // 売上・粗利・粗利率は「その月単体」の数字。
+    // 売上目標だけは累計で入れるため、達成率と進捗は累計売上と突き合わせて出す
+    var _running = function(arr) {
+        var s = 0;
+        return arr.map(function(v) { s += (v || 0); return s; });
+    };
+    var cumRevArr = _running(revenues);
+    // 売上目標の入力欄には「その月までに到達したい累計額」を入れる。
+    // 未入力(0)の月は前の月の値を引き継ぐ（途中で累計目標が0に戻らないようにするため）
+    function _cumTgtArr() {
+        var t = 0;
+        return targets.map(function(v) { if (v > 0) t = v; return t; });
+    }
+    // 行ラベル。累計基準の3行だけラベル下に「累計基準」と出し、ⓘ に詳しい説明を入れる。
+    // 行を増やさずに済むよう、注意書きはラベルの中に収めている
+    var _lbl = function(text, note, tip) {
+        return '<td class="fw-semibold text-start text-nowrap" style="line-height:1.15">' + text
+             + (tip  ? ' <i class="bi bi-info-circle" style="font-size:.62rem;color:#94a3b8" title="' + tip + '"></i>' : '')
+             + (note ? '<br><span style="font-weight:400;font-size:.6rem;color:#94a3b8">' + note + '</span>' : '')
+             + '</td>';
+    };
+    // 達成率の表示（100%以上は緑・未満は赤）
+    var _fmtPct = function(v) {
+        return '<span style="font-weight:600;color:' + (v >= 100 ? '#059669' : '#dc2626') + '">' + v + '%</span>';
+    };
+
     var html = '';
     // 1. 売上目標（管理者は手入力可。営業担当は数字のみ表示）
-    html += '<tr><td class="fw-semibold text-start text-nowrap">売上目標</td>' + _prevCell(_dash);
+    html += '<tr>'
+         + _lbl('売上目標', '累計基準',
+                'その月までに到達したい累計額を入力します。各月を足し上げません。未入力の月は前の月の目標を引き継ぎ、累計列には最後に入力した月の値（＝年間目標）が出ます。')
+         + _prevCell(_dash);
     for (var i = 0; i < 12; i++) {
         if (!REP_CAN_EDIT_TARGET) {
             html += '<td class="text-end text-nowrap">'
@@ -693,82 +724,73 @@ function _drawRepChart(repName, data, targetsArg, fy, prevAugArg) {
     }
     // 累計は入力欄にせず自動計算（各月と合計がずれないようにするため）
     html += '<td' + CUM_TD + ' id="repCumTgt"></td></tr>';
-    // 2. 売上
+    // 2. 売上（その月単体）
     html += '<tr><td class="fw-semibold text-start text-nowrap">売上</td>'
          + _prevCell(prevAug ? fmtV(prevAug.revenue) : _dash)
          + revenues.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('')
          + '<td' + CUM_TD + '>' + fmtV(cumRev) + '</td></tr>';
     // 3. 売上達成率（売上 ÷ 売上目標 × 100）
-    html += '<tr><td class="fw-semibold text-start text-nowrap">売上達成率</td>' + _prevCell(_dash);
+    html += '<tr>'
+         + _lbl('売上達成率', '累計基準', 'その月までの累計売上 ÷ その月の累計目標')
+         + _prevCell(_dash);
     for (var j = 0; j < 12; j++) {
         html += '<td class="text-end text-nowrap" id="repAchv' + j + '"></td>';
     }
     html += '<td' + CUM_TD + ' id="repCumAchv"></td></tr>';
     // 4. 売上進捗（その月までの累計売上 − その月までの累計目標）
     // 目標が入っていない月は目標0円として足し上げる（ユーザー決定）
-    html += '<tr><td class="fw-semibold text-start text-nowrap">売上進捗</td>' + _prevCell(_dash);
+    html += '<tr>'
+         + _lbl('売上進捗', '累計基準',
+                'その月までの累計売上 − その月の累計目標。目標が未入力の月は目標0円として計算します。')
+         + _prevCell(_dash);
     for (var p = 0; p < 12; p++) {
         html += '<td class="text-end text-nowrap" id="repProg' + p + '"></td>';
     }
     html += '<td' + CUM_TD + ' id="repCumProg"></td></tr>';
-    // 5. 粗利
+    // 5. 粗利（その月単体）
     html += '<tr><td class="fw-semibold text-start text-nowrap">粗利</td>'
          + _prevCell(prevAug ? fmtV(prevAug.profit) : _dash)
          + profits.map(function(v) { return '<td class="text-end text-nowrap">' + fmtV(v) + '</td>'; }).join('')
          + '<td' + CUM_TD + '>' + fmtV(cumPro) + '</td></tr>';
-    // 6. 粗利率（粗利の合計 ÷ 売上の合計。総合ダッシュボードと同じ求め方）
+    // 6. 粗利率（その月単体。累計列だけは合計同士で割る＝総合ダッシュボードと同じ求め方）
     html += '<tr><td class="fw-semibold text-start text-nowrap">粗利率</td>'
          + _prevCell(prevAug ? fmtR(prevAug.profitRate) : _dash)
          + rates.map(function(v) { return '<td class="text-end text-nowrap">' + fmtR(v) + '</td>'; }).join('')
          + '<td' + CUM_TD + '>' + fmtR(cumRev > 0 ? Math.round(cumPro / cumRev * 1000) / 10 : null) + '</td></tr>';
     tbody.innerHTML = html;
 
-    // 達成率セルの更新（目標未入力・0なら「-」）
-    function _updateAchv(idx) {
-        var cell = document.getElementById('repAchv' + idx);
-        if (!cell) return;
-        var tgt = targets[idx] || 0;
-        var rev = revenues[idx] || 0;
-        if (tgt <= 0) { cell.innerHTML = '<span class="text-muted">-</span>'; return; }
-        var pct = Math.round(rev / tgt * 1000) / 10;
-        cell.innerHTML = '<span style="font-weight:600;color:' + (pct >= 100 ? '#059669' : '#dc2626') + '">' + pct + '%</span>';
-    }
     // 差額の表示（+1,000 は緑 / -1,000 は赤 / ちょうど0は ±0）
     function _fmtDiff(v) {
         if (!v) return '<span class="text-muted">±0</span>';
         var txt = (v > 0 ? '+' : '-') + Math.abs(v).toLocaleString();
         return '<span style="font-weight:600;color:' + (v > 0 ? '#059669' : '#dc2626') + '">' + txt + '</span>';
     }
-    // 売上進捗セルの更新（9月から足し上げた売上と目標の差。目標未入力の月は0円として扱う）
-    function _updateProg() {
-        var cr = 0, ct = 0;
+    // 目標に連動する行（売上達成率・売上進捗・累計列）をまとめて計算し直す。
+    // 目標は累計で入れるため、ある月を直すとそれ以降の月にも効く → 常に全月を作り直す
+    function _updateFromTargets() {
+        var ct = _cumTgtArr();
         for (var i = 0; i < 12; i++) {
-            cr += (revenues[i] || 0);
-            ct += (targets[i]  || 0);
-            var cell = document.getElementById('repProg' + i);
-            if (cell) cell.innerHTML = _fmtDiff(cr - ct);
-        }
-        var cCell = document.getElementById('repCumProg');
-        if (cCell) cCell.innerHTML = _fmtDiff(cumRev - _sum(targets));
-    }
-    // 累計の「売上目標」「売上達成率」は目標の入力に応じて変わるため、その都度計算し直す
-    function _updateCum() {
-        var cumTgt = _sum(targets);
-        var tCell = document.getElementById('repCumTgt');
-        var aCell = document.getElementById('repCumAchv');
-        if (tCell) tCell.innerHTML = fmtV(cumTgt);
-        if (aCell) {
-            if (cumTgt <= 0) { aCell.innerHTML = '<span class="text-muted">-</span>'; }
-            else {
-                var pct = Math.round(cumRev / cumTgt * 1000) / 10;
-                aCell.innerHTML = '<span style="font-weight:600;color:' + (pct >= 100 ? '#059669' : '#dc2626') + '">' + pct + '%</span>';
+            var aCell = document.getElementById('repAchv' + i);
+            if (aCell) {
+                aCell.innerHTML = ct[i] > 0
+                    ? _fmtPct(Math.round(cumRevArr[i] / ct[i] * 1000) / 10)
+                    : _dash;
             }
+            // 進捗は目標未入力の月も「目標0円」として差額を出す（ユーザー決定）
+            var pCell = document.getElementById('repProg' + i);
+            if (pCell) pCell.innerHTML = _fmtDiff(cumRevArr[i] - ct[i]);
         }
+        // 累計列は「最後に入力されている月の目標」＝年間目標で見る
+        var lastTgt = ct[11];
+        var tCum = document.getElementById('repCumTgt');
+        var aCum = document.getElementById('repCumAchv');
+        var pCum = document.getElementById('repCumProg');
+        if (tCum) tCum.innerHTML = fmtV(lastTgt);
+        if (aCum) aCum.innerHTML = lastTgt > 0 ? _fmtPct(Math.round(cumRev / lastTgt * 1000) / 10) : _dash;
+        if (pCum) pCum.innerHTML = _fmtDiff(cumRev - lastTgt);
     }
 
-    for (var k = 0; k < 12; k++) _updateAchv(k);
-    _updateCum();
-    _updateProg();
+    _updateFromTargets();
 
     // 目標を入力したらグラフの「累計目標」を即時反映（再描画せずデータ差し替えのみ）
     // ※累計売上・累計粗利は目標に影響されないため差し替え不要
@@ -785,9 +807,7 @@ function _drawRepChart(repName, data, targetsArg, fy, prevAugArg) {
         inp.addEventListener('input', function() {
             var idx = parseInt(inp.dataset.idx, 10);
             targets[idx] = Math.max(0, parseInt(String(inp.value).replace(/[^0-9]/g, ''), 10) || 0);
-            _updateAchv(idx);
-            _updateCum();
-            _updateProg();   // 進捗は入力した月より後の累計にも効くので全月まとめて計算し直す
+            _updateFromTargets();   // 入力した月より後にも効くので全月まとめて計算し直す
             _syncTargetSeries();
         });
         inp.addEventListener('change', function() {

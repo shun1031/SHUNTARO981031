@@ -56,14 +56,59 @@ function countPendingChangeRequests(int $companyId, ?string $employeeName = null
 }
 
 /**
- * 申請を承認し、実データに反映する。
+ * シフト変更申請の自由入力から開始時刻・終了時刻を読み取る。
+ * 申請値は社員の手入力なので表記がそろっていない（例: 10:00〜19:00 / 10:00~19:00 / 10:00）。
+ * 全角を半角に均したうえで HH:MM を先頭から2つまで拾う。
+ * 時刻として読み取れない場合は [null, null] を返し、呼び出し側で既存の時刻を保持する。
+ *
+ * @return array{0:?string,1:?string} [開始時刻, 終了時刻]
  */
-function approveChangeRequest(int $id, int $companyId, string $reviewerName): bool {
+function parseShiftTimeRange(?string $raw): array {
+    if ($raw === null || trim($raw) === '') return [null, null];
+    $s = function_exists('mb_convert_kana') ? mb_convert_kana($raw, 'as') : $raw;
+    if (!preg_match_all('/(\d{1,2}):(\d{2})/', $s, $matches, PREG_SET_ORDER)) {
+        return [null, null];
+    }
+    $times = [];
+    foreach ($matches as $hit) {
+        $hour   = (int)$hit[1];
+        $minute = (int)$hit[2];
+        // 1つでも時刻として成立しない値があれば、拾える分だけ反映せず全体を諦める。
+        // （例:「25:00〜19:00」で 19:00 を開始時刻と取り違えないため）
+        if ($hour > 23 || $minute > 59) return [null, null];
+        $times[] = sprintf('%02d:%02d', $hour, $minute);
+    }
+    // 「10:00〜19:00（休憩12:00〜13:00）」のように3つ以上あっても先頭2つを使う
+    return [$times[0], $times[1] ?? null];
+}
+
+/**
+ * シフト変更申請の希望時間が、承認してもシフト時間に反映できない値かを判定する。
+ * 申請一覧の警告表示で使う（承認処理と同じ基準で判定するためここに置く）。
+ */
+function shiftChangeNeedsManualFix(array $request): bool {
+    if (($request['request_type'] ?? '') !== 'shift_change') return false;
+    $val = $request['requested_value'] ?? '';
+    if ($val === '取消') return false; // 取消は時刻を伴わない正常な申請
+    [$start] = parseShiftTimeRange($val);
+    return $start === null;
+}
+
+/**
+ * 申請を承認し、実データに反映する。
+ *
+ * @return array{ok:bool, warning:?string}
+ *   ok      … 承認できたか（申請が存在しない・承認待ちでない場合は false）
+ *   warning … 承認はしたが一部を反映できなかったときの理由。問題なければ null
+ *             'shift_time_unparsed' = 希望時間を時刻として読み取れずシフト時間を変更していない
+ */
+function approveChangeRequest(int $id, int $companyId, string $reviewerName): array {
     $db = getDB();
     $req = getChangeRequest($id, $companyId);
     if (!$req || $req['status'] !== 'pending') {
-        return false;
+        return ['ok' => false, 'warning' => null];
     }
+    $warning = null;
 
     $ym  = explode('-', $req['target_date']);
     $y   = (int)($ym[0] ?? 0);
@@ -107,10 +152,33 @@ function approveChangeRequest(int $id, int $companyId, string $reviewerName): bo
                     WHERE company_id = ? AND employee_name = ? AND shift_date = ?")
                    ->execute([$companyId, $emp, $dt]);
             } else {
-                $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, scheduled_time)
-                    VALUES (?,?,?,?,?,?)
-                    ON DUPLICATE KEY UPDATE scheduled_time = VALUES(scheduled_time)")
-                   ->execute([$companyId, $emp, $dt, $y, $m, $val]);
+                // シフト管理画面が表示しているのは start_time / end_time なので、
+                // scheduled_time だけを更新すると承認しても画面の時間が変わらない。
+                // 時刻として読み取れたときは start_time / end_time にも反映する。
+                // 読み取れないときは従来どおり scheduled_time だけ更新し、既存の時刻は壊さない。
+                [$newStart, $newEnd] = parseShiftTimeRange($val);
+                if ($newStart !== null) {
+                    // 休み扱いの日に時間を入れ直す申請もあるため is_day_off は必ず解除する
+                    $scheduled = $newEnd !== null ? $newStart . '~' . $newEnd : $newStart;
+                    $db->prepare("INSERT INTO sales_shifts
+                            (company_id, employee_name, shift_date, shift_year, shift_month,
+                             scheduled_time, start_time, end_time, is_day_off)
+                        VALUES (?,?,?,?,?,?,?,?,0)
+                        ON DUPLICATE KEY UPDATE
+                            scheduled_time = VALUES(scheduled_time),
+                            start_time     = VALUES(start_time),
+                            end_time       = VALUES(end_time),
+                            is_day_off     = 0")
+                       ->execute([$companyId, $emp, $dt, $y, $m, $scheduled, $newStart, $newEnd]);
+                } else {
+                    // 時刻として読み取れなかった。承認自体は通すが、シフト時間は変えられない。
+                    // 管理者が気づけるよう呼び出し側へ知らせる（黙って落とすと反映漏れに気づけない）
+                    $warning = 'shift_time_unparsed';
+                    $db->prepare("INSERT INTO sales_shifts (company_id, employee_name, shift_date, shift_year, shift_month, scheduled_time)
+                        VALUES (?,?,?,?,?,?)
+                        ON DUPLICATE KEY UPDATE scheduled_time = VALUES(scheduled_time)")
+                       ->execute([$companyId, $emp, $dt, $y, $m, $val]);
+                }
             }
             break;
 
@@ -146,7 +214,7 @@ function approveChangeRequest(int $id, int $companyId, string $reviewerName): bo
 
     $db->prepare("UPDATE sales_change_requests SET status = 'approved', reviewed_by = ?, reviewed_at = NOW() WHERE id = ? AND company_id = ?")
        ->execute([$reviewerName, $id, $companyId]);
-    return true;
+    return ['ok' => true, 'warning' => $warning];
 }
 
 function rejectChangeRequest(int $id, int $companyId, string $reviewerName): bool {
